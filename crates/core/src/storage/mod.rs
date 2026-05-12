@@ -15,6 +15,7 @@ mod events;
 mod gateway_error_logs;
 mod model_options;
 mod model_price_rules;
+mod model_sources;
 mod plugins;
 mod quota_pools;
 mod request_log_query;
@@ -61,6 +62,35 @@ pub struct QuotaSourceModelAssignment {
     pub source_kind: String,
     pub source_id: String,
     pub model_slug: String,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ModelSourceModel {
+    pub source_kind: String,
+    pub source_id: String,
+    pub upstream_model: String,
+    pub display_name: Option<String>,
+    pub status: String,
+    pub discovery_kind: String,
+    pub last_synced_at: Option<i64>,
+    pub extra_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ModelSourceMapping {
+    pub id: String,
+    pub platform_model_slug: String,
+    pub source_kind: String,
+    pub source_id: String,
+    pub upstream_model: String,
+    pub enabled: bool,
+    pub priority: i64,
+    pub weight: i64,
+    pub billing_model_slug: Option<String>,
+    pub created_at: i64,
     pub updated_at: i64,
 }
 
@@ -426,6 +456,17 @@ pub struct AggregateApi {
     pub last_balance_status: Option<String>,
     pub last_balance_error: Option<String>,
     pub last_balance_json: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AggregateApiSupplierModel {
+    pub supplier_key: String,
+    pub provider_type: String,
+    pub upstream_model: String,
+    pub display_name: Option<String>,
+    pub status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -880,8 +921,19 @@ impl Storage {
             include_str!("../../migrations/057_account_manager.sql"),
             |s| s.ensure_account_manager_tables(),
         )?;
+        self.apply_sql_or_compat_migration(
+            "058_model_source_mappings",
+            include_str!("../../migrations/058_model_source_mappings.sql"),
+            |s| s.ensure_model_source_tables(),
+        )?;
+        self.apply_sql_or_compat_migration(
+            "059_aggregate_api_supplier_models",
+            include_str!("../../migrations/059_aggregate_api_supplier_models.sql"),
+            |s| s.ensure_aggregate_api_supplier_model_tables(),
+        )?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
+        self.ensure_aggregate_api_supplier_model_tables()?;
         self.ensure_aggregate_api_secrets_table()?;
         self.ensure_aggregate_api_balance_secrets_table()?;
         self.ensure_api_key_quota_limits_table()?;
@@ -895,6 +947,8 @@ impl Storage {
         self.ensure_account_subscriptions_table()?;
         self.ensure_quota_pool_tables()?;
         self.ensure_account_manager_tables()?;
+        self.ensure_model_source_tables()?;
+        self.ensure_aggregate_api_supplier_model_tables()?;
         Ok(())
     }
 

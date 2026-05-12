@@ -1,6 +1,6 @@
 use codexmanager_core::storage::{
-    now_ts, Account, ApiKey, Event, RequestLog, RequestTokenStat, Storage, Token,
-    UsageSnapshotRecord,
+    now_ts, Account, ApiKey, Event, ModelSourceMapping, ModelSourceModel, RequestLog,
+    RequestTokenStat, Storage, Token, UsageSnapshotRecord,
 };
 
 /// 函数 `storage_can_insert_account_and_token`
@@ -110,6 +110,75 @@ fn storage_can_find_token_and_account_by_account_id() {
     assert!(storage
         .find_token_by_account_id("missing-account")
         .expect("find missing token")
+        .is_none());
+}
+
+#[test]
+fn storage_can_upsert_and_resolve_model_source_mappings() {
+    let storage = Storage::open_in_memory().expect("open in memory");
+    storage.init().expect("init schema");
+    let now = now_ts();
+
+    storage
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-routing-1".to_string(),
+            upstream_model: "gpt-upstream".to_string(),
+            display_name: Some("GPT Upstream".to_string()),
+            status: "available".to_string(),
+            discovery_kind: "manual".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("upsert source model");
+    storage
+        .upsert_model_source_mapping(&ModelSourceMapping {
+            id: "map-routing-1".to_string(),
+            platform_model_slug: "gpt-platform".to_string(),
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-routing-1".to_string(),
+            upstream_model: "gpt-upstream".to_string(),
+            enabled: true,
+            priority: 2,
+            weight: 3,
+            billing_model_slug: Some("gpt-billing".to_string()),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("upsert mapping");
+
+    let source_models = storage
+        .list_model_source_models(Some("openai_account"), Some("acc-routing-1"))
+        .expect("list source models");
+    assert_eq!(source_models.len(), 1);
+    assert_eq!(source_models[0].upstream_model, "gpt-upstream");
+    assert_eq!(source_models[0].discovery_kind, "manual");
+
+    let enabled = storage
+        .list_enabled_model_source_mappings_for_platform("gpt-platform")
+        .expect("list enabled mappings");
+    assert_eq!(enabled.len(), 1);
+    assert_eq!(enabled[0].priority, 2);
+    assert_eq!(enabled[0].weight, 3);
+    assert_eq!(
+        enabled[0].billing_model_slug.as_deref(),
+        Some("gpt-billing")
+    );
+
+    let account_mapping = storage
+        .find_enabled_model_source_mapping("gpt-platform", "openai_account", "acc-routing-1")
+        .expect("find enabled mapping")
+        .expect("mapping exists");
+    assert_eq!(account_mapping.upstream_model, "gpt-upstream");
+
+    storage
+        .delete_model_source_mapping("map-routing-1")
+        .expect("delete mapping");
+    assert!(storage
+        .find_enabled_model_source_mapping("gpt-platform", "openai_account", "acc-routing-1")
+        .expect("find deleted mapping")
         .is_none());
 }
 

@@ -859,6 +859,63 @@ pub struct AggregateApiBalanceRefreshResult {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateApiSupplierModelEntry {
+    pub supplier_key: String,
+    pub provider_type: String,
+    pub upstream_model: String,
+    pub display_name: Option<String>,
+    pub status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateApiSupplierModelListResult {
+    #[serde(default)]
+    pub items: Vec<AggregateApiSupplierModelEntry>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateApiSupplierModelUpsertParams {
+    pub supplier_key: String,
+    pub provider_type: String,
+    pub upstream_model: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateApiSupplierModelDeleteParams {
+    pub supplier_key: String,
+    pub provider_type: String,
+    pub upstream_model: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateApiSupplierModelImportParams {
+    pub api_id: String,
+    #[serde(default)]
+    pub supplier_key: Option<String>,
+    #[serde(default)]
+    pub provider_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateApiSupplierModelImportResult {
+    pub imported: usize,
+    #[serde(default)]
+    pub items: Vec<ManagedModelSourceModelEntry>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModelsResponse {
     #[serde(default)]
     pub models: Vec<ModelInfo>,
@@ -909,6 +966,82 @@ pub struct ManagedModelCatalogUpsertParams {
     pub sort_index: Option<i64>,
     #[serde(flatten)]
     pub model: ModelInfo,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelSourceModelEntry {
+    pub source_kind: String,
+    pub source_id: String,
+    pub upstream_model: String,
+    pub display_name: Option<String>,
+    pub status: String,
+    pub discovery_kind: String,
+    pub last_synced_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelSourceMappingEntry {
+    pub id: String,
+    pub platform_model_slug: String,
+    pub source_kind: String,
+    pub source_id: String,
+    pub upstream_model: String,
+    pub enabled: bool,
+    pub priority: i64,
+    pub weight: i64,
+    pub billing_model_slug: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelRoutingResult {
+    #[serde(default)]
+    pub source_models: Vec<ManagedModelSourceModelEntry>,
+    #[serde(default)]
+    pub mappings: Vec<ManagedModelSourceMappingEntry>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelSourceSyncParams {
+    pub source_kind: String,
+    #[serde(default)]
+    pub source_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelSourceModelUpsertParams {
+    pub source_kind: String,
+    pub source_id: String,
+    pub upstream_model: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelSourceMappingUpsertParams {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub platform_model_slug: String,
+    pub source_kind: String,
+    pub source_id: String,
+    pub upstream_model: String,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub priority: Option<i64>,
+    #[serde(default)]
+    pub weight: Option<i64>,
+    #[serde(default)]
+    pub billing_model_slug: Option<String>,
 }
 
 fn default_model_source_kind() -> String {

@@ -9,6 +9,8 @@ import {
   AggregateApiBalanceSnapshot,
   AggregateApiCreateResult,
   AggregateApiSecretResult,
+  AggregateApiSupplierModel,
+  AggregateApiSupplierModelImportResult,
   AggregateApiTestResult,
   ApiKey,
   ApiKeyCreateResult,
@@ -23,6 +25,9 @@ import {
   LoginStartResult,
   ManagedModelCatalog,
   ManagedModelInfo,
+  ManagedModelRouting,
+  ManagedModelSourceMapping,
+  ManagedModelSourceModel,
   ModelCatalog,
   ModelInfo,
   ModelReasoningLevel,
@@ -664,6 +669,62 @@ export function normalizeManagedModelCatalog(payload: unknown): ManagedModelCata
   };
 }
 
+function normalizeManagedModelSourceModel(payload: unknown): ManagedModelSourceModel | null {
+  const source = asObject(payload);
+  const sourceKind = asString(source.sourceKind ?? source.source_kind);
+  const sourceId = asString(source.sourceId ?? source.source_id);
+  const upstreamModel = asString(source.upstreamModel ?? source.upstream_model);
+  if (!sourceKind || !sourceId || !upstreamModel) return null;
+  return {
+    sourceKind,
+    sourceId,
+    upstreamModel,
+    displayName: asString(source.displayName ?? source.display_name) || null,
+    status: asString(source.status) || "available",
+    discoveryKind: asString(source.discoveryKind ?? source.discovery_kind) || "synced",
+    lastSyncedAt: toNullableNumber(source.lastSyncedAt ?? source.last_synced_at),
+    createdAt: asInteger(source.createdAt ?? source.created_at, 0, 0),
+    updatedAt: asInteger(source.updatedAt ?? source.updated_at, 0, 0),
+  };
+}
+
+function normalizeManagedModelSourceMapping(payload: unknown): ManagedModelSourceMapping | null {
+  const source = asObject(payload);
+  const id = asString(source.id);
+  const platformModelSlug = asString(
+    source.platformModelSlug ?? source.platform_model_slug,
+  );
+  const sourceKind = asString(source.sourceKind ?? source.source_kind);
+  const sourceId = asString(source.sourceId ?? source.source_id);
+  const upstreamModel = asString(source.upstreamModel ?? source.upstream_model);
+  if (!id || !platformModelSlug || !sourceKind || !sourceId || !upstreamModel) return null;
+  return {
+    id,
+    platformModelSlug,
+    sourceKind,
+    sourceId,
+    upstreamModel,
+    enabled: asBoolean(source.enabled, true),
+    priority: asInteger(source.priority, 0, -100000),
+    weight: asInteger(source.weight, 1, 1),
+    billingModelSlug: asString(source.billingModelSlug ?? source.billing_model_slug) || null,
+    createdAt: asInteger(source.createdAt ?? source.created_at, 0, 0),
+    updatedAt: asInteger(source.updatedAt ?? source.updated_at, 0, 0),
+  };
+}
+
+export function normalizeManagedModelRouting(payload: unknown): ManagedModelRouting {
+  const source = asObject(payload);
+  return {
+    sourceModels: asArray(source.sourceModels ?? source.source_models)
+      .map((item) => normalizeManagedModelSourceModel(item))
+      .filter((item): item is ManagedModelSourceModel => Boolean(item)),
+    mappings: asArray(source.mappings)
+      .map((item) => normalizeManagedModelSourceMapping(item))
+      .filter((item): item is ManagedModelSourceMapping => Boolean(item)),
+  };
+}
+
 /**
  * 函数 `normalizeApiKey`
  *
@@ -928,6 +989,47 @@ export function normalizeAggregateApiBalanceRefreshResult(
     message: asString(source.message) || null,
     queriedAt: asInteger(source.queriedAt ?? source.queried_at, 0, 0),
     latencyMs: asInteger(source.latencyMs ?? source.latency_ms, 0, 0),
+  };
+}
+
+export function normalizeAggregateApiSupplierModel(
+  payload: unknown
+): AggregateApiSupplierModel | null {
+  const source = asObject(payload);
+  const supplierKey = asString(source.supplierKey ?? source.supplier_key);
+  const providerType = asString(source.providerType ?? source.provider_type);
+  const upstreamModel = asString(source.upstreamModel ?? source.upstream_model);
+  if (!supplierKey || !providerType || !upstreamModel) return null;
+  return {
+    supplierKey,
+    providerType,
+    upstreamModel,
+    displayName: asString(source.displayName ?? source.display_name) || null,
+    status: asString(source.status) || "available",
+    createdAt: asInteger(source.createdAt ?? source.created_at, 0, 0),
+    updatedAt: asInteger(source.updatedAt ?? source.updated_at, 0, 0),
+  };
+}
+
+export function normalizeAggregateApiSupplierModelList(
+  payload: unknown
+): AggregateApiSupplierModel[] {
+  const source = asObject(payload);
+  const items = asArray(source.items ?? payload);
+  return items
+    .map((item) => normalizeAggregateApiSupplierModel(item))
+    .filter((item): item is AggregateApiSupplierModel => Boolean(item));
+}
+
+export function normalizeAggregateApiSupplierModelImportResult(
+  payload: unknown
+): AggregateApiSupplierModelImportResult {
+  const source = asObject(payload);
+  return {
+    imported: asInteger(source.imported, 0, 0),
+    items: asArray(source.items)
+      .map((item) => normalizeManagedModelSourceModel(item))
+      .filter((item): item is ManagedModelSourceModel => Boolean(item)),
   };
 }
 

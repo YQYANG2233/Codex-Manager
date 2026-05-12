@@ -193,6 +193,7 @@ fn member_method_allowed(method: &str) -> bool {
             | "apikey/readSecret"
             | "apikey/models"
             | "apikey/modelCatalogList"
+            | "apikey/modelRouting"
             | "apikey/usageStats"
             | "apikey/updateModel"
             | "apikey/delete"

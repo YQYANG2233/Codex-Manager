@@ -94,3 +94,58 @@ test("createWebCommandMap 为普通用户仪表盘汇总提供 Web RPC 映射", 
     },
   );
 });
+
+test("createWebCommandMap 为模型来源映射命令提供 Web RPC 映射", () => {
+  assert.deepEqual(commandMap.service_model_routing, {
+    rpcMethod: "apikey/modelRouting",
+  });
+
+  const sync = commandMap.service_model_source_sync;
+  assert.equal(sync.rpcMethod, "apikey/modelSourceSync");
+  assert.ok(sync.mapParams);
+  assert.deepEqual(sync.mapParams({ payload: { sourceKind: "aggregate_api" } }), {
+    sourceKind: "aggregate_api",
+  });
+
+  const saveMapping = commandMap.service_model_source_mapping_save;
+  assert.equal(saveMapping.rpcMethod, "apikey/modelSourceMappingSave");
+  assert.ok(saveMapping.mapParams);
+  assert.deepEqual(
+    saveMapping.mapParams({
+      payload: {
+        platformModelSlug: "gpt-platform",
+        sourceKind: "openai_account",
+        sourceId: "acc-1",
+        upstreamModel: "gpt-upstream",
+      },
+    }),
+    {
+      platformModelSlug: "gpt-platform",
+      sourceKind: "openai_account",
+      sourceId: "acc-1",
+      upstreamModel: "gpt-upstream",
+    },
+  );
+
+  const saveSupplier = commandMap.service_aggregate_api_supplier_model_save;
+  assert.equal(saveSupplier.rpcMethod, "aggregateApi/supplierModels/save");
+  assert.ok(saveSupplier.mapParams);
+  assert.deepEqual(
+    saveSupplier.mapParams({
+      payload: {
+        supplierKey: "Provider",
+        providerType: "codex",
+        upstreamModel: "provider-model",
+      },
+    }),
+    {
+      supplierKey: "Provider",
+      providerType: "codex",
+      upstreamModel: "provider-model",
+    },
+  );
+
+  assert.deepEqual(commandMap.service_aggregate_api_supplier_models_import, {
+    rpcMethod: "aggregateApi/sourceModels/importSupplier",
+  });
+});

@@ -1113,3 +1113,90 @@ fn init_upgrades_legacy_model_catalog_table_to_structured_schema() {
         .expect("check legacy plans table");
     assert_eq!(legacy_plans_table_exists, 0);
 }
+
+#[test]
+fn init_migrates_quota_assignments_to_model_source_mappings() {
+    let storage = Storage::open_in_memory().expect("open in memory");
+    storage
+        .conn
+        .execute_batch(
+            "CREATE TABLE quota_source_model_assignments (
+                source_kind TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                model_slug TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (source_kind, source_id, model_slug)
+            );
+            INSERT INTO quota_source_model_assignments (
+                source_kind,
+                source_id,
+                model_slug,
+                created_at,
+                updated_at
+            ) VALUES (
+                'aggregate_api',
+                'api-legacy-1',
+                'gpt-legacy',
+                100,
+                200
+            );",
+        )
+        .expect("seed legacy quota assignments");
+
+    storage.init().expect("run init");
+
+    let source_row: (String, String, String, String, String) = storage
+        .conn
+        .query_row(
+            "SELECT source_kind, source_id, upstream_model, status, discovery_kind
+             FROM model_source_models
+             WHERE source_kind = 'aggregate_api'
+               AND source_id = 'api-legacy-1'
+               AND upstream_model = 'gpt-legacy'",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .expect("load migrated source model");
+    assert_eq!(source_row.0, "aggregate_api");
+    assert_eq!(source_row.1, "api-legacy-1");
+    assert_eq!(source_row.2, "gpt-legacy");
+    assert_eq!(source_row.3, "available");
+    assert_eq!(source_row.4, "legacy");
+
+    let mapping_row: (String, String, String, i64, i64, i64) = storage
+        .conn
+        .query_row(
+            "SELECT platform_model_slug, source_kind, upstream_model, enabled, priority, weight
+             FROM model_source_mappings
+             WHERE platform_model_slug = 'gpt-legacy'
+               AND source_kind = 'aggregate_api'
+               AND source_id = 'api-legacy-1'",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .expect("load migrated mapping");
+    assert_eq!(mapping_row.0, "gpt-legacy");
+    assert_eq!(mapping_row.1, "aggregate_api");
+    assert_eq!(mapping_row.2, "gpt-legacy");
+    assert_eq!(mapping_row.3, 1);
+    assert_eq!(mapping_row.4, 0);
+    assert_eq!(mapping_row.5, 1);
+}

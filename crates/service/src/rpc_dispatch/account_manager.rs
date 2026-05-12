@@ -44,6 +44,19 @@ pub(super) fn try_handle(req: &JsonRpcRequest, actor: &RpcActor) -> Option<JsonR
                     .and_then(crate::create_app_user),
             )
         }
+        "accountManager/users/update" => {
+            let input = req
+                .params
+                .clone()
+                .map(serde_json::from_value::<crate::AppUserUpdateInput>)
+                .transpose()
+                .map_err(|err| format!("invalid user payload: {err}"));
+            super::value_or_error(
+                input
+                    .and_then(|input| input.ok_or_else(|| "missing user payload".to_string()))
+                    .and_then(crate::update_app_user),
+            )
+        }
         "accountManager/wallet/topUp" => {
             let owner_kind = super::str_param(req, "ownerKind").unwrap_or("user");
             let owner_id = super::str_param(req, "ownerId").unwrap_or("");

@@ -54,6 +54,14 @@ pub async fn service_account_manager_user_create(
 }
 
 #[tauri::command]
+pub async fn service_account_manager_user_update(
+    addr: Option<String>,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    rpc_call_in_background("accountManager/users/update", addr, Some(payload)).await
+}
+
+#[tauri::command]
 pub async fn service_account_manager_wallet_top_up(
     addr: Option<String>,
     owner_kind: String,

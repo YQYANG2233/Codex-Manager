@@ -200,7 +200,7 @@ function buildDraft(
     description: model?.description || "",
     sourceKind: model?.sourceKind || "custom",
     userEdited: model?.userEdited ?? true,
-    supportedInApi: model?.supportedInApi ?? true,
+    supportedInApi: model?.supportedInApi ?? false,
     sortIndex: String(model?.sortIndex ?? nextSortIndex),
     priority: String(model?.priority ?? 0),
     visibility: normalizeVisibilityValue(model?.visibility),
@@ -221,7 +221,7 @@ function buildDefaultModel(
     supportedReasoningLevels: [],
     shellType: null,
     visibility: null,
-    supportedInApi: true,
+    supportedInApi: false,
     priority: 0,
     additionalSpeedTiers: [],
     availabilityNux: null,
@@ -462,7 +462,7 @@ export function ModelCatalogModal({
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{t("可用于 API")}</p>
                   <p className="text-xs text-muted-foreground">
-                    {t("绑定模型默认优先展示 supportedInApi=true 的模型。")}
+                    {t("开启后必须至少配置一个启用映射，否则只能保存为草稿。")}
                   </p>
                 </div>
                 <Switch

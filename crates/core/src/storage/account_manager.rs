@@ -165,6 +165,14 @@ impl Storage {
         Ok(())
     }
 
+    pub fn update_app_user_role(&self, id: &str, role: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE app_users SET role = ?1, updated_at = ?2 WHERE id = ?3",
+            (role, now_ts(), id),
+        )?;
+        Ok(())
+    }
+
     pub fn update_app_user_display_name(
         &self,
         id: &str,

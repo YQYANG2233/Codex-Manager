@@ -268,6 +268,10 @@ export function createWebCommandMap(
       rpcMethod: "accountManager/users/create",
       mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
     },
+    service_account_manager_user_update: {
+      rpcMethod: "accountManager/users/update",
+      mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
+    },
     service_account_manager_wallet_top_up: {
       rpcMethod: "accountManager/wallet/topUp",
       mapParams: (params) => {
@@ -426,6 +430,19 @@ export function createWebCommandMap(
     service_aggregate_api_refresh_balance: {
       rpcMethod: "aggregateApi/refreshBalance",
     },
+    service_aggregate_api_supplier_models_list: {
+      rpcMethod: "aggregateApi/supplierModels/list",
+    },
+    service_aggregate_api_supplier_model_save: {
+      rpcMethod: "aggregateApi/supplierModels/save",
+      mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
+    },
+    service_aggregate_api_supplier_model_delete: {
+      rpcMethod: "aggregateApi/supplierModels/delete",
+    },
+    service_aggregate_api_supplier_models_import: {
+      rpcMethod: "aggregateApi/sourceModels/importSupplier",
+    },
     service_login_start: {
       rpcMethod: "account/login/start",
       mapParams: (params) => ({
@@ -480,6 +497,22 @@ export function createWebCommandMap(
       mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
     },
     service_model_catalog_delete: { rpcMethod: "apikey/modelCatalogDelete" },
+    service_model_routing: { rpcMethod: "apikey/modelRouting" },
+    service_model_source_sync: {
+      rpcMethod: "apikey/modelSourceSync",
+      mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
+    },
+    service_model_source_model_save: {
+      rpcMethod: "apikey/modelSourceModelSave",
+      mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
+    },
+    service_model_source_mapping_save: {
+      rpcMethod: "apikey/modelSourceMappingSave",
+      mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
+    },
+    service_model_source_mapping_delete: {
+      rpcMethod: "apikey/modelSourceMappingDelete",
+    },
     service_apikey_read_secret: {
       rpcMethod: "apikey/readSecret",
       mapParams: mapKeyIdToId,

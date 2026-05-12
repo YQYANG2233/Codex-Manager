@@ -33,8 +33,11 @@ pub(crate) use account::status as account_status;
 pub(crate) use account::update as account_update;
 pub(crate) use account::warmup as account_warmup;
 pub(crate) use aggregate_api::{
-    create_aggregate_api, delete_aggregate_api, list_aggregate_apis, read_aggregate_api_secret,
-    refresh_aggregate_api_balance, test_aggregate_api_connection, update_aggregate_api,
+    create_aggregate_api, delete_aggregate_api, delete_aggregate_api_supplier_model,
+    discover_aggregate_api_models, import_aggregate_api_supplier_models,
+    list_aggregate_api_supplier_models, list_aggregate_apis, read_aggregate_api_secret,
+    refresh_aggregate_api_balance, save_aggregate_api_supplier_model,
+    test_aggregate_api_connection, update_aggregate_api,
 };
 pub(crate) use apikey::create as apikey_create;
 pub(crate) use apikey::delete as apikey_delete;
@@ -118,11 +121,12 @@ pub use auth::{
     current_web_access_password_hash, current_web_auth_mode, distribution_enabled,
     list_api_key_ids_for_user, list_api_key_owners, list_app_users, login_app_user,
     logout_app_user_session, resolve_app_user_session, set_api_key_owner, set_distribution_enabled,
-    set_web_access_password, set_web_auth_mode, update_app_user_profile,
+    set_web_access_password, set_web_auth_mode, update_app_user, update_app_user_profile,
     verify_web_access_password, wallet_charge_for_request, wallet_precheck_for_api_key,
     wallet_top_up, web_access_auth_status_value, web_access_password_configured,
     web_auth_status_value, ApiKeyOwnerResult, AppLoginResult, AppSessionResult,
-    AppSessionUserResult, AppUserCreateInput, AppUserPublicResult, AppWalletResult,
+    AppSessionUserResult, AppUserCreateInput, AppUserPublicResult, AppUserUpdateInput,
+    AppWalletResult,
 };
 pub use auth::{rpc_auth_token, rpc_auth_token_matches};
 pub use lifecycle::bootstrap::{initialize_storage_if_needed, portable};

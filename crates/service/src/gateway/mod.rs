@@ -227,6 +227,7 @@ use cooldown::{
 #[cfg(test)]
 pub(super) use failover::should_failover_after_refresh;
 use failover::should_failover_from_cached_snapshot;
+use failover::should_failover_from_low_quota_snapshot;
 use http_bridge::respond_with_upstream;
 pub(crate) use http_bridge::summarize_upstream_error_hint_from_body;
 pub(crate) use http_bridge::PassthroughSseProtocol;

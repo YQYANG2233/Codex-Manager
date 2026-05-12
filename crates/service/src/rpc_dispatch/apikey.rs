@@ -1,6 +1,7 @@
 use codexmanager_core::rpc::types::{
     ApiKeyListResult, ApiKeyUsageStatListResult, JsonRpcRequest, JsonRpcResponse,
-    ManagedModelCatalogUpsertParams,
+    ManagedModelCatalogUpsertParams, ManagedModelSourceMappingUpsertParams,
+    ManagedModelSourceModelUpsertParams, ManagedModelSourceSyncParams,
 };
 
 use crate::RpcActor;
@@ -126,6 +127,44 @@ pub(super) fn try_handle(req: &JsonRpcRequest, actor: &RpcActor) -> Option<JsonR
         "apikey/modelCatalogDelete" => {
             let slug = super::str_param(req, "slug").unwrap_or("");
             super::ok_or_error(apikey_models::delete_managed_model_catalog_model(slug))
+        }
+        "apikey/modelRouting" => super::value_or_error(apikey_models::read_managed_model_routing()),
+        "apikey/modelSourceSync" => {
+            let params = req
+                .params
+                .clone()
+                .ok_or_else(|| "缺少来源参数".to_string())
+                .and_then(|value| {
+                    serde_json::from_value::<ManagedModelSourceSyncParams>(value)
+                        .map_err(|err| format!("解析来源参数失败: {err}"))
+                });
+            super::value_or_error(params.and_then(apikey_models::sync_managed_model_source_models))
+        }
+        "apikey/modelSourceModelSave" => {
+            let params = req
+                .params
+                .clone()
+                .ok_or_else(|| "缺少来源模型参数".to_string())
+                .and_then(|value| {
+                    serde_json::from_value::<ManagedModelSourceModelUpsertParams>(value)
+                        .map_err(|err| format!("解析来源模型参数失败: {err}"))
+                });
+            super::value_or_error(params.and_then(apikey_models::upsert_managed_model_source_model))
+        }
+        "apikey/modelSourceMappingSave" => {
+            let params = req
+                .params
+                .clone()
+                .ok_or_else(|| "缺少映射参数".to_string())
+                .and_then(|value| {
+                    serde_json::from_value::<ManagedModelSourceMappingUpsertParams>(value)
+                        .map_err(|err| format!("解析映射参数失败: {err}"))
+                });
+            super::value_or_error(params.and_then(apikey_models::save_managed_model_source_mapping))
+        }
+        "apikey/modelSourceMappingDelete" => {
+            let id = super::str_param(req, "id").unwrap_or("");
+            super::ok_or_error(apikey_models::delete_managed_model_source_mapping(id))
         }
         "apikey/usageStats" => super::value_or_error(
             apikey_usage_stats::read_api_key_usage_stats_for_actor(actor)

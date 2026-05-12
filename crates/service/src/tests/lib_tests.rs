@@ -129,6 +129,65 @@ fn member_actor_cannot_call_admin_only_rpc() {
     assert!(err.contains("permission_denied"));
 }
 
+#[test]
+fn admin_user_update_edits_member_and_protects_last_active_admin() {
+    let _guard = test_env_guard();
+    let db_path = setup_dashboard_test_db("codexmanager-user-update");
+    let admin = create_app_user(AppUserCreateInput {
+        username: "admin-update-one".to_string(),
+        password: "password-one".to_string(),
+        display_name: None,
+        role: Some(ROLE_ADMIN.to_string()),
+        initial_balance_credit_micros: None,
+    })
+    .expect("create admin");
+    let member = create_test_member("member-update-one", Some(1_000_000));
+
+    let updated = update_app_user(AppUserUpdateInput {
+        id: member.id.clone(),
+        display_name: Some("Updated Member".to_string()),
+        role: Some(ROLE_MEMBER.to_string()),
+        status: Some("disabled".to_string()),
+        password: Some("new-password".to_string()),
+    })
+    .expect("update member");
+    assert_eq!(updated.display_name.as_deref(), Some("Updated Member"));
+    assert_eq!(updated.status, "disabled");
+    assert_eq!(updated.role, ROLE_MEMBER);
+    assert!(updated.wallet.is_some());
+
+    let last_admin_error = update_app_user(AppUserUpdateInput {
+        id: admin.id.clone(),
+        display_name: None,
+        role: Some(ROLE_ADMIN.to_string()),
+        status: Some("disabled".to_string()),
+        password: None,
+    })
+    .expect_err("last active admin should be protected");
+    assert!(last_admin_error.contains("至少需要保留一个启用的管理员"));
+
+    let _second_admin = create_app_user(AppUserCreateInput {
+        username: "admin-update-two".to_string(),
+        password: "password-two".to_string(),
+        display_name: None,
+        role: Some(ROLE_ADMIN.to_string()),
+        initial_balance_credit_micros: None,
+    })
+    .expect("create second admin");
+    let disabled_admin = update_app_user(AppUserUpdateInput {
+        id: admin.id,
+        display_name: Some("Disabled Admin".to_string()),
+        role: Some(ROLE_ADMIN.to_string()),
+        status: Some("disabled".to_string()),
+        password: None,
+    })
+    .expect("disable admin when another admin exists");
+    assert_eq!(disabled_admin.status, "disabled");
+    assert!(disabled_admin.wallet.is_none());
+
+    let _ = std::fs::remove_file(db_path);
+}
+
 fn setup_dashboard_test_db(name: &str) -> String {
     let db_path = std::env::temp_dir()
         .join(format!(

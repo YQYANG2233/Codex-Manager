@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  Pencil,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/table";
 import { useDeferredDesktopActivation } from "@/hooks/useDeferredDesktopActivation";
 import { useDesktopPageActive } from "@/hooks/useDesktopPageActive";
+import { APP_SESSION_QUERY_KEY } from "@/hooks/useAppSession";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
 import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import { appClient } from "@/lib/api/app-client";
@@ -120,6 +122,7 @@ function userCanOwnWallet(user: AppUser): boolean {
 }
 
 function statusLabel(status: string): string {
+  if (status === "disabled") return "禁用";
   return status === "active" ? "启用" : status || "未知";
 }
 
@@ -166,6 +169,7 @@ export default function AccountManagerPage() {
     useDeferredDesktopActivation(canAccessManagementRpc) && isPageActive;
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [topUpUserId, setTopUpUserId] = useState<string | null>(null);
+  const [editUserId, setEditUserId] = useState<string | null>(null);
   const [createDraft, setCreateDraft] = useState({
     username: "",
     displayName: "",
@@ -176,6 +180,12 @@ export default function AccountManagerPage() {
   const [topUpDraft, setTopUpDraft] = useState({
     amount: "1",
     note: "",
+  });
+  const [editDraft, setEditDraft] = useState({
+    displayName: "",
+    role: "member",
+    status: "active",
+    password: "",
   });
 
   const statusQuery = useQuery<AccountManagerStatus>({
@@ -208,6 +218,7 @@ export default function AccountManagerPage() {
   );
   const status = statusQuery.data;
   const topUpUser = topUpUserId ? usersById.get(topUpUserId) ?? null : null;
+  const editUser = editUserId ? usersById.get(editUserId) ?? null : null;
 
   const refreshAll = async () => {
     await Promise.all([
@@ -220,6 +231,7 @@ export default function AccountManagerPage() {
       queryClient.invalidateQueries({
         queryKey: ["account-manager", "api-key-owners"],
       }),
+      queryClient.invalidateQueries({ queryKey: APP_SESSION_QUERY_KEY }),
     ]);
   };
 
@@ -288,6 +300,34 @@ export default function AccountManagerPage() {
     },
   });
 
+  const updateUser = useMutation({
+    mutationFn: async () => {
+      if (!editUser) throw new Error("请选择要编辑的账号");
+      const password = editDraft.password.trim();
+      return appClient.updateAppUser({
+        id: editUser.id,
+        displayName: editDraft.displayName.trim() || null,
+        role: editDraft.role,
+        status: editDraft.status,
+        password: password || null,
+      });
+    },
+    onSuccess: async () => {
+      setEditUserId(null);
+      setEditDraft({
+        displayName: "",
+        role: "member",
+        status: "active",
+        password: "",
+      });
+      await refreshAll();
+      toast.success(t("账号已更新"));
+    },
+    onError: (error: unknown) => {
+      toast.error(`${t("更新失败")}: ${getAppErrorMessage(error)}`);
+    },
+  });
+
   const handleCreateUser = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createUser.mutate();
@@ -298,9 +338,24 @@ export default function AccountManagerPage() {
     topUpWallet.mutate();
   };
 
+  const handleUpdateUser = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    updateUser.mutate();
+  };
+
   const openTopUpDialog = (user: AppUser) => {
     setTopUpUserId(user.id);
     setTopUpDraft({ amount: "1", note: "" });
+  };
+
+  const openEditDialog = (user: AppUser) => {
+    setEditUserId(user.id);
+    setEditDraft({
+      displayName: user.displayName || "",
+      role: user.role === "admin" ? "admin" : "member",
+      status: user.status === "disabled" ? "disabled" : "active",
+      password: "",
+    });
   };
 
   const isRefreshing = statusQuery.isFetching || usersQuery.isFetching;
@@ -449,14 +504,26 @@ export default function AccountManagerPage() {
                       {user.id}
                     </TableCell>
                     <TableCell className="pr-4 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!canAccessManagementRpc || !userCanOwnWallet(user)}
-                        onClick={() => openTopUpDialog(user)}
-                      >
-                        {t("充值")}
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canAccessManagementRpc || !userCanOwnWallet(user)}
+                          onClick={() => openTopUpDialog(user)}
+                        >
+                          {t("充值")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1"
+                          disabled={!canAccessManagementRpc}
+                          onClick={() => openEditDialog(user)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          {t("编辑")}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -577,6 +644,127 @@ export default function AccountManagerPage() {
               >
                 <UserPlus className="h-4 w-4" />
                 {createUser.isPending ? t("创建中...") : t("创建账号")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(editUserId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditUserId(null);
+            setEditDraft({
+              displayName: "",
+              role: "member",
+              status: "active",
+              password: "",
+            });
+          }
+        }}
+      >
+        <DialogContent className="glass-card border-none sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>{t("编辑登录账号")}</DialogTitle>
+            <DialogDescription>
+              {editUser ? userSelectLabel(editUser) : t("选择登录账号")}
+            </DialogDescription>
+          </DialogHeader>
+          <form className="grid gap-4" onSubmit={handleUpdateUser}>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-app-user-display-name">{t("显示名称")}</Label>
+              <Input
+                id="edit-app-user-display-name"
+                value={editDraft.displayName}
+                onChange={(event) =>
+                  setEditDraft((draft) => ({
+                    ...draft,
+                    displayName: event.target.value,
+                  }))
+                }
+                placeholder={t("可选")}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label>{t("角色")}</Label>
+                <Select
+                  value={editDraft.role}
+                  onValueChange={(value) =>
+                    setEditDraft((draft) => ({
+                      ...draft,
+                      role: String(value || "member"),
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(value) => roleLabel(String(value || "member"))}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">{t("成员")}</SelectItem>
+                    <SelectItem value="admin">{t("管理员")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>{t("状态")}</Label>
+                <Select
+                  value={editDraft.status}
+                  onValueChange={(value) =>
+                    setEditDraft((draft) => ({
+                      ...draft,
+                      status: String(value || "active"),
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(value) => statusLabel(String(value || "active"))}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">{t("启用")}</SelectItem>
+                    <SelectItem value="disabled">{t("禁用")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-app-user-password">{t("重置密码")}</Label>
+              <Input
+                id="edit-app-user-password"
+                type="password"
+                value={editDraft.password}
+                onChange={(event) =>
+                  setEditDraft((draft) => ({
+                    ...draft,
+                    password: event.target.value,
+                  }))
+                }
+                placeholder={t("不修改则留空")}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("填写后会替换该账号的登录密码，至少 8 位。")}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditUserId(null)}
+              >
+                {t("取消")}
+              </Button>
+              <Button
+                type="submit"
+                className="gap-2"
+                disabled={!canAccessManagementRpc || !editUser || updateUser.isPending}
+              >
+                <Pencil className="h-4 w-4" />
+                {updateUser.isPending ? t("保存中...") : t("保存修改")}
               </Button>
             </DialogFooter>
           </form>

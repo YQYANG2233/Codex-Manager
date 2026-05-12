@@ -95,6 +95,16 @@ pub struct AppUserCreateInput {
     pub initial_balance_credit_micros: Option<i64>,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUserUpdateInput {
+    pub id: String,
+    pub display_name: Option<String>,
+    pub role: Option<String>,
+    pub status: Option<String>,
+    pub password: Option<String>,
+}
+
 pub fn current_web_auth_mode() -> String {
     if let Some(raw) = get_persisted_app_setting(APP_SETTING_WEB_AUTH_MODE_KEY) {
         let mode = normalize_web_auth_mode(Some(&raw));
@@ -328,6 +338,77 @@ pub fn list_app_users() -> Result<Vec<AppUserPublicResult>, String> {
             Ok(public_user(user, wallet))
         })
         .collect()
+}
+
+pub fn update_app_user(input: AppUserUpdateInput) -> Result<AppUserPublicResult, String> {
+    crate::initialize_storage_if_needed()?;
+    let storage = open_storage_or_error()?;
+    let user_id = input.id.trim();
+    if user_id.is_empty() {
+        return Err("用户 ID 不能为空".to_string());
+    }
+    let current = storage
+        .find_app_user_by_id(user_id)
+        .map_err(|err| format!("read app user failed: {err}"))?
+        .ok_or_else(|| "用户不存在".to_string())?;
+    let next_role = input
+        .role
+        .as_deref()
+        .map(|value| normalize_role(Some(value)))
+        .transpose()?
+        .unwrap_or_else(|| current.role.clone());
+    let next_status = input
+        .status
+        .as_deref()
+        .map(normalize_status)
+        .transpose()?
+        .unwrap_or_else(|| current.status.clone());
+
+    if current.role == "admin"
+        && current.status == "active"
+        && (next_role != "admin" || next_status != "active")
+    {
+        let active_admin_count = storage
+            .active_admin_count()
+            .map_err(|err| format!("read app admins failed: {err}"))?;
+        if active_admin_count <= 1 {
+            return Err("至少需要保留一个启用的管理员账号".to_string());
+        }
+    }
+
+    storage
+        .update_app_user_display_name(
+            user_id,
+            normalize_optional_text(input.display_name.as_deref()),
+        )
+        .map_err(|err| format!("update app user display name failed: {err}"))?;
+    if current.role != next_role {
+        storage
+            .update_app_user_role(user_id, &next_role)
+            .map_err(|err| format!("update app user role failed: {err}"))?;
+    }
+    if current.status != next_status {
+        storage
+            .update_app_user_status(user_id, &next_status)
+            .map_err(|err| format!("update app user status failed: {err}"))?;
+    }
+    if let Some(password) = normalize_optional_text(input.password.as_deref()) {
+        validate_password(&password)?;
+        storage
+            .update_app_user_password_hash(user_id, &hash_password(&password))
+            .map_err(|err| format!("update app user password failed: {err}"))?;
+    }
+
+    let updated = storage
+        .find_app_user_by_id(user_id)
+        .map_err(|err| format!("read app user failed: {err}"))?
+        .ok_or_else(|| "用户不存在".to_string())?;
+    let wallet = if app_user_can_own_wallet(&updated) {
+        Some(ensure_wallet(&storage, "user", &updated.id)?)
+    } else {
+        None
+    };
+    Ok(public_user(updated, wallet))
 }
 
 pub fn list_api_key_owners() -> Result<Vec<ApiKeyOwnerResult>, String> {
@@ -895,6 +976,9 @@ fn ensure_user_can_own_wallet(storage: &Storage, user_id: &str) -> Result<AppUse
     if !app_user_can_own_wallet(&user) {
         return Err("管理员账号不参与额度分发".to_string());
     }
+    if user.status != "active" {
+        return Err("用户已禁用".to_string());
+    }
     Ok(user)
 }
 
@@ -983,6 +1067,14 @@ fn normalize_role(raw: Option<&str>) -> Result<String, String> {
     match role.as_str() {
         "admin" | "member" => Ok(role),
         _ => Err("角色必须是 admin 或 member".to_string()),
+    }
+}
+
+fn normalize_status(raw: &str) -> Result<String, String> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "active" => Ok("active".to_string()),
+        "disabled" => Ok("disabled".to_string()),
+        _ => Err("状态必须是 active 或 disabled".to_string()),
     }
 }
 

@@ -16,10 +16,10 @@ pub use app_manager::{
     change_app_user_password, create_app_user, current_web_auth_mode, distribution_enabled,
     list_api_key_ids_for_user, list_api_key_owners, list_app_users, login_app_user,
     logout_app_user_session, resolve_app_user_session, set_api_key_owner, set_distribution_enabled,
-    set_web_auth_mode, update_app_user_profile, wallet_charge_for_request,
+    set_web_auth_mode, update_app_user, update_app_user_profile, wallet_charge_for_request,
     wallet_precheck_for_api_key, wallet_top_up, ApiKeyOwnerResult, AppLoginResult,
     AppSessionResult, AppSessionUserResult, AppUserCreateInput, AppUserPublicResult,
-    AppWalletResult,
+    AppUserUpdateInput, AppWalletResult,
 };
 pub use rpc::{rpc_auth_token, rpc_auth_token_matches};
 pub use web_access::{

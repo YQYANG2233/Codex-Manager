@@ -186,6 +186,18 @@ export const appClient = {
     });
     return readAppUser(result);
   },
+  async updateAppUser(payload: {
+    id: string;
+    displayName?: string | null;
+    role?: string | null;
+    status?: string | null;
+    password?: string | null;
+  }): Promise<AppUser> {
+    const result = await invoke<unknown>("service_account_manager_user_update", {
+      payload,
+    });
+    return readAppUser(result);
+  },
   async topUpWallet(payload: {
     ownerKind: string;
     ownerId: string;

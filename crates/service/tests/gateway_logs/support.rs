@@ -7,7 +7,8 @@ pub(super) use codexmanager_core::rpc::types::ModelInfo;
 pub(super) use codexmanager_core::rpc::types::ModelsResponse;
 pub(super) use codexmanager_core::storage::{
     now_ts, Account, ApiKey, ModelCatalogModelRecord, ModelCatalogReasoningLevelRecord,
-    ModelCatalogScopeRecord, ModelCatalogStringItemRecord, Storage, Token,
+    ModelCatalogScopeRecord, ModelCatalogStringItemRecord, ModelSourceMapping, ModelSourceModel,
+    Storage, Token,
 };
 pub(super) use sha2::{Digest, Sha256};
 pub(super) use std::collections::HashMap;
