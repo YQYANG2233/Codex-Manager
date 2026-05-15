@@ -225,6 +225,7 @@ fn ensure_method_allowed(actor: &RpcActor, method: &str) -> Result<(), String> {
 ///
 /// # 返回
 /// 返回函数执行结果
+#[cfg(test)]
 pub(crate) fn handle_request(req: JsonRpcRequest) -> JsonRpcMessage {
     handle_request_with_actor(req, RpcActor::system_admin())
 }

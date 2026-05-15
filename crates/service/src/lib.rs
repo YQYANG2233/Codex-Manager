@@ -172,6 +172,7 @@ pub(crate) fn test_env_guard() -> std::sync::MutexGuard<'static, ()> {
 ///
 /// # 返回
 /// 返回函数执行结果
+#[cfg(test)]
 pub(crate) fn handle_request(req: JsonRpcRequest) -> JsonRpcMessage {
     rpc_dispatch::handle_request(req)
 }

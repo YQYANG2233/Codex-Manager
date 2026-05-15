@@ -1164,8 +1164,8 @@ export function AccountsPageView(props: AccountsPageViewProps) {
           }
         }}
       >
-        <DialogContent className="glass-card border-none sm:max-w-[560px]">
-          <DialogHeader>
+        <DialogContent className="glass-card max-h-[calc(100vh-2rem)] overflow-hidden border-none p-0 sm:max-w-[560px]">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>{t("编辑账号信息")}</DialogTitle>
             <DialogDescription>
               {accountEditorState
@@ -1173,7 +1173,7 @@ export function AccountsPageView(props: AccountsPageViewProps) {
                 : t("修改账号的基础资料。")}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <div className="grid max-h-[calc(100vh-13rem)] gap-4 overflow-y-auto px-6 py-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="account-label-input">{t("账号名称")}</Label>
@@ -1296,7 +1296,7 @@ export function AccountsPageView(props: AccountsPageViewProps) {
               </div>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter className="mx-0 mb-0 gap-2 rounded-b-xl border-t bg-muted/40 px-6 py-4 sm:gap-2">
             <DialogClose
               className={buttonVariants({ variant: "outline" })}
               type="button"
