@@ -102,6 +102,14 @@ export const EN_MESSAGES: MessageCatalog = {
   无法同步核心服务状态: "Unable to sync core service status",
   重试: "Retry",
   强制启动: "Force start",
+  "端口被占用，换一个端口重新启动":
+    "The port is occupied. Choose another port and restart.",
+  新的监听端口: "New listen port",
+  "请输入 1-65535 之间的端口": "Enter a port between 1 and 65535",
+  "启动中...": "Starting...",
+  使用新端口启动: "Start with new port",
+  "保存后会同步更新本地服务地址，CLI 的 base_url 也需要改成同一个端口。":
+    "After saving, the local service address is updated. The CLI base_url must use the same port.",
   "管理上游聚合地址与密钥，并测试连通性":
     "Manage upstream aggregate endpoints and credentials, and test connectivity.",
   查询: "Filter",
