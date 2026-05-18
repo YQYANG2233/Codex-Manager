@@ -11,11 +11,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -39,7 +41,7 @@ import {
 } from "@/lib/utils/api-key-quota";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Key, Clipboard, ShieldCheck } from "lucide-react";
+import { Key, Clipboard, ShieldCheck, Info } from "lucide-react";
 import type { ApiKey, ApiKeyOwner, AppUser } from "@/types";
 
 const PROTOCOL_LABELS: Record<string, string> = {
@@ -93,6 +95,7 @@ interface ApiKeyModalProps {
   apiKeyOwner?: ApiKeyOwner | null;
   distributionEnabled?: boolean;
   isAdminMode?: boolean;
+  showMemberOwnership?: boolean;
   onOwnerSaved?: () => Promise<void> | void;
 }
 
@@ -126,6 +129,7 @@ export function ApiKeyModal({
   apiKeyOwner,
   distributionEnabled = false,
   isAdminMode = true,
+  showMemberOwnership = isAdminMode,
   onOwnerSaved,
 }: ApiKeyModalProps) {
   const { t } = useI18n();
@@ -148,6 +152,7 @@ export function ApiKeyModal({
   const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
   const isServiceReady = canAccessManagementRpc && serviceStatus.connected;
+  const memberOwnershipEnabled = isAdminMode && showMemberOwnership;
   const usesAccountPlanFilter =
     rotationStrategy === "account_rotation" ||
     rotationStrategy === "hybrid_rotation";
@@ -231,7 +236,9 @@ export function ApiKeyModal({
       setQuotaLimitUnit("k");
       setUpstreamBaseUrl("");
       setCustomKey("");
-      setOwnerUserId(distributionEnabled ? billableUsers[0]?.id || "" : "");
+      setOwnerUserId(
+        memberOwnershipEnabled && distributionEnabled ? billableUsers[0]?.id || "" : "",
+      );
       setGeneratedKey("");
       return;
     }
@@ -252,9 +259,18 @@ export function ApiKeyModal({
     setCustomKey("");
     setUpstreamBaseUrl(apiKey.upstreamBaseUrl || "");
     setOwnerUserId(
-      apiKeyOwner?.ownerKind === "user" ? apiKeyOwner.ownerUserId || "" : "",
+      memberOwnershipEnabled && apiKeyOwner?.ownerKind === "user"
+        ? apiKeyOwner.ownerUserId || ""
+        : "",
     );
-  }, [apiKey, apiKeyOwner, billableUsers, distributionEnabled, open]);
+  }, [
+    apiKey,
+    apiKeyOwner,
+    billableUsers,
+    distributionEnabled,
+    memberOwnershipEnabled,
+    open,
+  ]);
 
   const handleQuotaLimitUnitChange = (unit: QuotaLimitUnit) => {
     const currentTokens = parseQuotaLimitTokens(quotaLimitValue, quotaLimitUnit);
@@ -289,8 +305,10 @@ export function ApiKeyModal({
     setIsLoading(true);
     try {
       const normalizedOwnerUserId =
-        ownerUserId && ownerUserId !== "__none__" ? ownerUserId : "";
-      if (isAdminMode && distributionEnabled && !normalizedOwnerUserId) {
+        memberOwnershipEnabled && ownerUserId && ownerUserId !== "__none__"
+          ? ownerUserId
+          : "";
+      if (memberOwnershipEnabled && distributionEnabled && !normalizedOwnerUserId) {
         throw new Error(t("请选择平台 Key 归属成员"));
       }
       const params = {
@@ -325,7 +343,7 @@ export function ApiKeyModal({
         setGeneratedKey(result.key);
         toast.success(t("平台密钥已创建"));
       }
-      if (isAdminMode && savedKeyId && normalizedOwnerUserId) {
+      if (memberOwnershipEnabled && savedKeyId && normalizedOwnerUserId) {
         await appClient.setApiKeyOwner({
           keyId: savedKeyId,
           ownerKind: "user",
@@ -378,7 +396,7 @@ export function ApiKeyModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-[calc(100%-2rem)] sm:max-w-[680px] md:max-w-[760px] max-h-[90vh] overflow-y-auto glass-card border-none">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[calc(100%-2rem)] sm:max-w-[680px] md:max-w-[760px] max-h-[90vh] overflow-y-auto glass-card">
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-full bg-primary/10">
@@ -395,9 +413,10 @@ export function ApiKeyModal({
 
         <div className="grid gap-5 py-4">
           {!isServiceReady ? (
-            <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
-              {unavailableMessage}
-            </div>
+            <Alert>
+              <Info />
+              <AlertDescription>{unavailableMessage}</AlertDescription>
+            </Alert>
           ) : null}
           <div className="grid grid-cols-2 gap-4 items-start">
             <div className="grid gap-2 content-start">
@@ -430,6 +449,7 @@ export function ApiKeyModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
+                    <SelectGroup>
                   <SelectItem value="account_rotation">{t("账号轮转")}</SelectItem>
                   <SelectItem value="aggregate_api_rotation">
                     {t("聚合API轮转")}
@@ -437,6 +457,7 @@ export function ApiKeyModal({
                   <SelectItem value="hybrid_rotation">
                     {t("混合轮转（账号优先）")}
                   </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -489,6 +510,7 @@ export function ApiKeyModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
+                    <SelectGroup>
                   {Object.entries(ACCOUNT_PLAN_FILTER_LABELS).map(
                     ([value, label]) => (
                       <SelectItem key={value} value={value}>
@@ -496,6 +518,7 @@ export function ApiKeyModal({
                       </SelectItem>
                     ),
                   )}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">
@@ -506,7 +529,7 @@ export function ApiKeyModal({
             </div>
           ) : null}
 
-          {isAdminMode ? (
+          {memberOwnershipEnabled ? (
           <div className="grid gap-2">
             <Label>{t("归属成员")}</Label>
             <Select
@@ -526,12 +549,14 @@ export function ApiKeyModal({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="start">
+                    <SelectGroup>
                 <SelectItem value="__none__">{t("未分配")}</SelectItem>
                 {billableUsers.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     {appUserLabel(user)}
                   </SelectItem>
                 ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
@@ -567,8 +592,10 @@ export function ApiKeyModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="end">
+                    <SelectGroup>
                   <SelectItem value="k">{t("K")}</SelectItem>
                   <SelectItem value="m">{t("M")}</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -606,9 +633,11 @@ export function ApiKeyModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
+                    <SelectGroup>
                   <SelectItem value="openai_compat">
                     {t("通配兼容 (Codex / Claude Code / Gemini CLI)")}
                   </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className="min-h-[32px] text-[11px] text-muted-foreground">
@@ -636,12 +665,14 @@ export function ApiKeyModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
+                    <SelectGroup>
                   <SelectItem value="auto">{t("跟随请求")}</SelectItem>
                   {visibleModels.map((model) => (
                     <SelectItem key={model.slug} value={model.slug}>
                       {model.displayName || model.slug}
                     </SelectItem>
                   ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">
@@ -668,11 +699,13 @@ export function ApiKeyModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
+                    <SelectGroup>
                   <SelectItem value="auto">{t("跟随请求")}</SelectItem>
                   <SelectItem value="low">{t("低 (low)")}</SelectItem>
                   <SelectItem value="medium">{t("中 (medium)")}</SelectItem>
                   <SelectItem value="high">{t("高 (high)")}</SelectItem>
                   <SelectItem value="xhigh">{t("极高 (xhigh)")}</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className="min-h-[32px] text-[11px] text-muted-foreground">
@@ -696,8 +729,10 @@ export function ApiKeyModal({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
+                    <SelectGroup>
                   <SelectItem value="auto">{t("跟随请求")}</SelectItem>
                   <SelectItem value="fast">Fast</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">

@@ -24,9 +24,23 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ApiKeyModal } from "@/components/modals/api-key-modal";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -39,9 +53,10 @@ import {
 } from "@/components/ui/table";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useDashboardAdminUsageSummary } from "@/hooks/useDashboardAdminUsageSummary";
-import { useAppSession } from "@/hooks/useAppSession";
+import { resolveSessionRole, useAppSession } from "@/hooks/useAppSession";
 import { useMemberDashboardSummary } from "@/hooks/useMemberDashboardSummary";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
+import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import {
   formatCompactTokenAmount,
   formatPercent,
@@ -51,6 +66,13 @@ import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 import { buildStaticRouteUrl } from "@/lib/utils/static-routes";
 import { formatLocalDateTimeFromSeconds } from "@/lib/utils/time";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type {
   DashboardAdminUsageSummary,
   DashboardDailyUsagePoint,
@@ -211,11 +233,11 @@ function AccountHighlightCard({
       : "bg-green-500/20 text-green-500";
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-accent/20 p-4 shadow-sm">
+    <div className="rounded-xl border border-border/40 bg-accent/20 p-4 shadow-sm">
       <div className="flex items-center gap-4">
         <div
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
             iconToneClass,
           )}
         >
@@ -248,7 +270,7 @@ function StatProgressCard({
   const percentage = total > 0 ? Math.min(Math.round((value / total) * 100), 100) : 0;
 
   return (
-    <Card className="glass-card overflow-hidden border-none shadow-md backdrop-blur-md transition-all hover:scale-[1.02]">
+    <Card className="glass-card overflow-hidden shadow-sm transition-colors">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className={cn("h-4 w-4", color)} />
@@ -272,7 +294,7 @@ function StatProgressCard({
 
 function MetricCard({ title, value, icon: Icon, color, sub, badge }: MetricCardProps) {
   return (
-    <Card className="glass-card overflow-hidden border-none shadow-md backdrop-blur-md transition-all hover:scale-[1.02]">
+    <Card className="glass-card overflow-hidden shadow-sm transition-colors">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className={cn("h-4 w-4", color)} />
@@ -296,13 +318,13 @@ function DashboardInitialSkeleton() {
     <div className="space-y-6 animate-in fade-in duration-700">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-36 w-full rounded-2xl" />
+          <Skeleton key={index} className="h-36 w-full rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-52 w-full rounded-2xl" />
+      <Skeleton className="h-52 w-full rounded-xl" />
       <div className="grid gap-6 md:grid-cols-2">
-        <Skeleton className="h-72 w-full rounded-2xl" />
-        <Skeleton className="h-72 w-full rounded-2xl" />
+        <Skeleton className="h-72 w-full rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-xl" />
       </div>
     </div>
   );
@@ -323,80 +345,103 @@ function DailyTokenLineChart({
   points: DashboardDailyUsagePoint[];
   className?: string;
 }) {
-  const chartPoints = points.length > 0 ? points : [];
-  const maxTokens = Math.max(1, ...chartPoints.map((item) => item.usage.totalTokens));
-  const width = 360;
-  const height = 132;
-  const paddingX = 12;
-  const paddingY = 14;
-  const plotWidth = width - paddingX * 2;
-  const plotHeight = height - paddingY * 2;
-  const coords = chartPoints.map((item, index) => {
-    const x =
-      chartPoints.length <= 1
-        ? width / 2
-        : paddingX + (index / (chartPoints.length - 1)) * plotWidth;
-    const y =
-      paddingY + plotHeight - (item.usage.totalTokens / maxTokens) * plotHeight;
-    return { x, y, item };
-  });
-  const linePath = coords
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-    .join(" ");
-  const areaPath =
-    coords.length > 0
-      ? `${linePath} L ${coords[coords.length - 1].x} ${height - paddingY} L ${coords[0].x} ${height - paddingY} Z`
-      : "";
+  const chartConfig = {
+    totalTokens: {
+      label: "Token",
+      color: "var(--primary)",
+    },
+  } satisfies ChartConfig;
+  const chartData = points.map((item) => ({
+    date: formatShortDate(item.dayStartTs),
+    totalTokens: item.usage.totalTokens,
+    estimatedCostUsd: item.usage.estimatedCostUsd,
+    requestCount: item.usage.requestCount,
+  }));
 
   return (
-    <div className={cn("rounded-xl bg-background/30 p-3", className)}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-44 w-full overflow-visible"
-        role="img"
-        aria-label="daily token usage line chart"
+    <ChartContainer
+      config={chartConfig}
+      className={cn("h-64 w-full rounded-xl bg-background/30 p-3", className)}
+      initialDimension={{ width: 720, height: 256 }}
+    >
+      <AreaChart
+        accessibilityLayer
+        data={chartData}
+        margin={{ top: 18, right: 14, left: 10, bottom: 4 }}
       >
         <defs>
-          <linearGradient id="daily-token-area" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+          <linearGradient id="fillTotalTokens" x1="0" y1="0" x2="0" y2="1">
+            <stop
+              offset="5%"
+              stopColor="var(--color-totalTokens)"
+              stopOpacity={0.32}
+            />
+            <stop
+              offset="95%"
+              stopColor="var(--color-totalTokens)"
+              stopOpacity={0.03}
+            />
           </linearGradient>
         </defs>
-        <g className="text-primary">
-          {areaPath ? <path d={areaPath} fill="url(#daily-token-area)" /> : null}
-          {linePath ? (
-            <path
-              d={linePath}
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="3"
+        <CartesianGrid vertical={false} strokeDasharray="4 8" />
+        <XAxis
+          dataKey="date"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={10}
+          minTickGap={18}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tickMargin={10}
+          width={44}
+          tickFormatter={(value) => formatCompactTokenAmount(Number(value))}
+        />
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              indicator="line"
+              labelFormatter={(value) => value}
+              formatter={(value, name, item) => {
+                const row = item.payload as {
+                  estimatedCostUsd?: number;
+                  requestCount?: number;
+                };
+                return (
+                  <div className="grid min-w-36 gap-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">{String(name)}</span>
+                      <span className="font-mono font-medium text-foreground">
+                        {formatCompactTokenAmount(Number(value))}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-muted-foreground">
+                      <span>Cost</span>
+                      <span>{formatUsd(row.estimatedCostUsd)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-muted-foreground">
+                      <span>Requests</span>
+                      <span>{row.requestCount ?? 0}</span>
+                    </div>
+                  </div>
+                );
+              }}
             />
-          ) : null}
-          {coords.map((point) => (
-            <circle
-              key={point.item.dayStartTs}
-              cx={point.x}
-              cy={point.y}
-              r="3.6"
-              className="fill-background stroke-primary"
-              strokeWidth="2"
-            >
-              <title>
-                {formatShortDate(point.item.dayStartTs)} ·{" "}
-                {formatCompactTokenAmount(point.item.usage.totalTokens)}
-              </title>
-            </circle>
-          ))}
-        </g>
-      </svg>
-      <div className="mt-1 grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground">
-        {chartPoints.slice(-7).map((item) => (
-          <span key={item.dayStartTs}>{formatShortDate(item.dayStartTs)}</span>
-        ))}
-      </div>
-    </div>
+          }
+        />
+        <Area
+          dataKey="totalTokens"
+          type="monotone"
+          fill="url(#fillTotalTokens)"
+          stroke="var(--color-totalTokens)"
+          strokeWidth={3}
+          dot={{ r: 4, strokeWidth: 2, fill: "var(--background)" }}
+          activeDot={{ r: 6, strokeWidth: 2 }}
+        />
+      </AreaChart>
+    </ChartContainer>
   );
 }
 
@@ -415,9 +460,11 @@ function UsageRankList<T extends { todayUsage: DashboardTokenUsage; rangeUsage: 
     <div className="min-w-0">
       <div className="mb-2 text-xs font-semibold text-muted-foreground">{title}</div>
       {items.length === 0 ? (
-        <div className="rounded-lg bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-          {emptyText}
-        </div>
+        <Empty className="min-h-20 border bg-muted/20 p-3">
+          <EmptyHeader>
+            <EmptyTitle>{emptyText}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="space-y-2">
           {items.slice(0, 5).map((item, index) => (
@@ -453,22 +500,34 @@ function AdminUsageAnalyticsCard({
 }) {
   const { t } = useI18n();
   if (isLoading) {
-    return <Skeleton className="h-[420px] w-full rounded-2xl" />;
+    return <Skeleton className="h-[420px] w-full rounded-xl" />;
   }
   if (isError) {
     return (
-      <Card className="glass-card border-none shadow-md">
-        <CardContent className="py-6 text-sm text-destructive">
-          {t("管理员用量分析读取失败")}
+      <Card className="glass-card shadow-sm">
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTriangle />
+            <AlertTitle>{t("管理员用量分析读取失败")}</AlertTitle>
+            <AlertDescription>{t("请稍后重试或检查核心服务状态。")}</AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     );
   }
   if (!summary) {
     return (
-      <Card className="glass-card border-none shadow-md">
-        <CardContent className="py-6 text-sm text-muted-foreground">
-          {t("管理员用量分析暂不可用")}
+      <Card className="glass-card shadow-sm">
+        <CardContent>
+          <Empty className="min-h-40 border bg-muted/20">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <LineChart />
+              </EmptyMedia>
+              <EmptyTitle>{t("管理员用量分析暂不可用")}</EmptyTitle>
+              <EmptyDescription>{t("核心服务连接后会自动刷新。")}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </CardContent>
       </Card>
     );
@@ -488,7 +547,7 @@ function AdminUsageAnalyticsCard({
   );
 
   return (
-    <Card className="glass-card overflow-hidden border-none shadow-md">
+    <Card className="glass-card overflow-hidden shadow-sm">
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div>
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -586,7 +645,7 @@ function AdminDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-36 w-full rounded-2xl" />
+            <Skeleton key={index} className="h-36 w-full rounded-xl" />
           ))
         ) : (
           <>
@@ -617,7 +676,7 @@ function AdminDashboard() {
               sub={t("额度耗尽或授权失效")}
             />
 
-            <Card className="overflow-hidden border-none bg-primary/10 shadow-md backdrop-blur-md transition-all hover:scale-[1.02]">
+            <Card className="overflow-hidden bg-primary/10 shadow-sm transition-colors">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-primary">{t("账号池剩余")}</CardTitle>
                 <PieChart className="h-4 w-4 text-primary" />
@@ -657,7 +716,7 @@ function AdminDashboard() {
         isError={isAdminUsageError}
       />
 
-      <Card className="glass-card overflow-hidden border-none shadow-md backdrop-blur-md">
+      <Card className="glass-card overflow-hidden shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle className="text-sm font-medium">{t("模型额度池概览")}</CardTitle>
@@ -677,9 +736,14 @@ function AdminDashboard() {
           {isLoading || isQuotaModelPoolsLoading ? (
             <Skeleton className="h-24 w-full rounded-xl" />
           ) : modelPoolItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border/60 bg-background/35 px-4 py-5 text-sm text-muted-foreground">
-              {t("暂无可估算的模型额度池")}
-            </div>
+            <Empty className="min-h-28 border bg-background/35">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Database />
+                </EmptyMedia>
+                <EmptyTitle>{t("暂无可估算的模型额度池")}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <div className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -769,7 +833,7 @@ function AdminDashboard() {
           },
         ].map((card) =>
           isLoading ? (
-            <Skeleton key={card.title} className="h-32 w-full rounded-2xl" />
+            <Skeleton key={card.title} className="h-32 w-full rounded-xl" />
           ) : (
             <MetricCard key={card.title} {...card} />
           ),
@@ -777,14 +841,14 @@ function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="glass-card min-h-[300px] border-none shadow-md">
+        <Card className="glass-card min-h-[300px] shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold">{t("当前活跃账号")}</CardTitle>
           </CardHeader>
           <CardContent className="flex min-h-[200px] flex-col justify-start">
             {isLoading ? (
               <div className="space-y-4">
-                <Skeleton className="h-28 w-full rounded-2xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
                 <div className="grid grid-cols-2 gap-4">
                   <Skeleton className="h-32 w-full rounded-xl" />
                   <Skeleton className="h-32 w-full rounded-xl" />
@@ -834,7 +898,7 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card min-h-[300px] border-none shadow-md">
+        <Card className="glass-card min-h-[300px] shadow-sm">
           <CardHeader>
             <CardTitle className="text-base font-semibold">{t("智能推荐")}</CardTitle>
           </CardHeader>
@@ -844,8 +908,8 @@ function AdminDashboard() {
             </p>
             {isLoading ? (
               <div className="space-y-4">
-                <Skeleton className="h-28 w-full rounded-2xl" />
-                <Skeleton className="h-28 w-full rounded-2xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
               </div>
             ) : recommendations.primaryPick || recommendations.secondaryPick ? (
               <>
@@ -899,7 +963,7 @@ function MemberDashboard() {
 
   if (isError || !summary) {
     return (
-      <Card className="glass-card border-none shadow-md">
+      <Card className="glass-card shadow-sm">
         <CardContent className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center">
           <AlertTriangle className="h-8 w-8 text-yellow-500" />
           <div className="text-base font-semibold">{t("个人仪表盘暂不可用")}</div>
@@ -1046,7 +1110,7 @@ function MemberKeyUsageCard({
 }) {
   const { t } = useI18n();
   return (
-    <Card className={cn("glass-card border-none shadow-md", className)}>
+    <Card className={cn("glass-card shadow-sm", className)}>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <div>
           <CardTitle className="text-base font-semibold">{t("我的平台 Key")}</CardTitle>
@@ -1159,7 +1223,7 @@ function MemberUsageTrendCard({
     [summary.usageTrend7d],
   );
   return (
-    <Card className={cn("glass-card border-none shadow-md", className)}>
+    <Card className={cn("glass-card shadow-sm", className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <LineChart className="h-4 w-4 text-primary" />
@@ -1267,7 +1331,7 @@ function MemberAvailableModelsCard({
 }) {
   const { t } = useI18n();
   return (
-    <Card className={cn("glass-card border-none shadow-md", className)}>
+    <Card className={cn("glass-card shadow-sm", className)}>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <div>
           <CardTitle className="text-base font-semibold">{t("可用模型")}</CardTitle>
@@ -1326,7 +1390,7 @@ function MemberRecentLogsCard({
 }) {
   const { t } = useI18n();
   return (
-    <Card className={cn("glass-card border-none shadow-md", className)}>
+    <Card className={cn("glass-card shadow-sm", className)}>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <div>
           <CardTitle className="text-base font-semibold">{t("近期请求")}</CardTitle>
@@ -1388,12 +1452,14 @@ function MemberRecentLogsCard({
 
 export default function DashboardPage() {
   const { data: session, isLoading } = useAppSession();
+  const { isDesktopRuntime } = useRuntimeCapabilities();
+  const role = resolveSessionRole(session, isLoading, isDesktopRuntime);
 
   if (isLoading && !session) {
     return <DashboardInitialSkeleton />;
   }
 
-  if (session?.role === "member") {
+  if (role === "member") {
     return <MemberDashboard />;
   }
 

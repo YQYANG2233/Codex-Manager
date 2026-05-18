@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -31,10 +32,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -52,9 +60,14 @@ import {
 import { ConfirmDialog } from "@/components/modals/confirm-dialog";
 import { ModelCatalogModal } from "@/components/modals/model-catalog-modal";
 import { useDesktopPageActive } from "@/hooks/useDesktopPageActive";
-import { isAdminRole, useAppSession } from "@/hooks/useAppSession";
+import {
+  isAdminRole,
+  resolveSessionRole,
+  useAppSession,
+} from "@/hooks/useAppSession";
 import { useManagedModels } from "@/hooks/useManagedModels";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
+import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import { accountClient } from "@/lib/api/account-client";
 import { findBestMatchingModel } from "@/lib/api/model-catalog";
 import { useI18n } from "@/lib/i18n/provider";
@@ -110,8 +123,10 @@ function MiniStatBadge({
 
 export default function ModelsPage() {
   const { t } = useI18n();
-  const { data: session } = useAppSession();
-  const isAdminMode = isAdminRole(session?.role);
+  const { isDesktopRuntime } = useRuntimeCapabilities();
+  const { data: session, isLoading: isSessionLoading } = useAppSession();
+  const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
+  const isAdminMode = isAdminRole(role);
   const {
     models,
     isLoading,
@@ -135,6 +150,8 @@ export default function ModelsPage() {
   } = useManagedModels();
   const isPageActive = useDesktopPageActive("/models/");
   usePageTransitionReady("/models/", !isServiceReady || !isLoading);
+  const canLoadAdminRoutingSources =
+    isServiceReady && isPageActive && isAdminMode && !isSessionLoading;
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ModelFilter>("all");
@@ -164,14 +181,14 @@ export default function ModelsPage() {
   const { data: accountList } = useQuery({
     queryKey: ["accounts", "model-routing-sources"],
     queryFn: () => accountClient.list(),
-    enabled: isServiceReady && isPageActive && isAdminMode,
+    enabled: canLoadAdminRoutingSources,
     retry: 1,
   });
 
   const { data: aggregateApis } = useQuery({
     queryKey: ["aggregate-apis", "model-routing-sources"],
     queryFn: () => accountClient.listAggregateApis(),
-    enabled: isServiceReady && isPageActive && isAdminMode,
+    enabled: canLoadAdminRoutingSources,
     retry: 1,
   });
 
@@ -578,7 +595,7 @@ export default function ModelsPage() {
           </div>
         </div>
 
-        <Card className="glass-card border-none shadow-md backdrop-blur-md">
+        <Card className="glass-card shadow-md ">
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -666,7 +683,7 @@ export default function ModelsPage() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder={t("搜索 slug、显示名称或描述")}
-                    className="h-full border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
+                    className="h-full bg-transparent px-0 shadow-none focus-visible:ring-0"
                   />
                 </div>
                 <Select value={filter} onValueChange={(value) => setFilter(value as ModelFilter)}>
@@ -674,6 +691,7 @@ export default function ModelsPage() {
                     <SelectValue>{currentFilterLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectGroup>
                     <SelectItem value="all">{t("全部模型")}</SelectItem>
                     <SelectItem value="api">{t("仅 API 可用")}</SelectItem>
                     {isAdminMode ? (
@@ -682,6 +700,7 @@ export default function ModelsPage() {
                         <SelectItem value="edited">{t("仅本地覆写")}</SelectItem>
                       </>
                     ) : null}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -694,9 +713,11 @@ export default function ModelsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {!isServiceReady ? (
-              <div className="rounded-2xl border border-dashed border-border/70 bg-background/35 px-6 py-10 text-sm text-muted-foreground">
-                {t("服务未连接，当前无法读取模型目录。")}
-              </div>
+              <Empty className="min-h-40 border bg-background/35">
+                <EmptyHeader>
+                  <EmptyTitle>{t("服务未连接，当前无法读取模型目录。")}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             ) : isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 6 }).map((_, index) => (
@@ -704,11 +725,15 @@ export default function ModelsPage() {
                 ))}
               </div>
             ) : filteredModels.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/70 bg-background/35 px-6 py-10 text-sm text-muted-foreground">
-                {isAdminMode
-                  ? t("没有匹配的模型。你可以调整筛选条件，或直接新增一个自定义模型。")
-                  : t("没有匹配的模型。你可以调整筛选条件。")}
-              </div>
+              <Empty className="min-h-40 border bg-background/35">
+                <EmptyHeader>
+                  <EmptyTitle>
+                    {isAdminMode
+                      ? t("没有匹配的模型。你可以调整筛选条件，或直接新增一个自定义模型。")
+                      : t("没有匹配的模型。你可以调整筛选条件。")}
+                  </EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -861,6 +886,7 @@ export default function ModelsPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                  <DropdownMenuGroup>
                                 <DropdownMenuItem onClick={() => openRoutingDialog(model.slug)}>
                                   <Link2 className="h-4 w-4" />
                                   {t("关联来源")}
@@ -881,6 +907,7 @@ export default function ModelsPage() {
                                   <Trash2 className="h-4 w-4" />
                                   {t("删除模型")}
                                 </DropdownMenuItem>
+                                </DropdownMenuGroup>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -907,7 +934,7 @@ export default function ModelsPage() {
             }
           }}
         >
-          <DialogContent className="glass-card max-h-[calc(100vh-2rem)] overflow-y-auto border-none p-0 shadow-xl backdrop-blur-md md:max-w-[980px] xl:max-w-[1180px]">
+          <DialogContent className="glass-card max-h-[calc(100vh-2rem)] overflow-y-auto p-0 shadow-sm  md:max-w-[980px] xl:max-w-[1180px]">
             <div className="p-5 sm:p-6">
           <DialogHeader className="pb-3 pr-8">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -926,13 +953,17 @@ export default function ModelsPage() {
           </DialogHeader>
           <div className="space-y-4">
             {!isServiceReady ? (
-              <div className="rounded-2xl border border-dashed border-border/70 bg-background/35 px-6 py-10 text-sm text-muted-foreground">
-                {t("服务未连接，当前无法读取模型路由。")}
-              </div>
+              <Empty className="min-h-40 border bg-background/35">
+                <EmptyHeader>
+                  <EmptyTitle>{t("服务未连接，当前无法读取模型路由。")}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             ) : !activeModel ? (
-              <div className="rounded-2xl border border-dashed border-border/70 bg-background/35 px-6 py-10 text-sm text-muted-foreground">
-                {t("请先从模型目录选择一个模型。")}
-              </div>
+              <Empty className="min-h-40 border bg-background/35">
+                <EmptyHeader>
+                  <EmptyTitle>{t("请先从模型目录选择一个模型。")}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
@@ -994,9 +1025,11 @@ export default function ModelsPage() {
                       </Badge>
                     </div>
                     {activeMappings.length === 0 ? (
-                      <div className="px-4 py-10 text-sm text-muted-foreground">
-                        {t("还没有关联来源。")}
-                      </div>
+                      <Empty className="min-h-32 border-0 bg-transparent">
+                        <EmptyHeader>
+                          <EmptyTitle>{t("还没有关联来源。")}</EmptyTitle>
+                        </EmptyHeader>
+                      </Empty>
                     ) : (
                       <div className="max-h-[520px] space-y-2 overflow-y-auto p-3">
                         {activeMappings.map((mapping) => (
@@ -1176,18 +1209,22 @@ export default function ModelsPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                    <SelectGroup>
                               <SelectItem value="all">{t("全部来源")}</SelectItem>
                               <SelectItem value="openai_account">{t("账号池")}</SelectItem>
                               <SelectItem value="aggregate_api">{t("聚合 API")}</SelectItem>
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                         </div>
 
                         <div className="max-h-[380px] space-y-2 overflow-y-auto pr-1">
                           {sourceCandidates.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-border/70 px-3 py-8 text-sm text-muted-foreground">
-                              {t("暂无可关联候选。")}
-                            </div>
+                            <Empty className="min-h-32 border bg-background/35">
+                              <EmptyHeader>
+                                <EmptyTitle>{t("暂无可关联候选。")}</EmptyTitle>
+                              </EmptyHeader>
+                            </Empty>
                           ) : (
                             sourceCandidates.slice(0, 80).map((sourceModel) => (
                               <div
@@ -1264,8 +1301,10 @@ export default function ModelsPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                    <SelectGroup>
                               <SelectItem value="aggregate_api">{t("聚合 API")}</SelectItem>
                               <SelectItem value="openai_account">{t("账号池")}</SelectItem>
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                           <Input

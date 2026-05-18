@@ -73,6 +73,7 @@ export const EN_MESSAGES: MessageCatalog = {
   我知道了: "Got it",
   "账号池 · 用量管理": "Account Pool · Usage Management",
   收起侧边栏: "Collapse Sidebar",
+  展开侧边栏: "Expand Sidebar",
   基础设置: "Basic settings",
   控制应用启动和窗口行为: "Control startup and window behavior.",
   自动检查更新: "Check updates automatically",
@@ -101,6 +102,14 @@ export const EN_MESSAGES: MessageCatalog = {
   无法同步核心服务状态: "Unable to sync core service status",
   重试: "Retry",
   强制启动: "Force start",
+  "端口被占用，换一个端口重新启动":
+    "The port is occupied. Choose another port and restart.",
+  新的监听端口: "New listen port",
+  "请输入 1-65535 之间的端口": "Enter a port between 1 and 65535",
+  "启动中...": "Starting...",
+  使用新端口启动: "Start with new port",
+  "保存后会同步更新本地服务地址，CLI 的 base_url 也需要改成同一个端口。":
+    "After saving, the local service address is updated. The CLI base_url must use the same port.",
   "管理上游聚合地址与密钥，并测试连通性":
     "Manage upstream aggregate endpoints and credentials, and test connectivity.",
   查询: "Filter",
@@ -185,6 +194,28 @@ export const EN_MESSAGES: MessageCatalog = {
   从未刷新: "Never refreshed",
   账号类型: "Account type",
   当前状态: "Current status",
+  状态原因: "Status reason",
+  原因码: "Reason code",
+  "Refresh Token 已被重复使用，需要重新登录":
+    "Refresh token was reused; sign in again.",
+  "Refresh Token 已被撤销，需要重新登录":
+    "Refresh token was revoked; sign in again.",
+  "Refresh Token 已过期，需要重新登录":
+    "Refresh token expired; sign in again.",
+  "Refresh Token 授权无效，需要重新登录":
+    "Refresh token grant is invalid; sign in again.",
+  "刷新登录凭证返回 401，需要重新登录":
+    "Refreshing credentials returned 401; sign in again.",
+  "Refresh Token 失效，需要重新登录":
+    "Refresh token is invalid; sign in again.",
+  "用量接口返回 401，账号授权失效":
+    "Usage endpoint returned 401; account authorization is invalid.",
+  "用量接口返回 403，账号权限不足或被限制":
+    "Usage endpoint returned 403; account permission is missing or restricted.",
+  "用量接口返回 HTTP {status}": "Usage endpoint returned HTTP {status}.",
+  账号已停用: "Account deactivated",
+  工作区已停用: "Workspace deactivated",
+  额度已耗尽: "Quota exhausted",
   标签: "Tags",
   未设置: "Not set",
   备注: "Notes",

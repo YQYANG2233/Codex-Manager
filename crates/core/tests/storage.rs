@@ -1,7 +1,7 @@
 use codexmanager_core::storage::{
     now_ts, Account, AggregateApi, ApiKey, ApiKeyOwner, AppUser, AppWalletLedgerEntry, Event,
-    ModelSourceMapping, ModelSourceModel, RequestLog, RequestTokenStat, Storage, Token,
-    UsageSnapshotRecord,
+    ModelGroup, ModelSourceMapping, ModelSourceModel, RequestLog, RequestTokenStat, Storage, Token,
+    UsageSnapshotRecord, UserModelGroup,
 };
 
 /// 函数 `storage_can_insert_account_and_token`
@@ -181,6 +181,69 @@ fn storage_can_upsert_and_resolve_model_source_mappings() {
         .find_enabled_model_source_mapping("gpt-platform", "openai_account", "acc-routing-1")
         .expect("find deleted mapping")
         .is_none());
+}
+
+#[test]
+fn delete_account_removes_openai_model_source_routes() {
+    let mut storage = Storage::open_in_memory().expect("open in memory");
+    storage.init().expect("init schema");
+    let now = now_ts();
+    storage
+        .insert_account(&Account {
+            id: "acc-routing-delete".to_string(),
+            label: "delete route".to_string(),
+            issuer: "https://auth.openai.com".to_string(),
+            chatgpt_account_id: None,
+            workspace_id: None,
+            group_name: None,
+            sort: 0,
+            status: "active".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("insert account");
+    storage
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-routing-delete".to_string(),
+            upstream_model: "gpt-platform".to_string(),
+            display_name: Some("GPT Platform".to_string()),
+            status: "available".to_string(),
+            discovery_kind: "synced".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("upsert source model");
+    storage
+        .upsert_model_source_mapping(&ModelSourceMapping {
+            id: "map-routing-delete".to_string(),
+            platform_model_slug: "gpt-platform".to_string(),
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-routing-delete".to_string(),
+            upstream_model: "gpt-platform".to_string(),
+            enabled: true,
+            priority: 0,
+            weight: 1,
+            billing_model_slug: None,
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("upsert mapping");
+
+    storage
+        .delete_account("acc-routing-delete")
+        .expect("delete account");
+
+    assert!(storage
+        .list_model_source_models(Some("openai_account"), Some("acc-routing-delete"))
+        .expect("list source models")
+        .is_empty());
+    assert!(storage
+        .list_model_source_mappings(Some("gpt-platform"))
+        .expect("list mappings")
+        .is_empty());
 }
 
 /// 函数 `token_upsert_keeps_refresh_schedule_columns`
@@ -1598,6 +1661,67 @@ fn request_token_stats_rollups_use_owner_and_actual_source_precedence() {
     );
 }
 
+#[test]
+fn delete_app_user_removes_model_group_assignments() {
+    let storage = Storage::open_in_memory().expect("open in memory");
+    storage.init().expect("init schema");
+    let now = now_ts();
+
+    storage
+        .insert_app_user(&AppUser {
+            id: "delete-user".to_string(),
+            username: "delete-user".to_string(),
+            display_name: None,
+            password_hash: "hash".to_string(),
+            role: "member".to_string(),
+            status: "active".to_string(),
+            created_at: now,
+            updated_at: now,
+            last_login_at: None,
+        })
+        .expect("insert user");
+    storage
+        .upsert_model_group(&ModelGroup {
+            id: "delete-group".to_string(),
+            name: "Delete Group".to_string(),
+            description: None,
+            status: "active".to_string(),
+            sort: 0,
+            is_default: false,
+            rate_multiplier_millis: 1000,
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("insert model group");
+    storage
+        .replace_user_model_groups_for_group(
+            "delete-group",
+            &[UserModelGroup {
+                user_id: "delete-user".to_string(),
+                group_id: "delete-group".to_string(),
+                status: "active".to_string(),
+                expires_at: None,
+                created_at: now,
+                updated_at: now,
+            }],
+        )
+        .expect("assign model group");
+
+    let deleted = storage
+        .delete_app_user("delete-user")
+        .expect("delete app user");
+
+    assert_eq!(deleted, 1);
+    assert!(storage
+        .find_app_user_by_id("delete-user")
+        .expect("find deleted user")
+        .is_none());
+    assert!(storage
+        .list_user_model_groups_for_user("delete-user")
+        .expect("list deleted user model groups")
+        .is_empty());
+}
+
 /// 函数 `clear_request_logs_keeps_token_stats_for_usage_summary`
 ///
 /// 作者: gaohongshun
@@ -1610,7 +1734,7 @@ fn request_token_stats_rollups_use_owner_and_actual_source_precedence() {
 /// # 返回
 /// 无
 #[test]
-fn clear_request_logs_keeps_token_stats_for_usage_summary() {
+fn clear_request_logs_rolls_token_stats_into_long_term_totals() {
     let storage = Storage::open_in_memory().expect("open in memory");
     storage.init().expect("init schema");
     let created_at = now_ts();
@@ -1669,11 +1793,19 @@ fn clear_request_logs_keeps_token_stats_for_usage_summary() {
     let summary = storage
         .summarize_request_logs_between(created_at - 1, created_at + 1)
         .expect("summarize");
-    assert_eq!(summary.input_tokens, 100);
-    assert_eq!(summary.cached_input_tokens, 30);
-    assert_eq!(summary.output_tokens, 20);
-    assert_eq!(summary.reasoning_output_tokens, 5);
-    assert!(summary.estimated_cost_usd > 0.11);
+    assert_eq!(summary.input_tokens, 0);
+    assert_eq!(summary.cached_input_tokens, 0);
+    assert_eq!(summary.output_tokens, 0);
+    assert_eq!(summary.reasoning_output_tokens, 0);
+    assert_eq!(summary.estimated_cost_usd, 0.0);
+
+    let usage_by_key = storage
+        .summarize_request_token_stats_by_key()
+        .expect("summarize by key");
+    assert_eq!(usage_by_key.len(), 1);
+    assert_eq!(usage_by_key[0].key_id, "key-clear");
+    assert_eq!(usage_by_key[0].total_tokens, 120);
+    assert!(usage_by_key[0].estimated_cost_usd > 0.11);
 }
 
 /// 函数 `request_token_stats_can_summarize_total_tokens_by_key`
@@ -1999,6 +2131,16 @@ fn storage_can_roundtrip_api_key_quota_limit_and_usage() {
         storage
             .api_key_total_token_usage("key-quota-1")
             .expect("read usage"),
+        1150
+    );
+
+    storage
+        .rollup_all_request_token_stats()
+        .expect("roll up request stats");
+    assert_eq!(
+        storage
+            .api_key_total_token_usage("key-quota-1")
+            .expect("read rolled usage"),
         1150
     );
 

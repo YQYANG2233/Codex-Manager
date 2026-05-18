@@ -951,10 +951,7 @@ impl Storage {
             "048_drop_model_options_cache",
             include_str!("../../migrations/048_drop_model_options_cache.sql"),
         )?;
-        self.apply_sql_migration(
-            "049_model_catalog_string_items",
-            include_str!("../../migrations/049_model_catalog_string_items.sql"),
-        )?;
+        self.apply_model_catalog_string_items_migration()?;
         self.ensure_model_catalog_models_table()?;
         self.apply_sql_migration(
             "050_api_key_profiles_drop_azure_protocol",
@@ -1023,6 +1020,9 @@ impl Storage {
             include_str!("../../migrations/061_model_groups.sql"),
             |s| s.ensure_model_group_tables(),
         )?;
+        self.apply_compat_migration("062_observability_storage_compaction", |s| {
+            s.compact_observability_storage_for_existing_databases()
+        })?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
         self.ensure_aggregate_api_supplier_model_tables()?;
@@ -1044,6 +1044,84 @@ impl Storage {
         self.ensure_aggregate_api_supplier_model_tables()?;
         self.ensure_model_group_tables()?;
         Ok(())
+    }
+
+    fn compact_observability_storage_for_existing_databases(&self) -> Result<()> {
+        self.ensure_request_token_stats_table()?;
+        self.ensure_request_logs_table()?;
+        self.ensure_usage_secondary_columns()?;
+
+        let now = now_ts();
+        let mut touched = 0_usize;
+        if let Some(cutoff) = request_token_stats::retention_cutoff(
+            now,
+            request_token_stats::request_token_stats_retain_days(),
+        ) {
+            touched = touched.saturating_add(self.rollup_request_token_stats_before(cutoff)?);
+        }
+        touched = touched.saturating_add(self.prune_request_logs_by_retention(now)?);
+        touched = touched.saturating_add(
+            self.prune_usage_snapshots_all_accounts(usage::usage_snapshots_retain_per_account())?,
+        );
+
+        if touched > 0 {
+            let _ = self
+                .conn
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;");
+        }
+        Ok(())
+    }
+
+    fn apply_model_catalog_string_items_migration(&self) -> Result<()> {
+        const VERSION: &str = "049_model_catalog_string_items";
+        if self.has_migration(VERSION)? {
+            return Ok(());
+        }
+
+        self.conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS model_catalog_string_items (
+                scope TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                item_kind TEXT NOT NULL,
+                value TEXT NOT NULL,
+                sort_index INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (scope, slug, item_kind, value)
+             );
+             CREATE INDEX IF NOT EXISTS idx_model_catalog_string_items_scope_kind_sort
+               ON model_catalog_string_items(scope, item_kind, slug, sort_index, value);",
+        )?;
+
+        for (legacy_table, item_kind) in [
+            (
+                "model_catalog_additional_speed_tiers",
+                "additional_speed_tiers",
+            ),
+            (
+                "model_catalog_experimental_supported_tools",
+                "experimental_supported_tools",
+            ),
+            ("model_catalog_input_modalities", "input_modalities"),
+            ("model_catalog_available_in_plans", "available_in_plans"),
+        ] {
+            if self.has_table(legacy_table)? {
+                let sql = format!(
+                    "INSERT OR REPLACE INTO model_catalog_string_items
+                        (scope, slug, item_kind, value, sort_index, updated_at)
+                     SELECT scope, slug, '{item_kind}', value, sort_index, updated_at
+                     FROM {legacy_table};"
+                );
+                self.conn.execute_batch(&sql)?;
+            }
+        }
+
+        self.conn.execute_batch(
+            "DROP TABLE IF EXISTS model_catalog_additional_speed_tiers;
+             DROP TABLE IF EXISTS model_catalog_experimental_supported_tools;
+             DROP TABLE IF EXISTS model_catalog_input_modalities;
+             DROP TABLE IF EXISTS model_catalog_available_in_plans;",
+        )?;
+        self.mark_migration(VERSION)
     }
 
     /// 函数 `insert_login_session`

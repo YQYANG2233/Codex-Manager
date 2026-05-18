@@ -258,6 +258,9 @@ export const appClient = {
     });
     return readAppUser(result);
   },
+  async deleteAppUser(id: string): Promise<void> {
+    await invoke<unknown>("service_account_manager_user_delete", { id });
+  },
   async topUpWallet(payload: {
     ownerKind: string;
     ownerId: string;
@@ -265,6 +268,18 @@ export const appClient = {
     note?: string | null;
   }): Promise<AppWallet | null> {
     const result = await invoke<unknown>("service_account_manager_wallet_top_up", payload);
+    return readWallet(result);
+  },
+  async setWalletAvailable(payload: {
+    ownerKind: string;
+    ownerId: string;
+    availableCreditMicros: number;
+    note?: string | null;
+  }): Promise<AppWallet | null> {
+    const result = await invoke<unknown>(
+      "service_account_manager_wallet_set_available",
+      payload
+    );
     return readWallet(result);
   },
   async listApiKeyOwners(): Promise<ApiKeyOwner[]> {
@@ -331,6 +346,7 @@ export const appClient = {
     invoke("app_close_to_tray_on_close_set", { enabled }),
 
   openInBrowser: (url: string) => invoke("open_in_browser", { url }),
+  openExternalUrl: (url: string) => invoke("open_external_url", { url }),
   openInFileManager: (path: string) => invoke("open_in_file_manager", { path }),
   showMainWindow: () => invoke("app_show_main_window"),
   openUpdateLogsDir: (assetPath?: string) =>

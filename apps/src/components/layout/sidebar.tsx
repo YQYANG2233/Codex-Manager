@@ -21,12 +21,13 @@ import { buildStaticRouteUrl } from "@/lib/utils/static-routes";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store/useAppStore";
 import { useI18n } from "@/lib/i18n/provider";
+import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import {
   getAllowedTopLevelRouteSections,
   getTopLevelRouteLabel,
   type TopLevelRoutePath,
 } from "@/lib/app-shell/top-level-routes";
-import { useAppSession } from "@/hooks/useAppSession";
+import { resolveSessionRole, useAppSession } from "@/hooks/useAppSession";
 import {
   memo,
   useCallback,
@@ -74,6 +75,7 @@ const NavItem = memo(({
     title={itemName}
     className={cn(
       "flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200 hover:bg-accent hover:text-accent-foreground",
+      !isSidebarOpen && "justify-center px-0",
       isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
     )}
   >
@@ -106,8 +108,15 @@ export function Sidebar() {
     currentShellPath,
     navigateShellPath,
   } = useAppStore();
-  const { data: session } = useAppSession();
-  const role = session?.role ?? "member";
+  const { isDesktopRuntime } = useRuntimeCapabilities();
+  const { data: session, isLoading: isSessionLoading } = useAppSession();
+  const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
+  const brandTitle = isSidebarOpen ? t("重新打开 Codex CLI 引导") : "CodexManager";
+  const toggleTitle = isSidebarOpen ? t("收起侧边栏") : t("展开侧边栏");
+  const routeAccess = useMemo(
+    () => ({ role, mode: session?.mode ?? null }),
+    [role, session?.mode],
+  );
 
   const handleNavigate = useCallback(
     (href: string, event: MouseEvent<HTMLAnchorElement>) => {
@@ -134,7 +143,7 @@ export function Sidebar() {
   );
 
   const renderedItems = useMemo(() => {
-    const sections = getAllowedTopLevelRouteSections(role);
+    const sections = getAllowedTopLevelRouteSections(routeAccess);
     return sections.map((section, sectionIndex) => (
       <div
         key={section.id}
@@ -153,7 +162,7 @@ export function Sidebar() {
             const item = NAV_ITEM_BY_PATH.get(route.path);
             if (!item) return null;
             const navItem = { href: route.path, icon: item.icon };
-            const itemName = t(getTopLevelRouteLabel(route.path, role));
+            const itemName = t(getTopLevelRouteLabel(route.path, routeAccess));
             return (
               <NavItem
                 key={route.path}
@@ -168,7 +177,7 @@ export function Sidebar() {
         </div>
       </div>
     ));
-  }, [currentShellPath, handleNavigate, isSidebarOpen, role, t]);
+  }, [currentShellPath, handleNavigate, isSidebarOpen, routeAccess, t]);
 
   return (
     <div
@@ -177,13 +186,22 @@ export function Sidebar() {
         isSidebarOpen ? "w-56" : "w-16"
       )}
     >
-      <div className="flex h-16 items-center border-b px-4 shrink-0">
-        <button
+      <div
+        className={cn(
+          "flex h-16 items-center border-b shrink-0",
+          isSidebarOpen ? "px-4" : "px-2"
+        )}
+      >
+        <Button
           type="button"
+          variant="ghost"
           onClick={openCodexCliGuide}
-          title={t("重新打开 Codex CLI 引导")}
-          aria-label={t("重新打开 Codex CLI 引导")}
-          className="flex w-full items-center gap-2 overflow-hidden rounded-xl px-2 py-1.5 text-left transition-colors duration-200 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+          title={brandTitle}
+          aria-label={brandTitle}
+          className={cn(
+            "flex h-auto w-full items-center gap-2 overflow-hidden rounded-xl px-2 py-1.5 transition-colors duration-200 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+            isSidebarOpen ? "text-left" : "justify-center"
+          )}
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <span className="text-sm font-bold">CM</span>
@@ -194,7 +212,7 @@ export function Sidebar() {
               <span className="text-xs text-muted-foreground truncate opacity-70">{t("账号池 · 用量管理")}</span>
             </div>
           )}
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">
@@ -208,6 +226,8 @@ export function Sidebar() {
           variant="ghost"
           size="icon"
           className="w-full justify-start gap-3 px-3 h-10"
+          title={toggleTitle}
+          aria-label={toggleTitle}
           onClick={toggleSidebar}
         >
           {isSidebarOpen ? (

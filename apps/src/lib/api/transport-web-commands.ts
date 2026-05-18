@@ -272,6 +272,9 @@ export function createWebCommandMap(
       rpcMethod: "accountManager/users/update",
       mapParams: (params) => asRecord(asRecord(params)?.payload) ?? {},
     },
+    service_account_manager_user_delete: {
+      rpcMethod: "accountManager/users/delete",
+    },
     service_account_manager_wallet_top_up: {
       rpcMethod: "accountManager/wallet/topUp",
       mapParams: (params) => {
@@ -281,6 +284,19 @@ export function createWebCommandMap(
           ownerId: source.owner_id ?? source.ownerId,
           amountCreditMicros:
             source.amount_credit_micros ?? source.amountCreditMicros,
+          note: source.note,
+        };
+      },
+    },
+    service_account_manager_wallet_set_available: {
+      rpcMethod: "accountManager/wallet/setAvailable",
+      mapParams: (params) => {
+        const source = asRecord(params) ?? {};
+        return {
+          ownerKind: source.owner_kind ?? source.ownerKind,
+          ownerId: source.owner_id ?? source.ownerId,
+          availableCreditMicros:
+            source.available_credit_micros ?? source.availableCreditMicros,
           note: source.note,
         };
       },
@@ -585,6 +601,19 @@ export function createWebCommandMap(
           throw new Error("当前环境不支持打开浏览器");
         }
         window.open(url, "_blank", "noopener,noreferrer");
+        return { ok: true };
+      },
+    },
+    open_external_url: {
+      direct: async (params) => {
+        const url = typeof params?.url === "string" ? params.url.trim() : "";
+        if (!url) {
+          throw new Error("缺少外部跳转地址");
+        }
+        if (typeof window === "undefined") {
+          throw new Error("当前环境不支持打开外部链接");
+        }
+        window.location.href = url;
         return { ok: true };
       },
     },

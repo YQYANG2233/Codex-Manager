@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -50,9 +51,14 @@ import {
 import { serviceClient } from "@/lib/api/service-client";
 import { useDesktopPageActive } from "@/hooks/useDesktopPageActive";
 import { useDeferredDesktopActivation } from "@/hooks/useDeferredDesktopActivation";
-import { isAdminRole, useAppSession } from "@/hooks/useAppSession";
+import {
+  isAdminRole,
+  resolveSessionRole,
+  useAppSession,
+} from "@/hooks/useAppSession";
 import { useLocalDayRange } from "@/hooks/useLocalDayRange";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
+import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import { useI18n } from "@/lib/i18n/provider";
 import { useAppStore } from "@/lib/store/useAppStore";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
@@ -188,7 +194,7 @@ function SummaryCard({
   return (
     <Card
       size="sm"
-      className="glass-card border-none shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5"
+      className="glass-card shadow-sm transition-all"
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5">
         <CardTitle className="text-[13px] font-medium text-muted-foreground">
@@ -229,13 +235,13 @@ function SummaryCard({
 function LogsPageSkeleton() {
   return (
     <div className="space-y-5">
-      <Skeleton className="h-28 w-full rounded-3xl" />
+      <Skeleton className="h-28 w-full rounded-xl" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-32 w-full rounded-3xl" />
+          <Skeleton key={index} className="h-32 w-full rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-[420px] w-full rounded-3xl" />
+      <Skeleton className="h-[420px] w-full rounded-xl" />
     </div>
   );
 }
@@ -1329,8 +1335,10 @@ function LogsPageContent() {
   const localDayRange = useLocalDayRange();
   const searchParams = useSearchParams();
   const { serviceStatus } = useAppStore();
-  const { data: session } = useAppSession();
-  const isAdminMode = isAdminRole(session?.role);
+  const { isDesktopRuntime } = useRuntimeCapabilities();
+  const { data: session, isLoading: isSessionLoading } = useAppSession();
+  const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
+  const isAdminMode = isAdminRole(role);
   const isPageActive = useDesktopPageActive("/logs/");
   const queryClient = useQueryClient();
   const areLogQueriesEnabled = useDeferredDesktopActivation(serviceStatus.connected);
@@ -1708,7 +1716,7 @@ function LogsPageContent() {
         }}
         className="w-full"
       >
-        <TabsList className="glass-card flex h-11 w-full justify-start overflow-x-auto rounded-xl border-none p-1 no-scrollbar lg:w-fit">
+        <TabsList className="glass-card flex h-11 w-full justify-start overflow-x-auto rounded-xl p-1 no-scrollbar lg:w-fit">
           <TabsTrigger value="requests" className="gap-2 px-5 shrink-0">
             <Database className="h-4 w-4" /> {t("请求日志")}
           </TabsTrigger>
@@ -1720,7 +1728,7 @@ function LogsPageContent() {
         </TabsList>
 
         <TabsContent value="requests" className="space-y-5">
-          <Card className="glass-card border-none shadow-md backdrop-blur-md">
+          <Card className="glass-card shadow-sm">
             <CardContent className="space-y-3 pt-0">
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
                 <div className="min-w-0">
@@ -1736,21 +1744,24 @@ function LogsPageContent() {
                 </div>
                 <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border/60 bg-muted/30 p-1">
                   {["all", "2xx", "4xx", "5xx"].map((item) => (
-                    <button
+                    <Button
                       key={item}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => {
                         setFilter(item as StatusFilter);
                         setPage(1);
                       }}
                       className={cn(
-                        "rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all",
+                        "h-auto rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all",
                         filter === item
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
                       )}
                     >
                       {item.toUpperCase()}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 <div className="flex shrink-0 items-center gap-2 xl:justify-self-end">
@@ -1793,18 +1804,21 @@ function LogsPageContent() {
                         ["today", t("今天")],
                       ] as Array<[TimeRangePreset, string]>
                     ).map(([value, label]) => (
-                      <button
+                      <Button
                         key={value}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => applyTimePreset(value)}
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                          "h-auto rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
                           timePreset === value
                             ? "bg-background text-foreground shadow-sm"
                             : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
                         )}
                       >
                         {label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -1847,12 +1861,14 @@ function LogsPageContent() {
                     {compactMetaText}
                   </div>
                   {hasActiveTimeRange ? (
-                    <button
-                      className="mt-1 text-xs text-primary hover:underline"
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="mt-1 h-auto p-0 text-xs text-primary hover:underline"
                       onClick={() => applyTimePreset("all")}
                     >
                       {t("清除时间筛选")}
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               </div>
@@ -1890,7 +1906,7 @@ function LogsPageContent() {
             />
           </div>
 
-          <Card className="glass-card overflow-hidden border-none gap-0 py-0 shadow-xl backdrop-blur-md">
+          <Card className="glass-card overflow-hidden gap-0 py-0 shadow-sm">
             <CardHeader className="flex min-h-1 items-center border-b border-border/40 bg-[var(--table-section-bg)] py-3">
               <div className="flex w-full flex-col gap-1 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -2057,11 +2073,13 @@ function LogsPageContent() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectGroup>
                     {["5", "10", "20", "50", "100", "200"].map((value) => (
                       <SelectItem key={value} value={value}>
                         {value}
                       </SelectItem>
                     ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -2094,7 +2112,7 @@ function LogsPageContent() {
 
         {isAdminMode ? (
         <TabsContent value="gateway-errors" className="space-y-5">
-          <Card className="glass-card border-none shadow-md backdrop-blur-md">
+          <Card className="glass-card shadow-sm">
             <CardContent className="grid gap-4 pt-0 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
               <div className="space-y-1">
                 <div className="text-sm font-medium text-foreground">
@@ -2120,12 +2138,14 @@ function LogsPageContent() {
                       <SelectValue>{gatewayStageFilterLabel}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
+                    <SelectGroup>
                       <SelectItem value="all">{t("全部阶段")}</SelectItem>
                       {gatewayStageOptions.map((stage) => (
                         <SelectItem key={stage} value={stage}>
                           {stage}
                         </SelectItem>
                     ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 </div>
@@ -2159,7 +2179,7 @@ function LogsPageContent() {
             </CardContent>
           </Card>
 
-          <Card className="glass-card overflow-hidden border-none gap-0 py-0 shadow-xl backdrop-blur-md">
+          <Card className="glass-card overflow-hidden gap-0 py-0 shadow-sm">
             <CardHeader className="flex min-h-1 items-center border-b border-border/40 bg-[var(--table-section-bg)] py-3">
               <div className="flex w-full flex-col gap-1 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -2386,11 +2406,13 @@ function LogsPageContent() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectGroup>
                     {["10", "20", "50", "100"].map((value) => (
                       <SelectItem key={value} value={value}>
                         {value}
                       </SelectItem>
                     ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>

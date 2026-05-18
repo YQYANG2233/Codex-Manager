@@ -519,7 +519,9 @@ async fn async_main() {
             let static_service = ServeDir::new(&web_root)
                 .append_index_html_on_directories(true)
                 .not_found_service(ServeFile::new(index));
-            protected_app = protected_app.fallback_service(static_service);
+            protected_app = protected_app
+                .nest_service("/_next", ServeDir::new(web_root.join("_next")))
+                .fallback_service(static_service);
         } else {
             protected_app = protected_app
                 .route("/", get(ui_assets::serve_missing_ui))
@@ -600,6 +602,7 @@ async fn async_main() {
 /// 无
 fn main() {
     codexmanager_service::portable::bootstrap_current_process();
+    codexmanager_service::init_logging();
     let _ = codexmanager_service::initialize_storage_if_needed();
     codexmanager_service::sync_runtime_settings_from_storage();
 

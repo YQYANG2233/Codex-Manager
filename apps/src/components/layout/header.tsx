@@ -20,7 +20,7 @@ import {
   normalizeServiceAddr,
 } from "@/lib/utils/service";
 import { getTopLevelRouteLabel } from "@/lib/app-shell/top-level-routes";
-import { useAppSession } from "@/hooks/useAppSession";
+import { resolveSessionRole, useAppSession } from "@/hooks/useAppSession";
 
 const DEFAULT_SERVICE_ADDR = "localhost:48760";
 
@@ -48,9 +48,10 @@ export function Header() {
   const { t } = useI18n();
   const [isToggling, setIsToggling] = useState(false);
   const [portInput, setPortInput] = useState("48760");
-  const { canManageService, mode } = useRuntimeCapabilities();
-  const { data: session } = useAppSession();
-  const role = session?.role ?? "member";
+  const { canManageService, isDesktopRuntime, mode } = useRuntimeCapabilities();
+  const { data: session, isLoading: isSessionLoading } = useAppSession();
+  const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
+  const routeAccess = { role, mode: session?.mode ?? null };
 
   useEffect(() => {
     const current = String(serviceStatus.addr || DEFAULT_SERVICE_ADDR);
@@ -72,7 +73,7 @@ export function Header() {
    * 返回函数执行结果
    */
   const getPageTitle = () => {
-    return t(getTopLevelRouteLabel(currentShellPath, role));
+    return t(getTopLevelRouteLabel(currentShellPath, routeAccess));
   };
 
   const canLogoutWebSession =
@@ -192,7 +193,7 @@ export function Header() {
             <div className="flex items-center gap-2 rounded-lg border bg-card/30 px-2.5 py-1.5 shadow-sm">
               <span className="text-xs font-medium text-muted-foreground">{t("监听端口")}</span>
               <Input
-                className="h-7 w-16 border-none bg-transparent p-0 text-xs font-mono focus-visible:ring-0"
+                className="h-7 w-16 bg-transparent p-0 text-xs font-mono focus-visible:ring-0"
                 placeholder="48760"
                 value={portInput}
                 onChange={(event) => {

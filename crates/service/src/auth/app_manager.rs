@@ -503,6 +503,34 @@ pub fn update_app_user(input: AppUserUpdateInput) -> Result<AppUserPublicResult,
     Ok(public_user(updated, wallet))
 }
 
+pub fn delete_app_user(user_id: &str) -> Result<(), String> {
+    crate::initialize_storage_if_needed()?;
+    let storage = open_storage_or_error()?;
+    let user_id = user_id.trim();
+    if user_id.is_empty() {
+        return Err("用户 ID 不能为空".to_string());
+    }
+    let user = storage
+        .find_app_user_by_id(user_id)
+        .map_err(|err| format!("read app user failed: {err}"))?
+        .ok_or_else(|| "用户不存在".to_string())?;
+    if user.role == "admin" && user.status == "active" {
+        let active_admin_count = storage
+            .active_admin_count()
+            .map_err(|err| format!("read app admins failed: {err}"))?;
+        if active_admin_count <= 1 {
+            return Err("至少需要保留一个启用的管理员账号".to_string());
+        }
+    }
+    let deleted = storage
+        .delete_app_user(user_id)
+        .map_err(|err| format!("delete app user failed: {err}"))?;
+    if deleted == 0 {
+        return Err("用户不存在".to_string());
+    }
+    Ok(())
+}
+
 pub fn list_api_key_owners() -> Result<Vec<ApiKeyOwnerResult>, String> {
     crate::initialize_storage_if_needed()?;
     let storage = open_storage_or_error()?;
@@ -661,6 +689,59 @@ pub fn wallet_top_up(
     Ok(wallet_result(next))
 }
 
+pub fn wallet_set_available_credit(
+    owner_kind: &str,
+    owner_id: &str,
+    available_credit_micros: i64,
+    note: Option<&str>,
+    created_by_user_id: Option<&str>,
+) -> Result<AppWalletResult, String> {
+    if available_credit_micros < 0 {
+        return Err("可用额度必须是非负数字".to_string());
+    }
+    crate::initialize_storage_if_needed()?;
+    let storage = open_storage_or_error()?;
+    let owner_kind = normalize_owner_kind(owner_kind)?;
+    let owner_id = owner_id.trim();
+    if owner_kind == "user" {
+        let _ = ensure_user_can_own_wallet(&storage, owner_id)?;
+    }
+    let wallet = ensure_wallet(&storage, owner_kind, owner_id)?;
+    let target_balance = available_credit_micros.saturating_add(wallet.frozen_credit_micros);
+    let delta = target_balance.saturating_sub(wallet.balance_credit_micros);
+    if delta == 0 {
+        return Ok(wallet_result(wallet));
+    }
+    let ledger = AppWalletLedgerEntry {
+        id: generate_id("wl", 8),
+        wallet_id: wallet.id.clone(),
+        entry_kind: "manual_adjustment".to_string(),
+        amount_credit_micros: delta,
+        balance_after_credit_micros: 0,
+        request_log_id: None,
+        api_key_id: None,
+        pricing_rule_id: None,
+        raw_usage_json: None,
+        note: normalize_optional_text(note).or_else(|| Some("set available credit".to_string())),
+        created_by_user_id: normalize_optional_text(created_by_user_id),
+        created_at: now_ts(),
+    };
+    let entry = storage
+        .adjust_wallet_balance(&ledger)
+        .map_err(|err| format!("set wallet credit failed: {err}"))?;
+    let next = storage
+        .find_wallet_by_owner(&wallet.owner_kind, &wallet.owner_id)
+        .map_err(|err| format!("read app wallet failed: {err}"))?
+        .ok_or_else(|| "钱包不存在".to_string())?;
+    log::info!(
+        "event=app_wallet_set_available wallet_id={} delta={} balance_after={}",
+        entry.wallet_id,
+        entry.amount_credit_micros,
+        entry.balance_after_credit_micros
+    );
+    Ok(wallet_result(next))
+}
+
 pub fn set_api_key_owner(
     key_id: &str,
     owner_kind: &str,
@@ -719,10 +800,12 @@ pub fn wallet_precheck_for_api_key(storage: &Storage, key_id: &str) -> Result<()
     if !distribution_enabled_for_storage(storage) {
         return Ok(());
     }
-    let owner = storage
+    let Some(owner) = storage
         .find_api_key_owner(key_id)
         .map_err(|err| format!("read api key owner failed: {err}"))?
-        .ok_or_else(|| "API Key 未分配额度归属".to_string())?;
+    else {
+        return Ok(());
+    };
     let (owner_kind, owner_id) = owner_identity(&owner)?;
     if owner_kind == "user" {
         let _ = ensure_user_can_own_wallet(storage, owner_id)?;
@@ -756,10 +839,12 @@ pub fn wallet_charge_for_request(
         return Ok(None);
     };
     let now = now_ts();
-    let owner = storage
+    let Some(owner) = storage
         .find_api_key_owner(key_id)
         .map_err(|err| format!("read api key owner failed: {err}"))?
-        .ok_or_else(|| "API Key 未分配额度归属".to_string())?;
+    else {
+        return Ok(None);
+    };
     let (owner_kind, owner_id) = owner_identity(&owner)?;
     if owner_kind == "user" {
         let _ = ensure_user_can_own_wallet(storage, owner_id)?;

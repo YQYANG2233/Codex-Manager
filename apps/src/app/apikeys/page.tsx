@@ -41,7 +41,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/useApiKeys";
-import { isAdminRole, useAppSession } from "@/hooks/useAppSession";
+import {
+  isAdminRole,
+  resolveSessionRole,
+  useAppSession,
+} from "@/hooks/useAppSession";
 import { useDesktopPageActive } from "@/hooks/useDesktopPageActive";
 import { useDeferredDesktopActivation } from "@/hooks/useDeferredDesktopActivation";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
@@ -49,7 +53,6 @@ import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import { useI18n } from "@/lib/i18n/provider";
 import { accountClient } from "@/lib/api/account-client";
 import { appClient } from "@/lib/api/app-client";
-import { isTauriRuntime } from "@/lib/api/transport";
 import {
   buildGeminiGatewayEndpoint,
   buildOpenAiGatewayEndpoint,
@@ -171,7 +174,7 @@ function ApiKeyStatCard({
   sub: string;
 }) {
   return (
-    <Card className="glass-card overflow-hidden border-none shadow-md backdrop-blur-md transition-all hover:scale-[1.02]">
+    <Card className="glass-card overflow-hidden shadow-sm transition-colors">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className={color} />
@@ -187,9 +190,11 @@ function ApiKeyStatCard({
 export default function ApiKeysPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { mode } = useRuntimeCapabilities();
-  const { data: session } = useAppSession();
-  const isAdminMode = isAdminRole(session?.role);
+  const { isDesktopRuntime, mode } = useRuntimeCapabilities();
+  const { data: session, isLoading: isSessionLoading } = useAppSession();
+  const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
+  const isAdminMode = isAdminRole(role);
+  const showMemberOwnership = isAdminMode && session?.mode === "accounts";
   const serviceAddr = useAppStore((state) => state.serviceStatus.addr);
   const {
     apiKeys,
@@ -217,19 +222,19 @@ export default function ApiKeysPage() {
   const { data: accountManagerStatus } = useQuery({
     queryKey: ["account-manager", "status"],
     queryFn: () => appClient.getAccountManagerStatus(),
-    enabled: isUsageQueryEnabled && isPageActive && isAdminMode,
+    enabled: isUsageQueryEnabled && isPageActive && showMemberOwnership,
     retry: 1,
   });
   const { data: appUsers = [] } = useQuery<AppUser[]>({
     queryKey: ["account-manager", "users"],
     queryFn: () => appClient.listAppUsers(),
-    enabled: isUsageQueryEnabled && isPageActive && isAdminMode,
+    enabled: isUsageQueryEnabled && isPageActive && showMemberOwnership,
     retry: 1,
   });
   const { data: apiKeyOwners = [] } = useQuery<ApiKeyOwner[]>({
     queryKey: ["account-manager", "api-key-owners"],
     queryFn: () => appClient.listApiKeyOwners(),
-    enabled: isUsageQueryEnabled && isPageActive && isAdminMode,
+    enabled: isUsageQueryEnabled && isPageActive && showMemberOwnership,
     retry: 1,
   });
   const billableAppUsers = useMemo(
@@ -244,7 +249,8 @@ export default function ApiKeysPage() {
     () => new Map(apiKeyOwners.map((owner) => [owner.keyId, owner])),
     [apiKeyOwners],
   );
-  const distributionEnabled = Boolean(accountManagerStatus?.distributionEnabled);
+  const distributionEnabled =
+    showMemberOwnership && Boolean(accountManagerStatus?.distributionEnabled);
   const gatewayOrigin = useMemo(
     () =>
       resolveGatewayOrigin({
@@ -464,11 +470,7 @@ export default function ApiKeysPage() {
   };
 
   const openCcSwitchImportUrl = async (url: string) => {
-    if (isTauriRuntime()) {
-      await appClient.openInBrowser(url);
-      return;
-    }
-    window.location.href = url;
+    await appClient.openExternalUrl(url);
   };
 
   const importToCcSwitch = async (key: (typeof apiKeys)[number]) => {
@@ -521,7 +523,7 @@ export default function ApiKeysPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {!isServiceReady ? (
-        <Card className="glass-card border-none shadow-sm">
+        <Card className="glass-card shadow-sm">
           <CardContent className="pt-6 text-sm text-muted-foreground">
             {t("服务未连接")}
           </CardContent>
@@ -554,9 +556,9 @@ export default function ApiKeysPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-[min(92vw,390px)] rounded-xl border border-border/70 bg-popover/95 p-2 shadow-xl backdrop-blur-md"
+              className="w-[min(92vw,390px)] rounded-xl border border-border/70 bg-popover/95 p-2 shadow-sm"
             >
-              <DropdownMenuGroup>
+                                  <DropdownMenuGroup>
                 <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase text-muted-foreground/80">
                   {t("复制调用地址")}
                 </DropdownMenuLabel>
@@ -599,7 +601,7 @@ export default function ApiKeysPage() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
-            className="h-10 gap-2 shadow-lg shadow-primary/20"
+            className="h-10 gap-2 shadow-sm shadow-primary/20"
             onClick={openCreateModal}
             disabled={!isServiceReady}
           >
@@ -611,8 +613,8 @@ export default function ApiKeysPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {isLoading || showOverviewLoading ? (
           <>
-            <Skeleton className="h-32 w-full rounded-2xl" />
-            <Skeleton className="h-32 w-full rounded-2xl" />
+            <Skeleton className="h-32 w-full rounded-xl" />
+            <Skeleton className="h-32 w-full rounded-xl" />
           </>
         ) : (
           <>
@@ -634,14 +636,14 @@ export default function ApiKeysPage() {
         )}
       </div>
 
-      <Card className="glass-card overflow-hidden border-none py-0 shadow-xl backdrop-blur-md">
+      <Card className="glass-card overflow-hidden py-0 shadow-sm">
         <CardContent className="p-0">
           <Table className="min-w-[1160px]">
             <TableHeader>
               <TableRow>
                 <TableHead>{t("密钥 / ID")}</TableHead>
                 <TableHead>{t("名称")}</TableHead>
-                {isAdminMode ? <TableHead>{t("归属成员")}</TableHead> : null}
+                {showMemberOwnership ? <TableHead>{t("归属成员")}</TableHead> : null}
                 <TableHead>{t("协议")}</TableHead>
                 <TableHead>{t("轮转策略")}</TableHead>
                 <TableHead>{t("绑定模型")}</TableHead>
@@ -658,7 +660,7 @@ export default function ApiKeysPage() {
                     <TableRow key={index}>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      {isAdminMode ? (
+                      {showMemberOwnership ? (
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       ) : null}
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
@@ -673,7 +675,7 @@ export default function ApiKeysPage() {
                 ))
               ) : apiKeys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdminMode ? 9 : 8} className="h-48 text-center">
+                  <TableCell colSpan={showMemberOwnership ? 9 : 8} className="h-48 text-center">
                     <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                       <Plus className="h-8 w-8 opacity-20" />
                       <p>{t("创建密钥")}</p>
@@ -743,7 +745,7 @@ export default function ApiKeysPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm font-semibold">{key.name || t("未命名")}</TableCell>
-                      {isAdminMode ? (
+                      {showMemberOwnership ? (
                       <TableCell>
                         <Badge
                           variant={
@@ -882,6 +884,7 @@ export default function ApiKeysPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                                  <DropdownMenuGroup>
                               <DropdownMenuItem
                                 className="gap-2"
                                 disabled={!isServiceReady}
@@ -903,6 +906,7 @@ export default function ApiKeysPage() {
                               >
                                 <Trash2 className="h-4 w-4" /> {t("删除密钥")}
                               </DropdownMenuItem>
+                              </DropdownMenuGroup>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -921,9 +925,14 @@ export default function ApiKeysPage() {
         onOpenChange={setApiKeyModalOpen}
         apiKey={editingApiKey}
         appUsers={billableAppUsers}
-        apiKeyOwner={editingApiKey ? ownerByKeyId.get(editingApiKey.id) ?? null : null}
+        apiKeyOwner={
+          showMemberOwnership && editingApiKey
+            ? ownerByKeyId.get(editingApiKey.id) ?? null
+            : null
+        }
         distributionEnabled={distributionEnabled}
         isAdminMode={isAdminMode}
+        showMemberOwnership={showMemberOwnership}
         onOwnerSaved={handleOwnerSaved}
       />
       <ConfirmDialog
