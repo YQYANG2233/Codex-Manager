@@ -2143,7 +2143,7 @@ function AdminSettingsPage() {
                       }
                       updateBackgroundTasks({
                         warmupCronEnabled: value,
-                        warmupCronExpression: expression,
+                        ...(value ? { warmupCronExpression: expression } : {}),
                       });
                     }}
                   />

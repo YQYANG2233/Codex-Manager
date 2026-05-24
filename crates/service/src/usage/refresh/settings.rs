@@ -201,15 +201,19 @@ pub(crate) fn validate_background_tasks_settings_patch(
     let target_warmup_cron_enabled = patch
         .warmup_cron_enabled
         .unwrap_or_else(|| WARMUP_CRON_ENABLED.load(Ordering::Relaxed));
-    let target_warmup_cron_expression = patch
+    let patched_warmup_cron_expression = patch
         .warmup_cron_expression
         .as_deref()
-        .map(normalize_text_setting)
+        .map(normalize_text_setting);
+    let target_warmup_cron_expression = patched_warmup_cron_expression
+        .clone()
         .unwrap_or_else(|| current_mutex_string(&WARMUP_CRON_EXPRESSION));
     if target_warmup_cron_enabled && target_warmup_cron_expression.is_empty() {
         return Err("warmup cron expression is required when warmup cron is enabled".to_string());
     }
-    if !target_warmup_cron_expression.is_empty() {
+    if !target_warmup_cron_expression.is_empty()
+        && (target_warmup_cron_enabled || patched_warmup_cron_expression.is_some())
+    {
         validate_warmup_cron_expression(target_warmup_cron_expression.as_str())?;
     }
     Ok(())
@@ -227,7 +231,14 @@ pub(crate) fn validate_background_tasks_settings_patch(
 /// # 返回
 /// 无
 pub(crate) fn reload_background_tasks_runtime_from_env() {
+    let previous_warmup_cron_enabled = WARMUP_CRON_ENABLED.load(Ordering::Relaxed);
+    let previous_warmup_cron_expression = current_mutex_string(&WARMUP_CRON_EXPRESSION);
     reload_background_tasks_from_env();
+    if WARMUP_CRON_ENABLED.load(Ordering::Relaxed) != previous_warmup_cron_enabled
+        || current_mutex_string(&WARMUP_CRON_EXPRESSION) != previous_warmup_cron_expression
+    {
+        notify_warmup_cron_changed();
+    }
 }
 
 /// 函数 `ensure_background_tasks_config_loaded`
