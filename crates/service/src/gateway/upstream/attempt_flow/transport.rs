@@ -1121,10 +1121,7 @@ fn send_upstream_request_with_compression_override(
     result
 }
 
-fn should_use_websocket_upstream(target_url: &str) -> bool {
-    if !super::super::super::runtime_config::use_websocket_upstream() {
-        return false;
-    }
+fn is_chatgpt_target_url(target_url: &str) -> bool {
     // Parse the URL and validate the host to avoid substring-match vulnerabilities
     // (e.g. "evilchatgpt.com" would incorrectly match a plain contains() check).
     match reqwest::Url::parse(target_url) {
@@ -1134,6 +1131,13 @@ fn should_use_websocket_upstream(target_url: &str) -> bool {
         }
         Err(_) => false,
     }
+}
+
+fn should_use_websocket_upstream(target_url: &str) -> bool {
+    if !super::super::super::runtime_config::use_websocket_upstream() {
+        return false;
+    }
+    is_chatgpt_target_url(target_url)
 }
 
 fn send_websocket_upstream_request(
@@ -1735,22 +1739,25 @@ mod tests {
     }
 
     #[test]
-    fn websocket_upstream_host_matching_rejects_substring_lookalikes() {
-        // Even if the flag were on, the URL host must be chatgpt.com or a subdomain.
-        // We test the host-parse logic in isolation by calling should_use_websocket_upstream
-        // with the flag at its default (false) — all must return false, confirming the
-        // substring-bypass is not possible.
-        let evil_urls = [
-            "https://evilchatgpt.com/path",
-            "https://chatgpt.com.evil.com/path",
-            "https://notchatgpt.com/path",
-        ];
-        for url in &evil_urls {
-            assert!(
-                !super::should_use_websocket_upstream(url),
-                "should not select WebSocket for {url}"
-            );
-        }
+    fn chatgpt_target_url_accepts_valid_hosts_and_rejects_lookalikes() {
+        // Positive: exact match and subdomain
+        assert!(super::is_chatgpt_target_url(
+            "https://chatgpt.com/backend-api/codex/responses"
+        ));
+        assert!(super::is_chatgpt_target_url("https://api.chatgpt.com/v1/responses"));
+        assert!(super::is_chatgpt_target_url("https://backend.chatgpt.com/path"));
+
+        // Negative: substring lookalikes must NOT match
+        assert!(!super::is_chatgpt_target_url("https://evilchatgpt.com/path"));
+        assert!(!super::is_chatgpt_target_url("https://chatgpt.com.evil.com/path"));
+        assert!(!super::is_chatgpt_target_url("https://notchatgpt.com/path"));
+        assert!(!super::is_chatgpt_target_url("https://example.com/api"));
+
+        // should_use_websocket_upstream with flag disabled always returns false —
+        // this confirms the guard is evaluated FIRST, before the host check.
+        assert!(!super::should_use_websocket_upstream(
+            "https://chatgpt.com/backend-api/codex/responses"
+        ));
     }
 
     #[test]
