@@ -184,6 +184,104 @@ fn storage_can_upsert_and_resolve_model_source_mappings() {
 }
 
 #[test]
+fn upsert_discovered_source_models_prunes_stale_discovered_routes() {
+    let storage = Storage::open_in_memory().expect("open in memory");
+    storage.init().expect("init schema");
+    let now = now_ts();
+
+    storage
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-sync-prune".to_string(),
+            upstream_model: "deepseek-v4-pro".to_string(),
+            display_name: Some("deepseek-v4-pro".to_string()),
+            status: "available".to_string(),
+            discovery_kind: "synced".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("seed stale discovered model");
+    storage
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-sync-prune".to_string(),
+            upstream_model: "manual-keep".to_string(),
+            display_name: Some("manual-keep".to_string()),
+            status: "available".to_string(),
+            discovery_kind: "manual".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("seed manual model");
+
+    storage
+        .upsert_model_source_mapping(&ModelSourceMapping {
+            id: "map-stale-discovered".to_string(),
+            platform_model_slug: "deepseek-v4-pro".to_string(),
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-sync-prune".to_string(),
+            upstream_model: "deepseek-v4-pro".to_string(),
+            enabled: true,
+            priority: 0,
+            weight: 1,
+            billing_model_slug: None,
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("seed stale discovered mapping");
+    storage
+        .upsert_model_source_mapping(&ModelSourceMapping {
+            id: "map-manual-keep".to_string(),
+            platform_model_slug: "manual-keep".to_string(),
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-sync-prune".to_string(),
+            upstream_model: "manual-keep".to_string(),
+            enabled: true,
+            priority: 0,
+            weight: 1,
+            billing_model_slug: None,
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("seed manual mapping");
+
+    storage
+        .upsert_discovered_model_source_models(
+            "openai_account",
+            "acc-sync-prune",
+            &["gpt-4.1".to_string()],
+            "synced",
+        )
+        .expect("sync discovered models");
+
+    let source_models = storage
+        .list_model_source_models(Some("openai_account"), Some("acc-sync-prune"))
+        .expect("list source models");
+    assert!(source_models
+        .iter()
+        .any(|item| item.upstream_model == "gpt-4.1" && item.discovery_kind == "synced"));
+    assert!(source_models
+        .iter()
+        .any(|item| item.upstream_model == "manual-keep" && item.discovery_kind == "manual"));
+    assert!(!source_models
+        .iter()
+        .any(|item| item.upstream_model == "deepseek-v4-pro"));
+
+    let stale_mappings = storage
+        .list_model_source_mappings(Some("deepseek-v4-pro"))
+        .expect("list stale mappings");
+    assert!(stale_mappings.is_empty());
+    let manual_mappings = storage
+        .list_model_source_mappings(Some("manual-keep"))
+        .expect("list manual mappings");
+    assert_eq!(manual_mappings.len(), 1);
+}
+
+#[test]
 fn delete_account_removes_openai_model_source_routes() {
     let mut storage = Storage::open_in_memory().expect("open in memory");
     storage.init().expect("init schema");
