@@ -288,10 +288,6 @@ fn resolve_passthrough_sse_protocol(
     if response_adapter != super::super::super::ResponseAdapter::Passthrough {
         return None;
     }
-    let provider_type = normalize_provider_type_value(candidate.provider_type.as_str());
-    if provider_type != AGGREGATE_API_PROVIDER_CLAUDE {
-        return None;
-    }
     if path == "/v1/messages" || path.starts_with("/v1/messages?") {
         return Some(super::super::super::PassthroughSseProtocol::AnthropicNative);
     }
