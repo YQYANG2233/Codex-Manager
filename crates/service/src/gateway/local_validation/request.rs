@@ -1373,7 +1373,7 @@ fn normalized_prompt_cache_key_for_route<'a>(
         .as_deref()
         .or(client_request_meta.prompt_cache_key.as_deref())
         .map(str::trim)
-        .filter(|value| value.len() >= 8)
+        .filter(|value| !value.is_empty())
 }
 
 fn prompt_cache_route_id(

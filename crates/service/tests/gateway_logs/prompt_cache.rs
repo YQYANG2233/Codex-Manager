@@ -239,6 +239,87 @@ fn gateway_prompt_cache_binding_reuses_account_for_previous_response_chain() {
 }
 
 #[test]
+fn gateway_prompt_cache_binding_accepts_short_client_key() {
+    let _lock = test_env_guard();
+    let dir = new_test_dir("codexmanager-gateway-pck-short-key");
+    let db_path: PathBuf = dir.join("codexmanager.db");
+    let _db_guard = EnvGuard::set("CODEXMANAGER_DB_PATH", db_path.to_string_lossy().as_ref());
+    let _route_guard = EnvGuard::set("CODEXMANAGER_ROUTE_STRATEGY", "balanced");
+
+    let (upstream_addr, upstream_rx, upstream_join) = start_mock_upstream_sequence(vec![
+        (200, ok_response("resp_short_first")),
+        (200, ok_response("resp_short_second")),
+    ]);
+    let upstream_base = format!("http://{upstream_addr}/backend-api/codex");
+    let _upstream_guard = EnvGuard::set("CODEXMANAGER_UPSTREAM_BASE_URL", &upstream_base);
+
+    let storage = Storage::open(&db_path).expect("open db");
+    storage.init().expect("init db");
+    let platform_key = "pk_prompt_cache_short_key";
+    let key_hash = seed_openai_compat_gateway(&storage, platform_key, "gk_prompt_cache_short_key");
+    let prompt_cache_key = "pc_1";
+    let route_id = prompt_cache_route_id(&key_hash, prompt_cache_key);
+
+    let first_server = codexmanager_service::start_one_shot_server().expect("start first server");
+    post_responses(
+        &first_server.addr,
+        platform_key,
+        serde_json::json!({
+            "model": MODEL,
+            "input": "first short key",
+            "stream": false,
+            "prompt_cache_key": prompt_cache_key
+        }),
+    );
+    first_server.join();
+
+    let binding = storage
+        .get_conversation_binding(&key_hash, &route_id)
+        .expect("load short pck binding")
+        .expect("short pck binding should be created by first request");
+    assert_eq!(binding.account_id, "acc_prompt_cache_a");
+
+    let second_server = codexmanager_service::start_one_shot_server().expect("start second server");
+    post_responses(
+        &second_server.addr,
+        platform_key,
+        serde_json::json!({
+            "model": MODEL,
+            "input": "second short key",
+            "stream": false,
+            "prompt_cache_key": prompt_cache_key
+        }),
+    );
+    second_server.join();
+
+    let first = upstream_rx
+        .recv_timeout(Duration::from_secs(3))
+        .expect("receive first upstream request");
+    let second = upstream_rx
+        .recv_timeout(Duration::from_secs(3))
+        .expect("receive second upstream request");
+    upstream_join.join().expect("join mock upstream");
+
+    assert_eq!(auth_account(&first), "acc_prompt_cache_a");
+    assert_eq!(
+        auth_account(&second),
+        "acc_prompt_cache_a",
+        "short prompt_cache_key values must participate in local account binding"
+    );
+
+    let second_body: serde_json::Value =
+        serde_json::from_slice(&decode_upstream_request_body(&second))
+            .expect("parse second upstream body");
+    assert_eq!(
+        second_body
+            .get("prompt_cache_key")
+            .and_then(serde_json::Value::as_str),
+        Some(prompt_cache_key),
+        "short client pck should be forwarded unchanged"
+    );
+}
+
+#[test]
 fn gateway_previous_response_without_existing_pck_binding_does_not_create_binding() {
     let _lock = test_env_guard();
     let dir = new_test_dir("codexmanager-gateway-pck-existing-only-no-create");
