@@ -920,7 +920,7 @@ fn auto_associate_source_models(
     }
 
     if source_kind == ROUTING_SOURCE_KIND_AGGREGATE_API && auto_create_platform_models {
-        ensure_model_price_rules_for_aggregate_api(storage, source_id, &source_models)?;
+        let _ = ensure_model_price_rules_for_aggregate_api(storage, source_id, &source_models);
     }
 
     Ok(())

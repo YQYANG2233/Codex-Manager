@@ -410,6 +410,10 @@ export function useManagedModels() {
       if (!ensureServiceReady("保存模型价格")) return;
       await accountClient.upsertModelPriceRule(params);
     },
+    readModelPriceRule: async (modelPattern: string) => {
+      if (!ensureServiceReady("读取模型价格")) return null;
+      return accountClient.readModelPriceRule(modelPattern);
+    },
     deleteModel: async (slug: string) => {
       if (!ensureServiceReady("删除模型")) return false;
       await deleteMutation.mutateAsync(slug);

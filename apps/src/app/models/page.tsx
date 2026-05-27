@@ -68,7 +68,7 @@ import {
 import { useManagedModels } from "@/hooks/useManagedModels";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
 import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
-import { accountClient } from "@/lib/api/account-client";
+import { accountClient, ModelPriceRuleEntry } from "@/lib/api/account-client";
 import { findBestMatchingModel } from "@/lib/api/model-catalog";
 import { useI18n } from "@/lib/i18n/provider";
 import { formatTsFromSeconds } from "@/lib/utils/usage";
@@ -134,6 +134,7 @@ export default function ModelsPage() {
     refreshRemote,
     saveModel,
     saveModelPriceRule,
+    readModelPriceRule,
     deleteModel,
     deleteModels,
     exportCodexCache,
@@ -160,6 +161,7 @@ export default function ModelsPage() {
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [deleteSlugs, setDeleteSlugs] = useState<string[]>([]);
+  const [editingPriceRule, setEditingPriceRule] = useState<ModelPriceRuleEntry | null>(null);
   const [activeModelSlug, setActiveModelSlug] = useState<string>("");
   const [routingDialogOpen, setRoutingDialogOpen] = useState(false);
   const [sourceDraft, setSourceDraft] = useState({
@@ -244,6 +246,28 @@ export default function ModelsPage() {
     () => findBestMatchingModel(models, editingSlug || ""),
     [editingSlug, models]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const slug = editingModel?.slug;
+    if (!slug) {
+      setEditingPriceRule(null);
+      return;
+    }
+    setEditingPriceRule(null);
+    readModelPriceRule(slug)
+      .then((result) => {
+        if (!cancelled) setEditingPriceRule(result);
+      })
+      .catch((err) => {
+        console.warn("读取模型价格失败", err);
+        if (!cancelled) setEditingPriceRule(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingModel]);
 
   const nextSortIndex = useMemo(
     () => models.reduce((maxValue, item) => Math.max(maxValue, item.sortIndex), -1) + 1,
@@ -1412,6 +1436,7 @@ export default function ModelsPage() {
         isSaving={isSaving}
         onSave={saveModel}
         onSavePriceRule={saveModelPriceRule}
+        priceRule={editingPriceRule}
       />
       ) : null}
 

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ManagedModelPayload, ModelPriceRuleUpsertPayload } from "@/lib/api/account-client";
+import type { ModelPriceRuleEntry } from "@/lib/api/account-client";
 import { useI18n } from "@/lib/i18n/provider";
 import { ManagedModelInfo } from "@/types";
 
@@ -36,6 +37,7 @@ interface ModelCatalogModalProps {
   isSaving?: boolean;
   onSave: (payload: ManagedModelPayload) => Promise<ManagedModelInfo | null>;
   onSavePriceRule?: (payload: ModelPriceRuleUpsertPayload) => Promise<void>;
+  priceRule?: ModelPriceRuleEntry | null;
 }
 
 interface ModelCatalogDraft {
@@ -199,6 +201,7 @@ function buildAdvancedJson(model: ManagedModelInfo | null | undefined): string {
 function buildDraft(
   model: ManagedModelInfo | null | undefined,
   nextSortIndex: number,
+  priceRule?: ModelPriceRuleEntry | null,
 ): ModelCatalogDraft {
   return {
     slug: model?.slug || "",
@@ -212,9 +215,9 @@ function buildDraft(
     visibility: normalizeVisibilityValue(model?.visibility),
     defaultReasoningLevel: model?.defaultReasoningLevel || "",
     advancedJson: buildAdvancedJson(model),
-    inputPricePer1m: "",
-    cachedInputPricePer1m: "",
-    outputPricePer1m: "",
+    inputPricePer1m: priceRule?.inputPricePer1m != null ? String(priceRule.inputPricePer1m) : "",
+    cachedInputPricePer1m: priceRule?.cachedInputPricePer1m != null ? String(priceRule.cachedInputPricePer1m) : "",
+    outputPricePer1m: priceRule?.outputPricePer1m != null ? String(priceRule.outputPricePer1m) : "",
   };
 }
 
@@ -269,21 +272,45 @@ export function ModelCatalogModal({
   isSaving = false,
   onSave,
   onSavePriceRule,
+  priceRule,
 }: ModelCatalogModalProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<ModelCatalogDraft>(() =>
-    buildDraft(model, nextSortIndex),
+    buildDraft(model, nextSortIndex, priceRule),
   );
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [savingPrice, setSavingPrice] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     const frameId = window.requestAnimationFrame(() => {
-      setDraft(buildDraft(model, nextSortIndex));
+      setDraft(buildDraft(model, nextSortIndex, priceRule));
+      setPriceError(null);
     });
     return () => {
       window.cancelAnimationFrame(frameId);
     };
   }, [model, nextSortIndex, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft((prev) => ({
+      ...prev,
+      inputPricePer1m:
+        priceRule?.inputPricePer1m != null
+          ? String(priceRule.inputPricePer1m)
+          : prev.inputPricePer1m,
+      cachedInputPricePer1m:
+        priceRule?.cachedInputPricePer1m != null
+          ? String(priceRule.cachedInputPricePer1m)
+          : prev.cachedInputPricePer1m,
+      outputPricePer1m:
+        priceRule?.outputPricePer1m != null
+          ? String(priceRule.outputPricePer1m)
+          : prev.outputPricePer1m,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceRule, open]);
 
   const title = useMemo(
     () => (model ? t("编辑模型") : t("新增模型")),
@@ -332,17 +359,40 @@ export function ModelCatalogModal({
         const ip = draft.inputPricePer1m.trim();
         const cp = draft.cachedInputPricePer1m.trim();
         const op = draft.outputPricePer1m.trim();
-        if (ip !== "" || cp !== "" || op !== "") {
+        const hasUserInput = ip !== "" || cp !== "" || op !== "";
+        const hasExisting = priceRule != null;
+        if (hasUserInput || hasExisting) {
+          if (!hasExisting && (ip !== "" || op !== "") && (ip === "" || op === "")) {
+            setPriceError("输入价格和输出价格必须同时填写");
+            return;
+          }
+          setSavingPrice(true);
           try {
+            const inputNum = ip !== "" ? Number(ip) : (priceRule?.inputPricePer1m ?? null);
+            const cachedNum = cp !== "" ? Number(cp) : (priceRule?.cachedInputPricePer1m ?? null);
+            const outputNum = op !== "" ? Number(op) : (priceRule?.outputPricePer1m ?? null);
+            if (
+              (inputNum !== null && inputNum < 0) ||
+              (cachedNum !== null && cachedNum < 0) ||
+              (outputNum !== null && outputNum < 0)
+            ) {
+              setPriceError("价格不能为负数");
+              return;
+            }
             await onSavePriceRule({
               modelPattern: slug,
-              inputPricePer1m: ip !== "" ? Number(ip) : null,
-              cachedInputPricePer1m: cp !== "" ? Number(cp) : null,
-              outputPricePer1m: op !== "" ? Number(op) : null,
+              inputPricePer1m: inputNum,
+              cachedInputPricePer1m: cachedNum,
+              outputPricePer1m: outputNum,
             });
-          } catch {
-            // price save is non-fatal
+          } catch (error) {
+            setPriceError(
+              error instanceof Error ? error.message : String(error),
+            );
+            setSavingPrice(false);
+            return;
           }
+          setSavingPrice(false);
         }
       }
       onOpenChange(false);
@@ -530,6 +580,9 @@ export function ModelCatalogModal({
               <p className="text-xs text-muted-foreground">
                 {t("零表示不计费，价格将用于请求成本估算。")}
               </p>
+              {priceError ? (
+                <p className="text-xs text-destructive">{priceError}</p>
+              ) : null}
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
@@ -608,7 +661,7 @@ export function ModelCatalogModal({
               onClick={() => {
                 void handleSave();
               }}
-              disabled={isSaving}
+              disabled={isSaving || savingPrice}
             >
               {isSaving ? t("保存中...") : t("保存模型")}
             </Button>

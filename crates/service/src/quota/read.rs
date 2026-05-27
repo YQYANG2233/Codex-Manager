@@ -1512,16 +1512,20 @@ pub(crate) fn upsert_model_price_rule(
 ) -> Result<ModelPriceRuleEntry, String> {
     let storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
     let now = now_ts();
+    let model_pattern = input.model_pattern.trim().to_string();
+    if model_pattern.is_empty() {
+        return Err("model_pattern 不能为空".to_string());
+    }
     let id = input
         .id
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| format!("user-{}", input.model_pattern));
+        .unwrap_or_else(|| format!("user-{}", model_pattern));
     let rule = ModelPriceRule {
         id,
         provider: input
             .provider
             .unwrap_or_else(|| "openai".to_string()),
-        model_pattern: input.model_pattern,
+        model_pattern,
         match_type: input
             .match_type
             .unwrap_or_else(|| "exact".to_string()),
