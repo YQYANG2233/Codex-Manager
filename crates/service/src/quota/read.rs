@@ -1551,6 +1551,21 @@ pub(crate) fn upsert_model_price_rule(
         created_at: now,
         updated_at: now,
     };
+    if let Some(v) = rule.input_price_per_1m {
+        if v < 0.0 {
+            return Err("input_price_per_1m 不能为负数".to_string());
+        }
+    }
+    if let Some(v) = rule.cached_input_price_per_1m {
+        if v < 0.0 {
+            return Err("cached_input_price_per_1m 不能为负数".to_string());
+        }
+    }
+    if let Some(v) = rule.output_price_per_1m {
+        if v < 0.0 {
+            return Err("output_price_per_1m 不能为负数".to_string());
+        }
+    }
     storage
         .upsert_model_price_rule(&rule)
         .map_err(|err| format!("upsert model price rule failed: {err}"))?;

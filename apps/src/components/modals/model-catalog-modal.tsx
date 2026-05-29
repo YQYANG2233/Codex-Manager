@@ -299,15 +299,15 @@ export function ModelCatalogModal({
       inputPricePer1m:
         priceRule?.inputPricePer1m != null
           ? String(priceRule.inputPricePer1m)
-          : prev.inputPricePer1m,
+          : "",
       cachedInputPricePer1m:
         priceRule?.cachedInputPricePer1m != null
           ? String(priceRule.cachedInputPricePer1m)
-          : prev.cachedInputPricePer1m,
+          : "",
       outputPricePer1m:
         priceRule?.outputPricePer1m != null
           ? String(priceRule.outputPricePer1m)
-          : prev.outputPricePer1m,
+          : "",
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceRule, open]);
@@ -366,7 +366,6 @@ export function ModelCatalogModal({
             setPriceError("输入价格和输出价格必须同时填写");
             return;
           }
-          setSavingPrice(true);
           try {
             const inputNum = ip !== "" ? Number(ip) : (priceRule?.inputPricePer1m ?? null);
             const cachedNum = cp !== "" ? Number(cp) : (priceRule?.cachedInputPricePer1m ?? null);
@@ -379,6 +378,7 @@ export function ModelCatalogModal({
               setPriceError("价格不能为负数");
               return;
             }
+            setSavingPrice(true);
             await onSavePriceRule({
               modelPattern: slug,
               inputPricePer1m: inputNum,
