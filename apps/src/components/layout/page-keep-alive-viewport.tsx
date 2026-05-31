@@ -50,6 +50,7 @@ const LAZY_PAGE_COMPONENTS: Record<
 const ROOT_PAGE_COMPONENT = lazy(() => import("@/app/page"));
 
 function PagePanelFallback({ title }: { title: string }) {
+  const { t } = useI18n();
   const isSidebarOpen = useAppStore((state) => state.isSidebarOpen);
 
   return (
@@ -67,14 +68,16 @@ function PagePanelFallback({ title }: { title: string }) {
             </div>
             <div className="flex flex-col gap-2">
               <p className="text-xl font-semibold tracking-tight text-foreground">{title}</p>
-              <p className="text-sm text-muted-foreground">正在恢复页面内容，请稍候...</p>
+              <p className="text-sm text-muted-foreground">
+                {t("正在恢复页面内容，请稍候...")}
+              </p>
             </div>
             <div className="flex w-full max-w-sm flex-col gap-2">
               <Skeleton className="h-2 w-full rounded-full" />
               <Skeleton className="mx-auto h-2 w-2/3 rounded-full" />
             </div>
             <p className="text-xs text-muted-foreground">
-              页面缓存已命中，正在恢复视图与数据状态
+              {t("页面缓存已命中，正在恢复视图与数据状态")}
             </p>
           </CardContent>
         </Card>
