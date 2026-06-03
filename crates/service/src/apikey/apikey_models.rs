@@ -439,10 +439,7 @@ pub(crate) fn delete_managed_model_source_mapping(
     let source_id = normalize_required("sourceId", source_id)?;
     let upstream_model = normalize_required("upstreamModel", upstream_model)?;
     storage
-        .upsert_model_source_mapping_preference(&source_kind, &source_id, &upstream_model, "unlinked")
-        .map_err(|err| format!("save unlink preference failed: {err}"))?;
-    storage
-        .delete_model_source_mapping(id.as_str())
+        .delete_model_source_mapping_with_unlink_preference(&id, &source_kind, &source_id, &upstream_model)
         .map_err(|err| format!("delete model mapping failed: {err}"))
 }
 

@@ -357,6 +357,38 @@ impl Storage {
         Ok(())
     }
 
+    pub fn delete_model_source_mapping_with_unlink_preference(
+        &self,
+        id: &str,
+        source_kind: &str,
+        source_id: &str,
+        upstream_model: &str,
+    ) -> Result<()> {
+        let id = normalize_text(id);
+        let source_kind = normalize_text(source_kind);
+        let source_id = normalize_text(source_id);
+        let upstream_model = normalize_text(upstream_model);
+        if source_kind.is_empty() || source_id.is_empty() || upstream_model.is_empty() {
+            return Ok(());
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "INSERT INTO model_source_mapping_preferences
+             (source_kind, source_id, upstream_model, preference, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(source_kind, source_id, upstream_model) DO UPDATE SET
+                 preference = excluded.preference,
+                 updated_at = excluded.updated_at",
+            params![&source_kind, &source_id, &upstream_model, "unlinked", now_ts()],
+        )?;
+        tx.execute(
+            "DELETE FROM model_source_mappings WHERE id = ?1",
+            params![&id],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn delete_model_source_mapping(&self, id: &str) -> Result<()> {
         self.conn.execute(
             "DELETE FROM model_source_mappings WHERE id = ?1",
@@ -400,9 +432,12 @@ impl Storage {
             return Ok(());
         }
         self.conn.execute(
-            "INSERT OR REPLACE INTO model_source_mapping_preferences
+            "INSERT INTO model_source_mapping_preferences
              (source_kind, source_id, upstream_model, preference, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(source_kind, source_id, upstream_model) DO UPDATE SET
+                 preference = excluded.preference,
+                 updated_at = excluded.updated_at",
             params![
                 &source_kind,
                 &source_id,
