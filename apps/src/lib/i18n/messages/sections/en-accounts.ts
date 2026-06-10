@@ -64,6 +64,7 @@ export const EN_ACCOUNTS_MESSAGES: MessageCatalog = {
   "账号 AT/RT 已刷新": "Account AT/RT refreshed",
   "账号已停用": "Account deactivated",
   "账号或工作区被停用的账号": "Accounts or workspaces that were deactivated",
+  "状态字段为 unknown 的账号": "Accounts whose status field is unknown",
   "该账号只有用量快照，当前不能参与模型刷新或网关转发。请重新登录或刷新 AT/RT 后再使用。":
     "This account only has a usage snapshot and cannot participate in model refresh or gateway forwarding right now. Log in again or refresh AT/RT before using it.",
   "请选择至少一种账号状态": "Select at least one account status",

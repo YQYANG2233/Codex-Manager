@@ -1395,7 +1395,7 @@ fn rpc_account_delete_by_statuses_deletes_only_selected_statuses() {
     );
 }
 
-/// 函数 `rpc_account_delete_by_statuses_rejects_unknown_status`
+/// 函数 `rpc_account_delete_by_statuses_deletes_unknown_status`
 ///
 /// 作者: gaohongshun
 ///
@@ -1407,8 +1407,31 @@ fn rpc_account_delete_by_statuses_deletes_only_selected_statuses() {
 /// # 返回
 /// 无
 #[test]
-fn rpc_account_delete_by_statuses_rejects_unknown_status() {
-    let _ctx = RpcTestContext::new("rpc-account-delete-by-statuses-unknown");
+fn rpc_account_delete_by_statuses_deletes_unknown_status() {
+    let ctx = RpcTestContext::new("rpc-account-delete-by-statuses-unknown");
+    let storage = Storage::open(ctx.db_path()).expect("open db");
+    storage.init().expect("init schema");
+    let now = now_ts();
+    for (idx, (id, status)) in [("acc-active", "active"), ("acc-unknown", "unknown")]
+        .into_iter()
+        .enumerate()
+    {
+        storage
+            .insert_account(&Account {
+                id: id.to_string(),
+                label: id.to_string(),
+                issuer: "https://auth.openai.com".to_string(),
+                chatgpt_account_id: None,
+                workspace_id: None,
+                group_name: None,
+                sort: idx as i64,
+                status: status.to_string(),
+                created_at: now,
+                updated_at: now,
+            })
+            .expect("insert account");
+    }
+
     let server = codexmanager_service::start_one_shot_server().expect("start server");
     let req = JsonRpcRequest {
         id: 79.into(),
@@ -1421,12 +1444,28 @@ fn rpc_account_delete_by_statuses_rejects_unknown_status() {
     let json = serde_json::to_string(&req).expect("serialize delete");
     let v = post_rpc(&server.addr, &json);
     let result = v.get("result").expect("result");
-    let message = result
-        .get("error")
-        .and_then(|value| value.as_str())
-        .expect("error message");
 
-    assert!(message.contains("unsupported cleanup statuses"));
+    assert_eq!(
+        result.get("deleted").and_then(|value| value.as_u64()),
+        Some(1)
+    );
+    let target_statuses = result
+        .get("targetStatuses")
+        .and_then(|value| value.as_array())
+        .expect("target statuses");
+    assert_eq!(
+        target_statuses
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>(),
+        vec!["unknown"]
+    );
+    let remaining = storage.list_accounts().expect("list accounts");
+    let remaining_ids = remaining
+        .into_iter()
+        .map(|item| item.id)
+        .collect::<Vec<_>>();
+    assert_eq!(remaining_ids, vec!["acc-active"]);
 }
 
 /// 函数 `rpc_account_update_status_toggles_manual_enable_disable`
