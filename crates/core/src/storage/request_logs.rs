@@ -1,6 +1,6 @@
 use rusqlite::{params, params_from_iter, types::Value, Result, Row};
 
-use super::key_id_filters::KeyIdSqlFilter;
+use super::key_id_filters::{KeyIdSqlFilter, PairedKeyIdSqlFilter};
 use super::request_log_filters::{
     account_join_clause, build_request_log_filters, token_stats_join_clause, RequestLogSqlFilters,
 };
@@ -693,10 +693,8 @@ impl Storage {
         end_ts: i64,
         key_ids: &[String],
     ) -> Result<RequestLogTodaySummary> {
-        let Some(raw_key_filter) = KeyIdSqlFilter::create(self, "s.key_id", key_ids)? else {
-            return Ok(empty_request_log_today_summary());
-        };
-        let Some(hourly_key_filter) = KeyIdSqlFilter::create(self, "h.key_id", key_ids)? else {
+        let Some(key_filter) = PairedKeyIdSqlFilter::create(self, "s.key_id", "h.key_id", key_ids)?
+        else {
             return Ok(empty_request_log_today_summary());
         };
         let sql = format!(
@@ -730,18 +728,19 @@ impl Storage {
                 IFNULL(SUM(reasoning_output_tokens), 0),
                 IFNULL(SUM(estimated_cost_usd), 0.0)
              FROM combined",
-            raw_key_condition = raw_key_filter.condition(),
-            hourly_key_condition = hourly_key_filter.condition()
+            raw_key_condition = key_filter.first_condition(),
+            hourly_key_condition = key_filter.second_condition()
         );
-        let mut params = Vec::with_capacity(
-            raw_key_filter.params().len() + hourly_key_filter.params().len() + 4,
-        );
+        let paired_params = key_filter.params();
+        let split_at = paired_params.len() / 2;
+        let (raw_key_params, hourly_key_params) = paired_params.split_at(split_at);
+        let mut params = Vec::with_capacity(paired_params.len() + 4);
         params.push(Value::Integer(start_ts));
         params.push(Value::Integer(end_ts));
-        params.extend_from_slice(raw_key_filter.params());
+        params.extend_from_slice(raw_key_params);
         params.push(Value::Integer(start_ts));
         params.push(Value::Integer(end_ts));
-        params.extend_from_slice(hourly_key_filter.params());
+        params.extend_from_slice(hourly_key_params);
         self.conn.query_row(&sql, params_from_iter(params), |row| {
             Ok(RequestLogTodaySummary {
                 input_tokens: row.get(0)?,

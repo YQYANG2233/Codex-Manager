@@ -707,6 +707,63 @@ fn request_logs_for_empty_key_sets_return_empty_results() {
 }
 
 #[test]
+fn request_log_today_summary_for_small_key_sets_filters_raw_and_hourly_usage() {
+    let storage = Storage::open_in_memory().expect("open");
+    storage.init().expect("init");
+    let request_log_id = storage
+        .insert_request_log(&RequestLog {
+            trace_id: Some("trc-small-key-filter".to_string()),
+            key_id: Some("key-a".to_string()),
+            request_path: "/v1/responses".to_string(),
+            method: "POST".to_string(),
+            status_code: Some(200),
+            created_at: 5_000,
+            ..Default::default()
+        })
+        .expect("insert request log");
+    storage
+        .insert_request_token_stat(&RequestTokenStat {
+            request_log_id,
+            key_id: Some("key-a".to_string()),
+            model: Some("gpt-5".to_string()),
+            input_tokens: Some(10),
+            cached_input_tokens: Some(2),
+            output_tokens: Some(5),
+            total_tokens: Some(13),
+            estimated_cost_usd: Some(0.01),
+            created_at: 5_000,
+            ..RequestTokenStat::default()
+        })
+        .expect("insert selected token stat");
+    storage
+        .insert_request_token_stat(&RequestTokenStat {
+            request_log_id: request_log_id + 1,
+            key_id: Some("key-b".to_string()),
+            model: Some("gpt-5".to_string()),
+            input_tokens: Some(100),
+            cached_input_tokens: Some(0),
+            output_tokens: Some(50),
+            total_tokens: Some(150),
+            estimated_cost_usd: Some(1.00),
+            created_at: 5_000,
+            ..RequestTokenStat::default()
+        })
+        .expect("insert unselected token stat");
+    storage
+        .rollup_all_request_token_stats()
+        .expect("roll up token stats");
+
+    let summary = storage
+        .summarize_request_logs_between_for_keys(0, 7_200, &["key-a".to_string()])
+        .expect("summarize selected key usage");
+
+    assert_eq!(summary.input_tokens, 10);
+    assert_eq!(summary.cached_input_tokens, 2);
+    assert_eq!(summary.output_tokens, 5);
+    assert_eq!(summary.estimated_cost_usd, 0.01);
+}
+
+#[test]
 fn request_logs_zero_limit_returns_empty_results() {
     let storage = Storage::open_in_memory().expect("open");
     storage.init().expect("init");

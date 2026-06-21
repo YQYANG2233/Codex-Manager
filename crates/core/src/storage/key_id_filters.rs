@@ -51,6 +51,13 @@ pub(super) struct KeyIdSqlFilter<'a> {
     _temp_filter: Option<TempKeyIdFilter<'a>>,
 }
 
+pub(super) struct PairedKeyIdSqlFilter<'a> {
+    first_condition: String,
+    second_condition: String,
+    params: Vec<Value>,
+    _temp_filter: Option<TempKeyIdFilter<'a>>,
+}
+
 impl<'a> KeyIdSqlFilter<'a> {
     pub(super) fn create(
         storage: &'a Storage,
@@ -86,6 +93,64 @@ impl<'a> KeyIdSqlFilter<'a> {
 
     pub(super) fn condition(&self) -> &str {
         &self.condition
+    }
+
+    pub(super) fn params(&self) -> &[Value] {
+        &self.params
+    }
+}
+
+impl<'a> PairedKeyIdSqlFilter<'a> {
+    pub(super) fn create(
+        storage: &'a Storage,
+        first_column: &str,
+        second_column: &str,
+        key_ids: &[String],
+    ) -> Result<Option<Self>> {
+        let key_ids = normalize_key_ids(key_ids);
+        if key_ids.is_empty() {
+            return Ok(None);
+        }
+
+        if key_ids.len() <= SQLITE_IN_CLAUSE_BATCH_SIZE {
+            let Some((first_condition, first_params)) = key_id_in_clause(first_column, &key_ids)
+            else {
+                return Ok(None);
+            };
+            let Some((second_condition, second_params)) = key_id_in_clause(second_column, &key_ids)
+            else {
+                return Ok(None);
+            };
+            let mut params = Vec::with_capacity(first_params.len() + second_params.len());
+            params.extend(first_params);
+            params.extend(second_params);
+            return Ok(Some(Self {
+                first_condition,
+                second_condition,
+                params,
+                _temp_filter: None,
+            }));
+        }
+
+        let Some(temp_filter) = TempKeyIdFilter::create(storage, &key_ids)? else {
+            return Ok(None);
+        };
+        let first_condition = temp_filter.condition(first_column);
+        let second_condition = temp_filter.condition(second_column);
+        Ok(Some(Self {
+            first_condition,
+            second_condition,
+            params: Vec::new(),
+            _temp_filter: Some(temp_filter),
+        }))
+    }
+
+    pub(super) fn first_condition(&self) -> &str {
+        &self.first_condition
+    }
+
+    pub(super) fn second_condition(&self) -> &str {
+        &self.second_condition
     }
 
     pub(super) fn params(&self) -> &[Value] {
