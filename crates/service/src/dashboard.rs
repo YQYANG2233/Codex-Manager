@@ -40,20 +40,24 @@ pub(crate) fn read_admin_usage_summary(
         .filter(|value| *value > range_start)
         .unwrap_or(today_end);
 
-    let today_usage = storage
-        .summarize_request_token_stats_daily(today_start, today_end, time_bounds::DAY_SECONDS)
-        .map_err(|err| format!("summarize today usage failed: {err}"))?
-        .into_iter()
-        .next()
-        .map(|item| item.usage)
-        .unwrap_or_default();
+    let raw_daily_usage = storage
+        .summarize_request_token_stats_daily(range_start, range_end, time_bounds::DAY_SECONDS)
+        .map_err(|err| format!("summarize daily usage failed: {err}"))?;
+    let today_usage = match daily_usage_bucket(&raw_daily_usage, today_start, today_end) {
+        Some(usage) => usage,
+        None => storage
+            .summarize_request_token_stats_daily(today_start, today_end, time_bounds::DAY_SECONDS)
+            .map_err(|err| format!("summarize today usage failed: {err}"))?
+            .into_iter()
+            .next()
+            .map(|item| item.usage)
+            .unwrap_or_default(),
+    };
     let daily_usage = fill_daily_usage(
         range_start,
         range_end,
         time_bounds::DAY_SECONDS,
-        storage
-            .summarize_request_token_stats_daily(range_start, range_end, time_bounds::DAY_SECONDS)
-            .map_err(|err| format!("summarize daily usage failed: {err}"))?,
+        raw_daily_usage,
     );
     let users = build_dashboard_user_summaries(
         &storage,
@@ -176,6 +180,17 @@ fn fill_daily_usage(
         cursor = next;
     }
     result
+}
+
+fn daily_usage_bucket(
+    items: &[DailyTokenUsageRollup],
+    today_start: i64,
+    today_end: i64,
+) -> Option<TokenUsageRollup> {
+    items
+        .iter()
+        .find(|item| item.day_start_ts == today_start && item.day_end_ts == today_end)
+        .map(|item| item.usage.clone())
 }
 
 fn build_dashboard_user_summaries(
@@ -758,12 +773,12 @@ fn build_alerts(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_dashboard_source_summaries, build_dashboard_user_summaries, dashboard_source_ids,
-        filter_source_usage, read_member_usage_breakdown, SourceMetadata,
+        build_dashboard_source_summaries, build_dashboard_user_summaries, daily_usage_bucket,
+        dashboard_source_ids, filter_source_usage, read_member_usage_breakdown, SourceMetadata,
     };
     use codexmanager_core::storage::{
-        ApiKey, ApiKeyOwner, AppUser, RequestTokenStat, SourceTokenUsageRollup, Storage,
-        TokenUsageRollup, UserTokenUsageRollup,
+        ApiKey, ApiKeyOwner, AppUser, DailyTokenUsageRollup, RequestTokenStat,
+        SourceTokenUsageRollup, Storage, TokenUsageRollup, UserTokenUsageRollup,
     };
     use std::collections::HashMap;
 
@@ -783,6 +798,19 @@ mod tests {
     fn user_usage(user_id: &str, total_tokens: i64) -> UserTokenUsageRollup {
         UserTokenUsageRollup {
             user_id: user_id.to_string(),
+            usage: TokenUsageRollup {
+                total_tokens,
+                request_count: 1,
+                success_count: 1,
+                ..TokenUsageRollup::default()
+            },
+        }
+    }
+
+    fn daily_usage(start: i64, end: i64, total_tokens: i64) -> DailyTokenUsageRollup {
+        DailyTokenUsageRollup {
+            day_start_ts: start,
+            day_end_ts: end,
             usage: TokenUsageRollup {
                 total_tokens,
                 request_count: 1,
@@ -823,6 +851,25 @@ mod tests {
         assert_eq!(
             dashboard_source_ids(&today, &range),
             vec!["acc-a".to_string(), "acc-b".to_string()]
+        );
+    }
+
+    #[test]
+    fn daily_usage_bucket_reuses_exact_today_bucket() {
+        let items = vec![
+            daily_usage(1_700_000_000, 1_700_086_400, 10),
+            daily_usage(1_700_086_400, 1_700_172_800, 25),
+        ];
+
+        assert_eq!(
+            daily_usage_bucket(&items, 1_700_086_400, 1_700_172_800)
+                .map(|usage| usage.total_tokens),
+            Some(25)
+        );
+        assert_eq!(
+            daily_usage_bucket(&items, 1_700_086_400, 1_700_160_000)
+                .map(|usage| usage.total_tokens),
+            None
         );
     }
 
