@@ -229,10 +229,29 @@ fn summaries_for_selected_keys_include_rollups_and_respect_time_ranges() {
             ..RequestTokenStat::default()
         })
         .expect("insert raw key b");
+    storage
+        .insert_request_token_stat(&RequestTokenStat {
+            request_log_id: 3,
+            key_id: Some("key-c".to_string()),
+            account_id: Some("acc-c".to_string()),
+            model: Some("gpt-5".to_string()),
+            input_tokens: Some(100),
+            cached_input_tokens: Some(0),
+            output_tokens: Some(0),
+            total_tokens: Some(100),
+            reasoning_output_tokens: Some(0),
+            estimated_cost_usd: Some(1.00),
+            created_at: 105,
+            ..RequestTokenStat::default()
+        })
+        .expect("insert raw unselected key with same model");
 
     // Rollup 只写入 key-a，用来验证无时间范围时会把 rollup 一并纳入。
     insert_rollup_row(
         &storage, "key-a", "acc-a", "gpt-5", 5, 0, 0, 5, 0, 0.05, 1, 999,
+    );
+    insert_rollup_row(
+        &storage, "key-c", "acc-c", "gpt-5", 100, 0, 0, 100, 0, 1.00, 1, 999,
     );
 
     let selected = vec!["key-a".to_string()];

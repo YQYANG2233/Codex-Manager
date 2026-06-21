@@ -710,24 +710,40 @@ impl Storage {
         key_filter: Option<&TempKeyIdFilter<'_>>,
         limit: Option<usize>,
     ) -> Result<Vec<TokenUsageSummary>> {
-        let key_filter_clause = key_filter
-            .map(|filter| filter.exists_clause("s.key_id"))
+        let raw_key_filter_clause = key_filter
+            .map(|filter| filter.exists_clause("t.key_id"))
+            .unwrap_or_default();
+        let hourly_key_filter_clause = key_filter
+            .map(|filter| filter.exists_clause("NULLIF(TRIM(h.key_id), '')"))
+            .unwrap_or_default();
+        let legacy_key_filter_clause = key_filter
+            .map(|filter| filter.exists_clause("NULLIF(TRIM(r.key_id), '')"))
             .unwrap_or_default();
         let limit_clause = sql_limit_clause(limit);
         let raw = raw_key_usage_select(
             "",
-            optional_raw_stats_range_clause(start_ts, end_ts),
+            &format!(
+                "{}{raw_key_filter_clause}",
+                optional_raw_stats_range_clause(start_ts, end_ts)
+            ),
             "GROUP BY normalized_model",
         );
         let hourly = hourly_key_usage_select(
             "",
-            optional_hourly_rollup_range_clause(start_ts, end_ts),
+            &format!(
+                "{}{hourly_key_filter_clause}",
+                optional_hourly_rollup_range_clause(start_ts, end_ts)
+            ),
             "GROUP BY normalized_model",
         );
         let mut combined_selects =
             format!("{raw}\n                UNION ALL\n                {hourly}");
         if start_ts.is_none() && end_ts.is_none() {
-            let legacy = legacy_key_usage_select("", "1 = 1", "GROUP BY normalized_model");
+            let legacy = legacy_key_usage_select(
+                "",
+                &format!("1 = 1{legacy_key_filter_clause}"),
+                "GROUP BY normalized_model",
+            );
             combined_selects.push_str("\n                UNION ALL\n                ");
             combined_selects.push_str(&legacy);
         }
@@ -744,7 +760,7 @@ impl Storage {
                 IFNULL(SUM(IFNULL(s.total_tokens, 0)), 0) AS total_tokens,
                 IFNULL(SUM(s.estimated_cost_usd), 0.0) AS estimated_cost_usd
              FROM combined s
-             WHERE 1 = 1{key_filter_clause}
+             WHERE 1 = 1
              GROUP BY s.normalized_model
              ORDER BY total_tokens DESC, s.normalized_model ASC{limit_clause}"
         );
@@ -837,13 +853,19 @@ impl Storage {
         end_ts: Option<i64>,
         key_filter: Option<&TempKeyIdFilter<'_>>,
     ) -> Result<Vec<ApiKeyModelTokenUsageSummary>> {
-        let key_filter_clause = key_filter
-            .map(|filter| filter.exists_clause("s.key_id"))
+        let raw_key_filter_clause = key_filter
+            .map(|filter| filter.exists_clause("t.key_id"))
+            .unwrap_or_default();
+        let hourly_key_filter_clause = key_filter
+            .map(|filter| filter.exists_clause("NULLIF(TRIM(h.key_id), '')"))
+            .unwrap_or_default();
+        let legacy_key_filter_clause = key_filter
+            .map(|filter| filter.exists_clause("NULLIF(TRIM(r.key_id), '')"))
             .unwrap_or_default();
         let raw = raw_key_usage_select(
             "",
             &format!(
-                "{} AND t.key_id IS NOT NULL AND TRIM(t.key_id) <> ''",
+                "{} AND t.key_id IS NOT NULL AND TRIM(t.key_id) <> ''{raw_key_filter_clause}",
                 optional_raw_stats_range_clause(start_ts, end_ts)
             ),
             "GROUP BY t.key_id, normalized_model",
@@ -851,7 +873,7 @@ impl Storage {
         let hourly = hourly_key_usage_select(
             "",
             &format!(
-                "{} AND NULLIF(TRIM(h.key_id), '') IS NOT NULL",
+                "{} AND NULLIF(TRIM(h.key_id), '') IS NOT NULL{hourly_key_filter_clause}",
                 optional_hourly_rollup_range_clause(start_ts, end_ts)
             ),
             "GROUP BY key_id, normalized_model",
@@ -861,7 +883,7 @@ impl Storage {
         if start_ts.is_none() && end_ts.is_none() {
             let legacy = legacy_key_usage_select(
                 "",
-                "NULLIF(TRIM(r.key_id), '') IS NOT NULL",
+                &format!("NULLIF(TRIM(r.key_id), '') IS NOT NULL{legacy_key_filter_clause}"),
                 "GROUP BY key_id, normalized_model",
             );
             combined_selects.push_str("\n                UNION ALL\n                ");
@@ -881,7 +903,7 @@ impl Storage {
                 IFNULL(SUM(IFNULL(s.total_tokens, 0)), 0) AS total_tokens,
                 IFNULL(SUM(s.estimated_cost_usd), 0.0) AS estimated_cost_usd
              FROM combined s
-             WHERE s.key_id IS NOT NULL AND TRIM(s.key_id) <> ''{key_filter_clause}
+             WHERE s.key_id IS NOT NULL AND TRIM(s.key_id) <> ''
              GROUP BY s.key_id, s.normalized_model
              ORDER BY total_tokens DESC, s.key_id ASC, s.normalized_model ASC"
         );
