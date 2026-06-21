@@ -196,14 +196,22 @@ fn sql_limit_clause(limit: Option<usize>) -> String {
         .unwrap_or_default()
 }
 
-fn raw_token_rollup_select(select_prefix: &str, where_clause: &str, group_by: &str) -> String {
+fn raw_token_rollup_select(
+    select_prefix: &str,
+    where_clause: &str,
+    group_by: &str,
+    include_owner_joins: bool,
+) -> String {
+    let owner_joins = include_owner_joins
+        .then_some(USER_OWNER_JOINS)
+        .unwrap_or("");
     format!(
         "SELECT
             {select_prefix}
             {TOKEN_ROLLUP_COLUMNS}
          FROM request_token_stats t
          LEFT JOIN request_logs r ON r.id = t.request_log_id
-         {USER_OWNER_JOINS}
+         {owner_joins}
          WHERE {where_clause}
          {group_by}"
     )
@@ -946,6 +954,7 @@ impl Storage {
             "?1 + CAST((t.created_at - ?1) / ?3 AS INTEGER) * ?3 AS bucket_start,",
             "t.created_at >= ?1 AND t.created_at < ?2",
             "GROUP BY bucket_start",
+            false,
         );
         let hourly = hourly_token_rollup_select(
             "?1 + CAST((h.bucket_start - ?1) / ?3 AS INTEGER) * ?3 AS bucket_start,",
@@ -1004,6 +1013,7 @@ impl Storage {
             &format!("{USER_OWNER_EXPR} AS user_id,"),
             &format!("t.created_at >= ?1 AND t.created_at < ?2 AND {USER_OWNER_EXPR} IS NOT NULL"),
             "GROUP BY user_id",
+            true,
         );
         let hourly = hourly_token_rollup_select(
             "NULLIF(TRIM(h.owner_user_id), '') AS user_id,",
@@ -1051,6 +1061,7 @@ impl Storage {
             "",
             &format!("t.created_at >= ?1 AND t.created_at < ?2 AND {USER_OWNER_EXPR} = ?3"),
             "",
+            true,
         );
         let hourly = hourly_token_rollup_select(
             "",
@@ -1088,6 +1099,7 @@ impl Storage {
             "?1 + CAST((t.created_at - ?1) / ?3 AS INTEGER) * ?3 AS bucket_start,",
             &format!("t.created_at >= ?1 AND t.created_at < ?2 AND {USER_OWNER_EXPR} = ?4"),
             "GROUP BY bucket_start",
+            true,
         );
         let hourly = hourly_token_rollup_select(
             "?1 + CAST((h.bucket_start - ?1) / ?3 AS INTEGER) * ?3 AS bucket_start,",
@@ -1182,6 +1194,7 @@ impl Storage {
                     "t.created_at >= ?1 AND t.created_at < ?2 AND {source_id_expr} IS NOT NULL"
                 ),
                 "GROUP BY source_kind, source_id",
+                false,
             ));
             hourly_parts.push(hourly_token_rollup_select(
                 &format!("'{source_kind}' AS source_kind, {hourly_source_id_expr} AS source_id,"),

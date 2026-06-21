@@ -685,6 +685,31 @@ fn daily_range_query_matches_created_at_index() {
 }
 
 #[test]
+fn daily_usage_query_skips_owner_joins() {
+    let sql = super::raw_token_rollup_select(
+        "?1 + CAST((t.created_at - ?1) / ?3 AS INTEGER) * ?3 AS bucket_start,",
+        "t.created_at >= ?1 AND t.created_at < ?2",
+        "GROUP BY bucket_start",
+        false,
+    );
+    assert!(!sql.contains("api_key_owners"));
+}
+
+#[test]
+fn user_usage_query_keeps_owner_join() {
+    let sql = super::raw_token_rollup_select(
+        &format!("{} AS user_id,", super::USER_OWNER_EXPR),
+        &format!(
+            "t.created_at >= ?1 AND t.created_at < ?2 AND {} IS NOT NULL",
+            super::USER_OWNER_EXPR
+        ),
+        "GROUP BY user_id",
+        true,
+    );
+    assert!(sql.contains("api_key_owners"));
+}
+
+#[test]
 fn rollup_request_token_stats_short_circuits_empty_raw_stats() {
     let storage = Storage::open_in_memory().expect("open");
     storage.init().expect("init");
