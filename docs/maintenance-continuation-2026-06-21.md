@@ -5501,3 +5501,33 @@
   - No SQLite migration or new index was added; this slice only centralizes existing production SQL and keeps the indexed request-charge count guarded.
   - No feature removal was attempted; no current safe-removal proof was found.
   - Goal remains active after this slice.
+
+## 2026-06-22 tail marker - account filtered count SQL helper
+
+- Latest completed slice in this continuation:
+  - Continued `accounts` storage scan after wallet ledger count helper slice.
+  - Confirmed `account_count_filtered(...)` is part of the account list/count read path and still built its filtered count SQL inline.
+  - File touched: `crates/core/src/storage/accounts.rs`.
+  - Added storage-local SQL helper:
+    - `account_count_filtered_sql(where_clause)`
+  - Updated production method `account_count_filtered(...)` to use the helper while preserving existing filter parameter construction.
+  - Expanded EXPLAIN coverage in `account_group_name_filter_uses_group_sort_index` so the group-filtered count SQL also verifies `idx_accounts_group_name_sort_updated_at`.
+- Validation:
+  - `cargo test -p codexmanager-core account_group_name_filter_uses_group_sort_index -- --nocapture` passed:
+    - 1 matching core library test.
+  - `cargo fmt --check` passed.
+  - `cargo test -p codexmanager-core accounts -- --nocapture` passed:
+    - 74 matching core library tests.
+    - 2 matching storage integration tests.
+  - `cargo test -p codexmanager-core` passed:
+    - 338 core library tests.
+    - 7 auth integration tests.
+    - 29 storage integration tests.
+    - 1 usage integration test.
+    - 1 version integration test.
+    - doc-tests with 0 tests.
+- Notes:
+  - No SQLite migration or new index was added; the group-filtered count already has a suitable existing index, now covered by EXPLAIN.
+  - No feature removal was attempted; no current safe-removal proof was found.
+  - Upstream aggregate API production paths inspected in this slice use `gateway::upstream_client()`; remaining direct blocking clients there are test-local.
+  - Goal remains active after this slice.

@@ -182,7 +182,7 @@ impl Storage {
     ) -> Result<i64> {
         let mut params = Vec::new();
         let where_clause = build_account_where_clause(query, group_name, &mut params, "accounts");
-        let sql = format!("SELECT COUNT(1) FROM accounts{where_clause}");
+        let sql = account_count_filtered_sql(&where_clause);
         self.conn
             .query_row(&sql, params_from_iter(params), |row| row.get(0))
     }
@@ -1444,6 +1444,10 @@ fn qualified_column(table_name: &str, column: &str) -> String {
 
 fn account_count_sql() -> &'static str {
     "SELECT COUNT(1) FROM accounts"
+}
+
+fn account_count_filtered_sql(where_clause: &str) -> String {
+    format!("SELECT COUNT(1) FROM accounts{where_clause}")
 }
 
 fn max_account_sort_sql() -> &'static str {
@@ -3447,6 +3451,22 @@ mod tests {
             plan.iter()
                 .any(|detail| detail.contains("idx_accounts_group_name_sort_updated_at")),
             "expected group filter plan to use idx_accounts_group_name_sort_updated_at, got {plan:?}"
+        );
+
+        let count_sql = account_count_filtered_sql(" WHERE accounts.group_name = ?");
+        let count_plan = storage
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {count_sql}"))
+            .expect("prepare count explain")
+            .query_map(["TEAM_A"], |row| row.get::<_, String>(3))
+            .expect("query count explain")
+            .collect::<Result<Vec<_>>>()
+            .expect("collect count explain");
+        assert!(
+            count_plan
+                .iter()
+                .any(|detail| detail.contains("idx_accounts_group_name_sort_updated_at")),
+            "expected group count plan to use idx_accounts_group_name_sort_updated_at, got {count_plan:?}"
         );
     }
 
