@@ -6270,3 +6270,22 @@
   - Client scan was re-run for service/web `reqwest::Client` constructors; the inspected stable production paths are still cached/runtime-scoped or startup scoped, so no client reuse edit was made in this slice.
   - No feature removal was attempted in this slice.
   - Goal remains active after this slice.
+## 2026-06-22 continuation - dashboard service tests module split
+
+- Latest completed slice in this continuation:
+  - Continued service-layer modularity after splitting Codex profile tests.
+  - Reconfirmed `crates/service/src/dashboard.rs` had an EOF `#[cfg(test)] mod tests` block containing pure dashboard aggregation and member dashboard tests.
+  - Files touched:
+    - `crates/service/src/dashboard.rs`
+    - `crates/service/src/dashboard_tests.rs`
+  - Moved the inline dashboard tests into `dashboard_tests.rs` and left the parent module with `#[path = "dashboard_tests.rs"] mod tests;`.
+  - No dashboard production logic, usage aggregation, alert, or storage query behavior was changed; tests remain a child module and still access private helpers through `super`.
+- Validation passed so far:
+  - `cargo fmt` passed after the split.
+  - `cargo test -p codexmanager-service dashboard -- --nocapture` passed: 22 matching service library tests.
+  - `cargo fmt --check` passed.
+  - `git diff --check` passed with only LF-to-CRLF warnings and exit code 0.
+- Notes:
+  - No SQLite migration or new index was added in this service-layer test split.
+  - No feature removal was attempted in this slice.
+  - Goal remains active after this slice.
