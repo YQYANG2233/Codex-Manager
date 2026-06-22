@@ -5674,3 +5674,25 @@
   - No feature removal was attempted; no current safe-removal proof was found.
   - `apply_patch` still fails in this workspace with sandbox helper `0xc0000005`; edits used PowerShell/.NET exact marker replacement with uniqueness checks.
   - Goal remains active after this slice.
+
+## 2026-06-22 continuation - request token daily rollup SQL helper
+
+- Latest completed slice in this continuation:
+  - Continued the SQLite/core maintainability track in `crates/core/src/storage/request_token_stats.rs` after the model summary helper commit.
+  - Found duplicate daily rollup `WITH combined` wrappers in:
+    - `summarize_request_token_stats_daily(...)`
+    - `summarize_request_token_stats_daily_for_user(...)`
+  - Added storage-local SQL helper:
+    - `request_token_stats_daily_rollup_sql(raw, hourly)`
+  - Updated both production daily rollup methods to use the helper while keeping their different raw/hourly source predicates and owner-join behavior at the call sites.
+  - Added EXPLAIN coverage in `daily_rollup_query_includes_raw_and_hourly_sources` to verify the helper-backed daily rollup query still reads raw token stats via `idx_request_token_stats_created_at` and hourly rollups via `idx_request_token_stat_hourly_rollups_bucket_start`.
+- Validation passed for this slice:
+  - `cargo test -p codexmanager-core daily_rollup_query_includes_raw_and_hourly_sources -- --nocapture` passed: 1 matching core library test.
+  - `cargo test -p codexmanager-core request_token_stats -- --nocapture` passed: 23 matching core library tests and 2 matching storage integration tests.
+  - `cargo fmt --check` passed.
+  - `git diff --check` passed; Git only reported LF-to-CRLF working-copy conversion warnings.
+  - `cargo test -p codexmanager-core` passed with 344 core library tests, 7 auth integration tests, 29 storage integration tests, 1 usage integration test, 1 version integration test, and 0 doc-tests.
+- Notes:
+  - No SQLite migration or new index was added; existing plans already use the intended range indexes.
+  - No feature removal was attempted; no current safe-removal proof was found.
+  - Goal remains active after this slice.

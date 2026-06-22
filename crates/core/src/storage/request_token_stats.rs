@@ -327,6 +327,22 @@ fn request_token_stats_by_key_sql(
     )
 }
 
+fn request_token_stats_daily_rollup_sql(raw: &str, hourly: &str) -> String {
+    format!(
+        "WITH combined AS (
+            {raw}
+            UNION ALL
+            {hourly}
+         )
+         SELECT
+            bucket_start,
+            MIN(bucket_start + ?3, ?2) AS bucket_end,
+            {COMBINED_ROLLUP_COLUMNS}
+         FROM combined
+         GROUP BY bucket_start
+         ORDER BY bucket_start ASC"
+    )
+}
 fn request_token_stats_by_model_sql(combined_selects: &str, limit_clause: &str) -> String {
     format!(
         "WITH combined AS (
@@ -1162,20 +1178,8 @@ impl Storage {
             hourly_rollup_range_clause(),
             "GROUP BY bucket_start",
         );
-        let sql = format!(
-            "WITH combined AS (
-                {raw}
-                UNION ALL
-                {hourly}
-             )
-             SELECT
-                bucket_start,
-                MIN(bucket_start + ?3, ?2) AS bucket_end,
-                {COMBINED_ROLLUP_COLUMNS}
-             FROM combined
-             GROUP BY bucket_start
-             ORDER BY bucket_start ASC"
-        );
+        let sql = request_token_stats_daily_rollup_sql(&raw, &hourly);
+
         let mut stmt = self.conn.prepare(&sql)?;
         let mut rows = stmt.query(params![start_ts, end_ts, bucket_seconds])?;
         let mut items = Vec::new();
@@ -1307,20 +1311,8 @@ impl Storage {
             &format!("{} AND h.owner_user_id = ?4", hourly_rollup_range_clause()),
             "GROUP BY bucket_start",
         );
-        let sql = format!(
-            "WITH combined AS (
-                {raw}
-                UNION ALL
-                {hourly}
-             )
-             SELECT
-                bucket_start,
-                MIN(bucket_start + ?3, ?2) AS bucket_end,
-                {COMBINED_ROLLUP_COLUMNS}
-             FROM combined
-             GROUP BY bucket_start
-             ORDER BY bucket_start ASC"
-        );
+        let sql = request_token_stats_daily_rollup_sql(&raw, &hourly);
+
         let mut stmt = self.conn.prepare(&sql)?;
         let mut rows = stmt.query(params![start_ts, end_ts, bucket_seconds, user_id.trim()])?;
         let mut items = Vec::new();
