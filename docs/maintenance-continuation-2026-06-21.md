@@ -6093,3 +6093,22 @@
   - No SQLite migration or new index was added; existing model source query-plan assertions were preserved unchanged in the moved test file.
   - No feature removal was attempted in this slice.
   - Goal remains active after this slice.
+## 2026-06-22 continuation - usage storage tests module split
+
+- Latest completed slice in this continuation:
+  - Continued the core storage modularity scan after splitting model source storage tests.
+  - Reconfirmed `crates/core/src/storage/usage.rs` as a large usage snapshot storage module and found its EOF `#[cfg(test)] mod tests` block was pure test code.
+  - Files touched:
+    - `crates/core/src/storage/usage.rs`
+    - `crates/core/src/storage/usage_tests.rs`
+  - Moved the inline usage snapshot/query-plan tests into `usage_tests.rs` and left the parent module with `#[path = "usage_tests.rs"] mod tests;`.
+  - No usage snapshot production logic or SQL text was changed; tests remain a child module and still access private helpers through `super`.
+- Validation passed so far:
+  - `cargo fmt` passed after the split.
+  - `cargo test -p codexmanager-core usage -- --nocapture` passed: 45 matching core library tests, 4 matching storage integration tests, and 1 usage integration test.
+  - `cargo fmt --check` passed.
+  - `git diff --check` passed with only LF-to-CRLF warnings and exit code 0.
+- Notes:
+  - No SQLite migration or new index was added; existing usage query-plan assertions were preserved unchanged in the moved test file.
+  - No feature removal was attempted in this slice.
+  - Goal remains active after this slice.
