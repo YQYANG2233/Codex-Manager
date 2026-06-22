@@ -102,7 +102,7 @@ impl Storage {
     /// 返回函数执行结果
     pub fn account_count(&self) -> Result<i64> {
         self.conn
-            .query_row("SELECT COUNT(1) FROM accounts", [], |row| row.get(0))
+            .query_row(account_count_sql(), [], |row| row.get(0))
     }
 
     pub fn account_status_counts(&self) -> Result<Vec<AccountStatusCount>> {
@@ -164,7 +164,7 @@ impl Storage {
 
     pub fn max_account_sort(&self) -> Result<Option<i64>> {
         self.conn
-            .query_row("SELECT MAX(sort) FROM accounts", [], |row| row.get(0))
+            .query_row(max_account_sort_sql(), [], |row| row.get(0))
     }
 
     /// 函数 `account_count_filtered`
@@ -1453,6 +1453,14 @@ fn qualified_column(table_name: &str, column: &str) -> String {
     format!("{table_name}.{column}")
 }
 
+fn account_count_sql() -> &'static str {
+    "SELECT COUNT(1) FROM accounts"
+}
+
+fn max_account_sort_sql() -> &'static str {
+    "SELECT MAX(sort) FROM accounts"
+}
+
 fn account_direct_auth_profile_by_id_sql() -> &'static str {
     "SELECT id, issuer, chatgpt_account_id, status
      FROM accounts
@@ -2436,6 +2444,32 @@ mod tests {
     }
 
     #[test]
+    fn account_count_reads_account_cardinality_sql() {
+        let storage = Storage::open_in_memory().expect("open");
+        storage.init().expect("init");
+        let now = now_ts();
+
+        assert_eq!(storage.account_count().expect("empty count"), 0);
+        storage
+            .insert_account(&sample_account("acc-count-first", "active", now))
+            .expect("insert first account");
+        storage
+            .insert_account(&sample_account("acc-count-second", "disabled", now))
+            .expect("insert second account");
+
+        assert_eq!(storage.account_count().expect("account count"), 2);
+
+        let plan = collect_query_plan(
+            &storage,
+            &format!("EXPLAIN QUERY PLAN {}", account_count_sql()),
+        );
+        assert!(
+            plan.contains("SCAN accounts") || plan.contains("USING COVERING INDEX"),
+            "expected account count to stay a direct accounts cardinality scan, got {plan}"
+        );
+    }
+
+    #[test]
     fn max_account_sort_reads_largest_sort_without_loading_accounts() {
         let storage = Storage::open_in_memory().expect("open");
         storage.init().expect("init");
@@ -2451,6 +2485,17 @@ mod tests {
         storage.insert_account(&high).expect("insert high sort");
 
         assert_eq!(storage.max_account_sort().expect("max sort"), Some(11));
+
+        let plan = collect_query_plan(
+            &storage,
+            &format!("EXPLAIN QUERY PLAN {}", max_account_sort_sql()),
+        );
+        assert!(
+            plan.contains("USING COVERING INDEX")
+                && (plan.contains("idx_accounts_sort_updated_at")
+                    || plan.contains("idx_accounts_list_order")),
+            "expected max sort lookup to use an account sort covering index, got {plan}"
+        );
     }
 
     #[test]

@@ -5068,3 +5068,34 @@
   - Continue SQLite work only when production SQL/helper/EXPLAIN alignment or a real query-plan issue is visible.
   - Continue client reuse only if a production/request/frequent background path repeatedly constructs a stable-config client.
   - Continue feature removal only with current call-site evidence plus tests proving it is safe.
+## 2026-06-22 tail marker - account count/sort read SQL helper alignment
+
+- Latest completed slice in this continuation:
+  - HTTP client reuse scan did not identify a new production high-frequency stable-config client rebuild in the inspected candidate files:
+    - `crates/service/src/aggregate_api.rs` matches are probe tests.
+    - `crates/service/src/gateway/upstream/attempt_flow/postprocess.rs` matches are retry/failover tests.
+    - `crates/service/src/gateway/upstream/attempt_flow/transport.rs` match is a stream test helper.
+    - `crates/service/src/gateway/upstream/protocol/aggregate_api.rs` match is an Anthropic bridge unit test.
+  - File touched: `crates/core/src/storage/accounts.rs`.
+  - Added storage-local SQL helpers for simple account cardinality and sort reads:
+    - `account_count_sql()`
+    - `max_account_sort_sql()`
+  - Updated production methods to use those helpers without changing behavior:
+    - `account_count(...)`
+    - `max_account_sort(...)`
+  - Expanded EXPLAIN coverage:
+    - `account_count_reads_account_cardinality_sql` verifies the count path remains a direct accounts cardinality scan.
+    - `max_account_sort_reads_largest_sort_without_loading_accounts` verifies the max-sort path uses an account sort covering index.
+- Validation:
+  - `cargo test -p codexmanager-core account_count_reads_account_cardinality_sql -- --nocapture` passed:
+    - 1 matching core library test.
+  - `cargo test -p codexmanager-core max_account_sort_reads_largest_sort_without_loading_accounts -- --nocapture` passed:
+    - 1 matching core library test.
+- Notes:
+  - No SQLite migration or new index was added; inspected max-sort path uses existing account sort/list-order covering indexes.
+  - No feature removal was attempted; no current safe-removal proof was found.
+- Next continuation constraints:
+  - Goal remains active.
+  - Continue SQLite work only when production SQL/helper/EXPLAIN alignment or a real query-plan issue is visible.
+  - Continue client reuse only if a production/request/frequent background path repeatedly constructs a stable-config client.
+  - Continue feature removal only with current call-site evidence plus tests proving it is safe.
