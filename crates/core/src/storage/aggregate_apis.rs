@@ -204,6 +204,30 @@ fn delete_aggregate_api_balance_secret_by_id_sql() -> &'static str {
     "DELETE FROM aggregate_api_balance_secrets WHERE aggregate_api_id = ?1"
 }
 
+fn aggregate_api_supplier_models_list_sql(
+    has_supplier_key: bool,
+    has_provider_type: bool,
+) -> String {
+    let mut clauses = Vec::new();
+    if has_supplier_key {
+        clauses.push("supplier_key = ?");
+    }
+    if has_provider_type {
+        clauses.push("provider_type = ?");
+    }
+    let where_clause = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", clauses.join(" AND "))
+    };
+    format!(
+        "SELECT supplier_key, provider_type, upstream_model, display_name,
+                status, created_at, updated_at
+         FROM aggregate_api_supplier_models{where_clause}
+         ORDER BY supplier_key ASC, provider_type ASC, upstream_model ASC"
+    )
+}
+
 fn delete_aggregate_api_supplier_model_sql() -> &'static str {
     "DELETE FROM aggregate_api_supplier_models
      WHERE supplier_key = ?1 AND provider_type = ?2 AND upstream_model = ?3"
@@ -1179,27 +1203,15 @@ impl Storage {
         let provider_type = provider_type
             .map(normalize_supplier_model_text)
             .filter(|value| !value.is_empty());
-        let mut clauses = Vec::new();
         let mut params = Vec::new();
-        if let Some(value) = supplier_key {
-            clauses.push("supplier_key = ?".to_string());
-            params.push(Value::Text(value));
+        if let Some(value) = supplier_key.as_ref() {
+            params.push(Value::Text(value.clone()));
         }
-        if let Some(value) = provider_type {
-            clauses.push("provider_type = ?".to_string());
-            params.push(Value::Text(value));
+        if let Some(value) = provider_type.as_ref() {
+            params.push(Value::Text(value.clone()));
         }
-        let where_clause = if clauses.is_empty() {
-            String::new()
-        } else {
-            format!(" WHERE {}", clauses.join(" AND "))
-        };
-        let sql = format!(
-            "SELECT supplier_key, provider_type, upstream_model, display_name,
-                    status, created_at, updated_at
-             FROM aggregate_api_supplier_models{where_clause}
-             ORDER BY supplier_key ASC, provider_type ASC, upstream_model ASC"
-        );
+        let sql =
+            aggregate_api_supplier_models_list_sql(supplier_key.is_some(), provider_type.is_some());
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(
             params_from_iter(params),
@@ -2796,19 +2808,25 @@ mod supplier_model_tests {
             .ensure_aggregate_api_supplier_model_tables()
             .expect("ensure tables");
 
-        let details = collect_query_plan_details(
+        let sql = aggregate_api_supplier_models_list_sql(true, true);
+        let details = collect_query_plan_details_with_params(
             &storage,
-            "EXPLAIN QUERY PLAN
-             SELECT supplier_key, provider_type, upstream_model, display_name,
-                    status, created_at, updated_at
-             FROM aggregate_api_supplier_models
-             WHERE supplier_key = 'test-supplier' AND provider_type = 'codex'
-             ORDER BY supplier_key ASC, provider_type ASC, upstream_model ASC",
+            &format!("EXPLAIN QUERY PLAN {sql}"),
+            vec![
+                Value::Text("test-supplier".to_string()),
+                Value::Text("codex".to_string()),
+            ],
         );
 
         assert!(details.iter().any(|detail| {
             detail.contains("search aggregate_api_supplier_models") && detail.contains("index")
         }));
+        assert!(
+            !details
+                .iter()
+                .any(|detail| detail.contains("use temp b-tree for order by")),
+            "supplier model filter query should avoid temp ORDER BY sorting, got {details:?}"
+        );
     }
     #[test]
     fn aggregate_api_write_helpers_use_primary_key_indexes() {

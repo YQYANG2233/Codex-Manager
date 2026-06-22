@@ -5437,3 +5437,37 @@
   - Continue SQLite work only when production SQL/helper/EXPLAIN alignment or a real query-plan issue is visible.
   - Continue client reuse only if a production/request/frequent background path repeatedly constructs a stable-config client.
   - Continue feature removal only with current call-site evidence plus tests proving it is safe.
+## 2026-06-22 tail marker - aggregate API supplier model list SQL helper
+
+- Latest completed slice in this continuation:
+  - Continued `aggregate_apis` storage scan after extracting overview stats SQL.
+  - Confirmed `list_aggregate_api_supplier_models(...)` is exposed through RPC and frontend account-client calls, and still built its optional supplier/provider filter SQL inline.
+  - File touched: `crates/core/src/storage/aggregate_apis.rs`.
+  - Added storage-local SQL builder helper:
+    - `aggregate_api_supplier_models_list_sql(has_supplier_key, has_provider_type)`
+  - Updated production method `list_aggregate_api_supplier_models(...)` to use the helper while preserving optional `supplier_key` and `provider_type` filter behavior.
+  - Expanded EXPLAIN coverage:
+    - `supplier_model_filter_query_uses_supplier_index` now exercises the helper for the supplier+provider path, verifies an index search, and asserts no temp ORDER BY sorting.
+- Validation:
+  - `cargo test -p codexmanager-core supplier_model_filter_query_uses_supplier_index -- --nocapture` passed:
+    - 1 matching core library test.
+  - `cargo fmt --check` passed.
+  - `cargo test -p codexmanager-core aggregate_apis -- --nocapture` passed:
+    - 29 matching core library tests.
+  - `cargo test -p codexmanager-core` passed:
+    - 338 core library tests.
+    - 7 auth integration tests.
+    - 29 storage integration tests.
+    - 1 usage integration test.
+    - 1 version integration test.
+    - doc-tests with 0 tests.
+- Notes:
+  - No SQLite migration or new index was added; the common supplier+provider path already uses the existing supplier/primary-key indexes.
+  - Provider-only filtering is supported by the public API, but this slice did not add a provider-only index without stronger usage/data evidence.
+  - No feature removal was attempted; no current safe-removal proof was found.
+  - Upstream HTTP client scan in this slice again found production caches or test-only clients, not a new per-request rebuild path.
+- Next continuation constraints:
+  - Goal remains active.
+  - Continue SQLite work only when production SQL/helper/EXPLAIN alignment or a real query-plan issue is visible.
+  - Continue client reuse only if a production/request/frequent background path repeatedly constructs a stable-config client.
+  - Continue feature removal only with current call-site evidence plus tests proving it is safe.
