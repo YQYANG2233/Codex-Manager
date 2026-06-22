@@ -5903,3 +5903,23 @@
   - No SQLite migration or new index was added; this is a maintainability-only SQL helper extraction.
   - No feature removal was attempted in this slice.
   - Goal remains active after this slice.
+## 2026-06-22 continuation - apikey model tests module split
+
+- Latest completed slice in this continuation:
+  - Continued the service-layer modularity scan after core storage SQL helper extractions.
+  - Reconfirmed `crates/service/src/apikey/apikey_models.rs` as the largest service module at roughly 3800 lines.
+  - Found that roughly half of the file was an inline `#[cfg(test)] mod tests` block for managed model catalog and routing behavior.
+  - Files touched:
+    - `crates/service/src/apikey/apikey_models.rs`
+    - `crates/service/src/apikey/apikey_models_tests.rs`
+  - Moved the inline tests into `apikey_models_tests.rs` and left the production module with `#[path = "apikey_models_tests.rs"] mod tests;`.
+  - No production logic was changed; the split keeps tests as a child module so they can still access the same private helpers through `super`.
+- Validation passed so far:
+  - `cargo fmt` was run after the split.
+  - `cargo test -p codexmanager-service apikey_models -- --nocapture` passed compilation but matched 0 tests; this was only useful as a compile check.
+  - `cargo test -p codexmanager-service -- --list | rg "managed|model|routing|aggregate_source|bootstrap_aggregate|auto_association"` confirmed the moved tests are named under `apikey::models::tests`.
+  - `cargo test -p codexmanager-service apikey::models -- --nocapture` passed: 40 matching service library tests.
+- Notes:
+  - No SQLite migration or new index was added in this service-layer test-module split.
+  - No feature removal was attempted; this was a low-risk maintainability cleanup.
+  - Goal remains active after this slice.
