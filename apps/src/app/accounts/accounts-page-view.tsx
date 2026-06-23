@@ -84,6 +84,7 @@ import type { Account, ProxyProfile, ProxyTestJobState } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { AccountProxyCell } from "@/components/accounts/account-proxy-cell";
 import { AccountProxyGeoStatusGrid } from "@/components/accounts/account-proxy-status-grid";
+import { AccountProxyStatusHeader } from "@/components/accounts/account-proxy-status-header";
 import {
 	type AccountEditorState,
 	type AccountExportMode,
@@ -176,7 +177,6 @@ export interface AccountsPageViewProps {
 	isUpdatingPreferred: boolean;
 	isSavingAccountProxy: boolean;
 	isClearingAccountProxy: boolean;
-	isTestingAccountProxy: boolean;
 	isReorderingAccounts: boolean;
 	isUpdatingProfileAccountId: string | null;
 	isUpdatingStatusAccountId: string | null;
@@ -223,7 +223,6 @@ export interface AccountsPageViewProps {
 	handleProxyDialogOpenChange: (open: boolean) => void;
 	handleSaveProxySettings: () => Promise<void>;
 	handleClearProxySettings: () => Promise<void>;
-	handleTestProxySettings: () => Promise<void>;
 	openAccountEditor: (account: Account) => void;
 	handleMoveAccount: (
 		account: Account,
@@ -365,7 +364,6 @@ export function AccountsPageView(props: AccountsPageViewProps) {
 		isUpdatingPreferred,
 		isSavingAccountProxy,
 		isClearingAccountProxy,
-		isTestingAccountProxy,
 		isReorderingAccounts,
 		isUpdatingProfileAccountId,
 		isUpdatingStatusAccountId,
@@ -412,7 +410,6 @@ export function AccountsPageView(props: AccountsPageViewProps) {
 		handleProxyDialogOpenChange,
 		handleSaveProxySettings,
 		handleClearProxySettings,
-		handleTestProxySettings,
 		openAccountEditor,
 		handleMoveAccount,
 		handleApplyAccountSizeSort,
@@ -448,58 +445,13 @@ export function AccountsPageView(props: AccountsPageViewProps) {
 	const accountProxyBusy =
 		isProxySettingsLoading ||
 		isSavingAccountProxy ||
-		isClearingAccountProxy ||
-		isTestingAccountProxy;
+		isClearingAccountProxy;
 	const selectedProxyProfile =
 		proxyProfiles.find((profile) => profile.id === proxyProfileIdDraft) || null;
 	const needsMissingProxyProfileOption =
 		proxySourceDraft === "profile" &&
 		Boolean(proxyProfileIdDraft) &&
 		!selectedProxyProfile;
-	const accountProxySourceText =
-		proxySourceDraft === "profile" ? t("来自 Proxy settings") : t("自定义代理地址");
-	const accountProxyStatusText = (() => {
-		const status = String(proxySettings?.status || "not_configured");
-		switch (status) {
-			case "ok":
-				return t("可用");
-			case "runtime_error":
-				return t("运行时错误");
-			case "failed":
-				return t("测试失败");
-			case "invalid_url":
-				return t("地址无效");
-			case "checking":
-				return t("测试中");
-			case "unchecked":
-				return t("未测试");
-			case "not_configured":
-			default:
-				return t("未配置");
-		}
-	})();
-	const accountProxyStatusColorClass = (() => {
-		const status = String(proxySettings?.status || "not_configured");
-		switch (status) {
-			case "ok":
-				return "text-green-600 dark:text-green-400";
-			case "checking":
-				return "text-yellow-600 dark:text-yellow-400";
-			case "unchecked":
-				return "text-orange-600 dark:text-orange-400";
-			case "failed":
-			case "runtime_error":
-			case "invalid_url":
-				return "text-red-600 dark:text-red-400";
-			case "not_configured":
-			default:
-				return "text-muted-foreground";
-		}
-	})();
-	const accountProxyLastCheckText =
-		proxySettings?.lastCheckAt != null
-			? new Date(proxySettings.lastCheckAt * 1000).toLocaleString()
-			: t("从未检查");
 
 	return (
 		<div className="space-y-6">
@@ -1480,34 +1432,12 @@ export function AccountsPageView(props: AccountsPageViewProps) {
 								<Label className="text-sm font-semibold">{t("代理信息")}</Label>
 							</div>
 								<div className="rounded-xl bg-muted/20 px-4 py-4 text-xs">
-									<div className="flex flex-wrap items-start gap-x-12 gap-y-3 border-b border-border/50 pb-4 mb-4">
-										<div>
-											<div className="text-[10px] font-medium text-muted-foreground/80 uppercase tracking-wider">
-												{t("测试状态")}
-											</div>
-											<div
-												className={cn(
-													"mt-0.5 text-xs font-normal",
-													accountProxyStatusColorClass,
-												)}
-											>
-												{accountProxyStatusText}
-												{proxySettings?.status === "ok" && proxySettings?.latencyMs != null && (
-													<span className="text-muted-foreground font-normal">
-														{" • "}{proxySettings.latencyMs} {t("ms")}
-													</span>
-												)}
-											</div>
-										</div>
-										<div>
-											<div className="text-[10px] font-medium text-muted-foreground/80 uppercase tracking-wider">
-												{t("最近检查")}
-											</div>
-											<div className="mt-0.5 text-xs font-normal text-foreground">
-												{accountProxyLastCheckText}
-											</div>
-										</div>
-									</div>
+									<AccountProxyStatusHeader
+										status={proxySettings?.status}
+										latencyMs={proxySettings?.latencyMs}
+										lastTestedAt={proxySettings?.lastCheckAt}
+										t={t}
+									/>
 									<AccountProxyGeoStatusGrid geo={proxySettings} t={t} />
 								</div>
 							</div>
@@ -1593,17 +1523,7 @@ export function AccountsPageView(props: AccountsPageViewProps) {
 						>
 							{t("关闭")}
 						</DialogClose>
-						<Button
-							type="button"
-							variant="outline"
-							disabled={accountProxyBusy || !proxyDialogAccount}
-							onClick={() => void handleTestProxySettings()}
-						>
-							{isTestingAccountProxy ? (
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							) : null}
-							{t("测试")}
-						</Button>
+
 						<Button
 							type="button"
 							disabled={accountProxyBusy}

@@ -91,6 +91,7 @@ import type { ProxyProfile, ProxyTestJobState } from "@/types";
 import { useI18n } from "@/lib/i18n/provider";
 import { ProxyFlag } from "@/components/accounts/account-proxy-cell";
 import { AccountProxyGeoStatusGrid } from "@/components/accounts/account-proxy-status-grid";
+import { AccountProxyStatusHeader } from "@/components/accounts/account-proxy-status-header";
 
 type ProxyFilter =
   | "all"
@@ -1197,34 +1198,12 @@ export function ProxySettingsCard({
           </DialogHeader>
           <div className="grid max-h-[calc(100vh-13rem)] gap-4 overflow-y-auto px-6 py-4">
             <div className="rounded-xl bg-muted/20 px-4 py-4 text-xs">
-              <div className="flex flex-wrap items-start gap-x-12 gap-y-3 border-b border-border/50 pb-4 mb-4">
-                <div>
-                  <div className="text-[10px] font-medium text-muted-foreground/80 uppercase tracking-wider">
-                    {t("测试状态")}
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-0.5 text-xs font-normal",
-                      selectedDetailProfile ? statusBadgeClassName(selectedDetailProfile.status) : ""
-                    )}
-                  >
-                    {selectedDetailProfile ? formatStatusLabel(selectedDetailProfile.status, t) : ""}
-                    {selectedDetailProfile?.status === "ok" && selectedDetailProfile?.lastUrlLatencyMs != null && (
-                      <span className="text-muted-foreground font-normal">
-                        {" • "}{selectedDetailProfile.lastUrlLatencyMs} {t("ms")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-medium text-muted-foreground/80 uppercase tracking-wider">
-                    {t("最近检查")}
-                  </div>
-                  <div className="mt-0.5 text-xs font-normal text-foreground">
-                    {selectedDetailProfile ? formatLastTested(selectedDetailProfile.lastTestedAt, t) : ""}
-                  </div>
-                </div>
-              </div>
+              <AccountProxyStatusHeader
+                status={selectedDetailProfile?.status}
+                latencyMs={selectedDetailProfile?.lastUrlLatencyMs}
+                lastTestedAt={selectedDetailProfile?.lastTestedAt}
+                t={t}
+              />
               <AccountProxyGeoStatusGrid geo={selectedDetailProfile} t={t} />
             </div>
           </div>

@@ -85,10 +85,8 @@ export default function AccountsPage() {
     getAccountProxySettings,
     setAccountProxySettings,
     clearAccountProxySettings,
-    testAccountProxySettings,
     isSavingAccountProxy,
     isClearingAccountProxy,
-    isTestingAccountProxy,
     reorderAccounts,
     isReorderingAccounts,
     updateAccountProfile,
@@ -506,7 +504,7 @@ const toggleCleanupStatus = (rawStatus: string) => {
     if (open) return;
     const currentActiveJob = proxyDialogAccount ? activeJobs[proxyDialogAccount.id] : undefined;
     const isJobRunning = currentActiveJob && !(currentActiveJob.status === "completed" || currentActiveJob.status === "failed" || currentActiveJob.status === "cancelled");
-    if (isSavingAccountProxy || isClearingAccountProxy || isTestingAccountProxy || isJobRunning) {
+    if (isSavingAccountProxy || isClearingAccountProxy || isJobRunning) {
       return;
     }
     setProxyDialogAccount(null);
@@ -698,27 +696,6 @@ const toggleCleanupStatus = (rawStatus: string) => {
     }
   };
 
-  const handleTestProxySettings = async () => {
-    if (!proxyDialogAccount) return;
-    try {
-      const settings = await testAccountProxySettings({
-        accountId: proxyDialogAccount.id,
-        enabled: proxyEnabledDraft,
-        source: "profile",
-        proxyProfileId: proxyProfileIdDraft || null,
-        proxyUrl: "",
-      });
-      if (settings) {
-        setProxySettings(settings);
-        setProxyEnabledDraft(settings.enabled);
-        setProxySourceDraft(settings.source);
-        setProxyProfileIdDraft(settings.proxyProfileId || "");
-        setProxyUrlDraft(settings.proxyUrl || "");
-      }
-    } catch {
-      // hook handles toast
-    }
-  };
 
   const openAccountEditor = (account: Account) => {
     setAccountEditorState({
@@ -960,7 +937,6 @@ const toggleCleanupStatus = (rawStatus: string) => {
       isUpdatingPreferred={isUpdatingPreferred}
       isSavingAccountProxy={isSavingAccountProxy}
       isClearingAccountProxy={isClearingAccountProxy}
-      isTestingAccountProxy={isTestingAccountProxy}
       isReorderingAccounts={isReorderingAccounts}
       activeJobs={activeJobs}
 
@@ -1018,7 +994,6 @@ const toggleCleanupStatus = (rawStatus: string) => {
       handleProxyDialogOpenChange={handleProxyDialogOpenChange}
       handleSaveProxySettings={handleSaveProxySettings}
       handleClearProxySettings={handleClearProxySettings}
-      handleTestProxySettings={handleTestProxySettings}
       openAccountEditor={openAccountEditor}
       handleMoveAccount={handleMoveAccount}
       handleApplyAccountSizeSort={handleApplyAccountSizeSort}
