@@ -6309,3 +6309,34 @@
 - Notes:
   - No feature removal was attempted in this slice.
   - Goal remains active after this slice.
+## 2026-06-23 continuation - bulk EOF tests module split and remaining scope estimate
+
+- Latest completed slice in this continuation:
+  - Switched from one-file-at-a-time cleanup to a batch strategy after confirming the remaining inline test debt was mostly mechanical EOF `#[cfg(test)] mod tests` blocks.
+  - Batch-extracted 60 EOF test modules into sibling `*_tests.rs` files across `crates/service/src` and `crates/web/src`.
+  - Parent modules now keep only `#[cfg(test)] #[path = "..."] mod tests;` declarations; moved test modules remain child modules and still access private items through `super`.
+  - No production logic, SQL text, SQLite migration, index, request routing behavior, or upstream client behavior was intentionally changed in this batch.
+- Validation passed for this slice:
+  - `cargo fmt --check` passed after formatting the generated test files.
+  - `cargo test -p codexmanager-service --lib --no-run` passed.
+  - `cargo test -p codexmanager-web --no-run` passed.
+  - `cargo test -p codexmanager-web` passed: 19 tests.
+  - Default parallel `cargo test -p codexmanager-service --lib` initially showed two environment-sensitive failures: one temporary SQLite database lock and one stale env DB/schema collision. Both failed tests passed when rerun individually with `--test-threads=1`.
+  - `cargo test -p codexmanager-service --lib -- --test-threads=1` passed: 1078 tests.
+- Remaining inline `mod tests` after the batch:
+  - `crates/web/src/ui_assets.rs`
+  - `crates/service/src/account/account_warmup.rs`
+  - `crates/service/src/plugin/catalog.rs`
+  - `crates/service/src/gateway/observability/http_bridge/aggregate/sse_frame.rs`
+  - `crates/service/src/gateway/observability/http_bridge/stream_readers/anthropic.rs`
+  - `crates/service/src/gateway/observability/http_bridge/stream_readers/gemini.rs`
+- Time estimate from current evidence:
+  - Finish the remaining 6 non-mechanical inline test modules: about 1-2 hours including focused tests.
+  - Final upstream `reqwest::Client` construction audit and only evidence-backed reuse changes: about 2-4 hours.
+  - Final SQLite audit for remaining high-frequency paths without blind migrations/indexes: about 2-4 hours.
+  - Final validation, documentation, commit/push, and closeout report: about 1-2 hours.
+  - Total recommended remaining scope: about 6-10 hours. A stricter full-repo polish beyond these evidence-backed items can expand to 1-2 additional days with diminishing returns.
+- Notes:
+  - The batch reduced non-test production files with inline test modules from 66 to 6.
+  - No feature removal was attempted in this slice; feature removal remains high-risk unless call-chain evidence proves a function or route is unused.
+  - Goal remains active after this slice.
