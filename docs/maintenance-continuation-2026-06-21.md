@@ -6394,3 +6394,20 @@
   - No feature removal was attempted in this audit because no safe unused feature candidate was proven by call-chain evidence.
   - No production code change was made in this audit slice.
   - Goal remains active until final validation/closeout is complete.
+## 2026-06-23 continuation - final validation and closeout estimate
+
+- Final validation completed for the recommended evidence-backed scope:
+  - `git status --short --branch` was clean and synced before validation: `main...origin/main`.
+  - `rg "^\s*mod tests \{" crates/core/src crates/service/src crates/web/src --glob '!**/*_tests.rs' --glob '!**/tests/**'` returned no matches, confirming the inline test modularity sweep is complete for non-test production files in core/service/web.
+  - `cargo fmt --check` passed.
+  - `cargo test -p codexmanager-core` passed: 349 lib tests, 7 auth integration tests, 29 storage integration tests, 1 usage test, 1 version test, and 0 doc tests.
+  - `cargo test -p codexmanager-service --lib -- --test-threads=1` passed: 1078 service lib tests. This remains the preferred final service check because default parallel execution can share env/temp DB state in a few tests.
+  - `cargo test -p codexmanager-web` passed: 19 web tests.
+- Current completion assessment:
+  - Recommended modularity scope is complete for inline test extraction across `crates/core`, `crates/service`, and `crates/web`.
+  - SQLite work is complete for the current evidence-backed pass: existing coverage includes broad query-plan tests and targeted indexes; no new unverified slow query evidence remains from the final scan.
+  - Upstream client reuse work is complete for the current evidence-backed pass: gateway hot-path clients and related background/probe clients are cached, pooled, or startup scoped; no newly proven per-request client construction hot spot remains.
+  - No feature removal was performed because no safe unused feature was proven by current call-chain evidence and tests.
+- Time estimate from current evidence:
+  - Recommended scope can be closed now after this documentation commit/push.
+  - Optional extra strict full-repo polish, if requested later, should be budgeted separately at about 0.5-1.5 days and should require a new concrete target list to avoid open-ended scanning.
