@@ -1361,6 +1361,16 @@ pub struct RequestLogListResult {
     pub page_size: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestLogListWithSummaryResult {
+    pub items: Vec<RequestLogSummary>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+    pub summary: RequestLogFilterSummaryResult,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestLogFilterSummaryResult {

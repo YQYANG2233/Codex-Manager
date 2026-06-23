@@ -38,7 +38,22 @@ import {
   fromDateTimeLocalValue,
 } from "./page-helpers";
 import { buildSummaryPlaceholder } from "./page-cells";
-import { AccountListResult, ApiKey, RequestLogListResult, StartupSnapshot } from "@/types";
+import { AccountListResult, ApiKey, RequestLogListWithSummaryResult, StartupSnapshot } from "@/types";
+
+const LOG_SEARCH_DEBOUNCE_MS = 300;
+const LOG_REFRESH_ACTIVE_MS = 5_000;
+const LOG_REFRESH_FILTERED_MS = 10_000;
+const LOG_REFRESH_EMPTY_MS = 15_000;
+
+function getLogRefreshIntervalMs(
+  result: RequestLogListWithSummaryResult | undefined,
+  hasActiveFilter: boolean,
+): number {
+  if (result && result.total === 0) {
+    return LOG_REFRESH_EMPTY_MS;
+  }
+  return hasActiveFilter ? LOG_REFRESH_FILTERED_MS : LOG_REFRESH_ACTIVE_MS;
+}
 
 function LogsPageContent() {
   const { t } = useI18n();
@@ -57,6 +72,7 @@ function LogsPageContent() {
   const queryClient = useQueryClient();
   const areLogQueriesEnabled = useDeferredDesktopActivation(serviceStatus.connected);
   const routeQuery = searchParams.get("query") || "";
+  const [searchInput, setSearchInput] = useState(routeQuery);
   const [search, setSearch] = useState(routeQuery);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [timePreset, setTimePreset] = useState<TimeRangePreset>("all");
@@ -73,6 +89,8 @@ function LogsPageContent() {
   );
   const endTs = useMemo(() => fromDateTimeLocalValue(endTimeInput), [endTimeInput]);
   const hasActiveTimeRange = startTs != null || endTs != null;
+  const hasActiveLogFilter =
+    Boolean(search.trim()) || filter !== "all" || hasActiveTimeRange;
   const startupSnapshot = queryClient.getQueryData<StartupSnapshot>(
     buildStartupSnapshotQueryKey(
       serviceStatus.addr,
@@ -86,6 +104,7 @@ function LogsPageContent() {
   const startupRequestLogs = startupSnapshot?.requestLogs || [];
   const canUseStartupLogsPlaceholder =
     !routeQuery.trim() &&
+    !searchInput.trim() &&
     !search.trim() &&
     filter === "all" &&
     page === 1 &&
@@ -122,7 +141,7 @@ function LogsPageContent() {
   });
 
   const { data: aggregateApisResult } = useQuery({
-    queryKey: ["aggregate-apis", "lookup"],
+    queryKey: ["aggregate-apis"],
     queryFn: () => accountClient.listAggregateApis(),
     enabled: areLogQueriesEnabled && isPageActive && isAdminMode,
     staleTime: 60_000,
@@ -130,20 +149,35 @@ function LogsPageContent() {
   });
 
   const { data: logsResult, isLoading, isError: isLogsError } = useQuery({
-    queryKey: ["logs", "list", search, filter, startTs, endTs, page, pageSizeNumber],
-    queryFn: () =>
-      serviceClient.listRequestLogs({
-        query: search,
-        statusFilter: filter,
-        startTs,
-        endTs,
-        page,
-        pageSize: pageSizeNumber,
-      }),
+    queryKey: ["logs", "list-with-summary", search, filter, startTs, endTs, page, pageSizeNumber],
+    queryFn: ({ signal }) =>
+      serviceClient.listRequestLogsWithSummary(
+        {
+          query: search,
+          statusFilter: filter,
+          startTs,
+          endTs,
+          page,
+          pageSize: pageSizeNumber,
+        },
+        { signal },
+      ),
     enabled: areLogQueriesEnabled && isPageActive,
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      if (!areLogQueriesEnabled || !isPageActive || activeTab !== "requests") {
+        return false;
+      }
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return false;
+      }
+      return getLogRefreshIntervalMs(
+        query.state.data as RequestLogListWithSummaryResult | undefined,
+        hasActiveLogFilter,
+      );
+    },
+    refetchIntervalInBackground: false,
     retry: 1,
-    placeholderData: (previousData): RequestLogListResult | undefined =>
+    placeholderData: (previousData): RequestLogListWithSummaryResult | undefined =>
       previousData ||
       (hasStartupLogsSnapshot
         ? {
@@ -151,32 +185,35 @@ function LogsPageContent() {
             total: startupRequestLogs.length,
             page: 1,
             pageSize: pageSizeNumber,
+            summary: buildSummaryPlaceholder(startupRequestLogs),
           }
-        : undefined),
-  });
-
-  const { data: summaryResult, isError: isSummaryError } = useQuery({
-    queryKey: ["logs", "summary", search, filter, startTs, endTs],
-    queryFn: () =>
-      serviceClient.getRequestLogSummary({
-        query: search,
-        statusFilter: filter,
-        startTs,
-        endTs,
-      }),
-    enabled: areLogQueriesEnabled && isPageActive,
-    refetchInterval: 5000,
-    retry: 1,
-    placeholderData: (previousData) =>
-      previousData ||
-      (canUseStartupLogsPlaceholder
-        ? buildSummaryPlaceholder(startupRequestLogs)
         : undefined),
   });
 
   const clearMutation = useMutation({
     mutationFn: () => serviceClient.clearRequestLogs(),
     onSuccess: async () => {
+      queryClient.setQueriesData<RequestLogListWithSummaryResult>(
+        { queryKey: ["logs", "list-with-summary"] },
+        (previousData) =>
+          previousData
+            ? {
+                ...previousData,
+                items: [],
+                total: 0,
+                page: 1,
+                summary: {
+                  ...previousData.summary,
+                  totalCount: 0,
+                  filteredCount: 0,
+                  successCount: 0,
+                  errorCount: 0,
+                  totalTokens: 0,
+                  totalCostUsd: 0,
+                },
+              }
+            : previousData,
+      );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["logs"] }),
         queryClient.invalidateQueries({ queryKey: ["today-summary"] }),
@@ -221,11 +258,10 @@ function LogsPageContent() {
   usePageTransitionReady(
     "/logs/",
     !serviceStatus.connected ||
-      (!isLogsLoading &&
-        (Boolean(summaryResult) || isLogsError || isSummaryError)),
+      (!isLogsLoading && (Boolean(logsResult?.summary) || isLogsError)),
   );
   const currentPage = logsResult?.page || page;
-  const summary = summaryResult || {
+  const summary = logsResult?.summary || {
     totalCount: logsResult?.total || 0,
     filteredCount: logsResult?.total || 0,
     successCount: 0,
@@ -237,12 +273,17 @@ function LogsPageContent() {
     1,
     Math.ceil((logsResult?.total || 0) / pageSizeNumber),
   );
+  const currentRefreshIntervalMs = getLogRefreshIntervalMs(
+    logsResult,
+    hasActiveLogFilter,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
     const frameId = window.requestAnimationFrame(() => {
+      setSearchInput((current) => (current === routeQuery ? current : routeQuery));
       setSearch((current) => (current === routeQuery ? current : routeQuery));
       setPage(1);
     });
@@ -250,6 +291,19 @@ function LogsPageContent() {
       window.cancelAnimationFrame(frameId);
     };
   }, [routeQuery]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setSearch((current) => (current === searchInput ? current : searchInput));
+      setPage(1);
+    }, LOG_SEARCH_DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchInput]);
 
   useEffect(() => {
     if (isPageActive) {
@@ -309,7 +363,13 @@ function LogsPageContent() {
               ? t("自定义时间")
               : t("全部时间");
   const compactMetaText = `${summary.filteredCount}/${summary.totalCount} ${t("条")} · ${currentFilterLabel} · ${currentTimeRangeLabel} · ${
-    serviceStatus.connected ? t("5 秒刷新") : t("服务未连接")
+    serviceStatus.connected
+      ? currentRefreshIntervalMs === LOG_REFRESH_ACTIVE_MS
+        ? t("5 秒刷新")
+        : currentRefreshIntervalMs === LOG_REFRESH_FILTERED_MS
+          ? t("10 秒刷新")
+          : t("15 秒刷新")
+      : t("服务未连接")
   }`;
 
   const applyTimePreset = (preset: TimeRangePreset) => {
@@ -355,7 +415,7 @@ function LogsPageContent() {
             isDirectAccountMode={isDirectAccountMode}
             isAdminMode={isAdminMode}
             serviceConnected={serviceStatus.connected}
-            search={search}
+            search={searchInput}
             filter={filter}
             timePreset={timePreset}
             startTimeInput={startTimeInput}
@@ -374,7 +434,7 @@ function LogsPageContent() {
             aggregateApiMap={aggregateApiMap}
             clearMutationPending={clearMutation.isPending}
             onSearchChange={(value) => {
-              setSearch(value);
+              setSearchInput(value);
               setPage(1);
             }}
             onFilterChange={(value) => {

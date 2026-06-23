@@ -271,5 +271,10 @@ pub async fn service_aggregate_api_supplier_models_import(
         "supplierKey": supplier_key,
         "providerType": provider_type,
     });
-    rpc_call_in_background("aggregateApi/sourceModels/importSupplier", addr, Some(params)).await
+    rpc_call_in_background(
+        "aggregateApi/sourceModels/importSupplier",
+        addr,
+        Some(params),
+    )
+    .await
 }

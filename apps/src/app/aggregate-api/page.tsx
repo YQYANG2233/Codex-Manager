@@ -217,6 +217,7 @@ export default function AggregateApiPage() {
     queryKey: ["aggregate-apis"],
     queryFn: () => accountClient.listAggregateApis(),
     enabled: isQueryEnabled,
+    staleTime: 60_000,
     retry: 1,
   });
 

@@ -38,6 +38,66 @@ fn member_requestlog_scope(actor: &RpcActor) -> Result<(StorageHandle, Vec<Strin
 /// 返回函数执行结果
 pub(super) fn try_handle(req: &JsonRpcRequest, actor: &RpcActor) -> Option<JsonRpcResponse> {
     let result = match req.method.as_str() {
+        "requestlog/list_with_summary" => {
+            let params = req
+                .params
+                .clone()
+                .map(serde_json::from_value::<RequestLogListParams>)
+                .transpose()
+                .map(|params| params.unwrap_or_default())
+                .map(RequestLogListParams::normalized)
+                .map_err(|err| format!("invalid requestlog/list_with_summary params: {err}"));
+            super::value_or_error(params.and_then(|params| {
+                if actor.is_admin() {
+                    let storage = crate::storage_helpers::open_storage()
+                        .ok_or_else(|| "open storage failed".to_string())?;
+                    let summary =
+                        requestlog_summary::read_request_log_filter_summary_with_storage(
+                            &storage,
+                            params.clone(),
+                        )?;
+                    let page = if requestlog_list::request_log_page_total_matches_filter_summary(
+                        &params,
+                    ) {
+                        requestlog_list::read_request_log_page_with_total(
+                            &storage,
+                            params,
+                            summary.filtered_count,
+                        )?
+                    } else {
+                        requestlog_list::read_request_log_page_with_storage(&storage, params)?
+                    };
+                    Ok(requestlog_list::request_log_list_with_summary_result(
+                        page, summary,
+                    ))
+                } else {
+                    let (storage, key_ids) = member_requestlog_scope(actor)?;
+                    let summary =
+                        requestlog_summary::read_request_log_filter_summary_for_key_ids_with_storage(
+                            &storage,
+                            params.clone(),
+                            &key_ids,
+                        )?;
+                    let page = if requestlog_list::request_log_page_total_matches_filter_summary(
+                        &params,
+                    ) {
+                        requestlog_list::read_request_log_page_for_key_ids_with_total(
+                            &storage,
+                            params,
+                            &key_ids,
+                            summary.filtered_count,
+                        )?
+                    } else {
+                        requestlog_list::read_request_log_page_for_key_ids_with_storage(
+                            &storage, params, &key_ids,
+                        )?
+                    };
+                    Ok(requestlog_list::request_log_list_with_summary_result(
+                        page, summary,
+                    ))
+                }
+            }))
+        }
         "requestlog/list" => {
             let params = req
                 .params

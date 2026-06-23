@@ -515,6 +515,8 @@ export const EN_MESSAGES: MessageCatalog = {
   客户端错误: "Client errors",
   服务端错误: "Server errors",
   "5 秒刷新": "refresh every 5s",
+  "10 秒刷新": "refresh every 10s",
+  "15 秒刷新": "refresh every 15s",
   "搜索路径、账号或密钥...": "Search path, account, or key...",
   "搜索路径、账号或密钥 ID...": "Search path, account, or key ID...",
   快捷时间: "Quick range",

@@ -63,6 +63,10 @@ export interface RequestLogFilterSummary {
   totalCostUsd: number;
 }
 
+export interface RequestLogListWithSummaryResult extends RequestLogListResult {
+  summary: RequestLogFilterSummary;
+}
+
 export interface RequestLogTodaySummary {
   inputTokens: number;
   cachedInputTokens: number;

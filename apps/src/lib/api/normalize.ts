@@ -40,6 +40,7 @@ import {
   RequestLog,
   RequestLogFilterSummary,
   RequestLogListResult,
+  RequestLogListWithSummaryResult,
   RequestLogTodaySummary,
   StartupSnapshot,
   UsageAggregateSummary,
@@ -1600,6 +1601,16 @@ export function normalizeRequestLogListResult(payload: unknown): RequestLogListR
     total: asInteger(source.total, items.length, 0),
     page: asInteger(source.page, 1, 1),
     pageSize: asInteger(source.pageSize, items.length || 20, 1),
+  };
+}
+
+export function normalizeRequestLogListWithSummaryResult(
+  payload: unknown
+): RequestLogListWithSummaryResult {
+  const source = asObject(payload);
+  return {
+    ...normalizeRequestLogListResult(payload),
+    summary: normalizeRequestLogFilterSummary(source.summary),
   };
 }
 

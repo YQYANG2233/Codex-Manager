@@ -1953,6 +1953,30 @@ fn member_requestlog_queries_filter_to_owned_keys() {
     assert!(list.result["items"][0]["actualSourceKind"].is_null());
     assert!(list.result["items"][0]["actualSourceId"].is_null());
 
+    let list_with_summary = response_result(handle_request_with_actor(
+        rpc_request(
+            "requestlog/list_with_summary",
+            serde_json::json!({
+                "page": 1,
+                "pageSize": 20,
+                "query": "trace-log-filter-one",
+                "startTs": day_start,
+                "endTs": day_end
+            }),
+        ),
+        actor_one.clone(),
+    ));
+    assert!(
+        list_with_summary.result.get("error").is_none(),
+        "{:?}",
+        list_with_summary.result
+    );
+    assert_eq!(list_with_summary.result["total"], 1);
+    assert_eq!(list_with_summary.result["items"][0]["keyId"], key_one);
+    assert_eq!(list_with_summary.result["summary"]["totalCount"], 1);
+    assert_eq!(list_with_summary.result["summary"]["filteredCount"], 1);
+    assert_eq!(list_with_summary.result["summary"]["successCount"], 1);
+
     let hidden_model_query = response_result(handle_request_with_actor(
         rpc_request(
             "requestlog/list",

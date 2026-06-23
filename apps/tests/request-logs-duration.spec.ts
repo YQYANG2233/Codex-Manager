@@ -117,7 +117,7 @@ test("request logs display total duration and first-response latency", async ({
       await ok({ items: [] });
       return;
     }
-    if (method === "requestlog/list") {
+    if (method === "requestlog/list" || method === "requestlog/list_with_summary") {
       await ok({
         items: [
           {
@@ -145,6 +145,14 @@ test("request logs display total duration and first-response latency", async ({
         total: 1,
         page: 1,
         pageSize: 10,
+        summary: {
+          totalCount: 1,
+          filteredCount: 1,
+          successCount: 1,
+          errorCount: 0,
+          totalTokens: 154,
+          totalCostUsd: 0,
+        },
       });
       return;
     }

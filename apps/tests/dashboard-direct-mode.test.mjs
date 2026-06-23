@@ -48,14 +48,17 @@ test("启动快照缓存键包含完整日期边界", async () => {
   const dashboardSource = await readSource("src/hooks/useDashboardStats.ts");
   assert.match(
     dashboardSource,
-    /buildStartupSnapshotQueryKey\(\s*serviceStatus\.addr,\s*requestLogLimit,\s*localDayRange\.dayStartTs,\s*localDayRange\.dayEndTs,\s*includeApiModels,\s*includeApiKeys,\s*includeAccountRuntime,\s*includeAccountDetails,/s,
+    /buildStartupSnapshotQueryKey\(\s*serviceStatus\.addr,\s*requestLogLimit,\s*localDayRange\.dayStartTs,\s*localDayRange\.dayEndTs,\s*includeApiModels,\s*includeApiKeys,\s*includeAccounts,\s*includeUsageSnapshots,\s*includeAccountRuntime,\s*includeAccountDetails,/s,
   );
 });
 
 test("首页仪表盘不再为已移除的活跃账号卡片预取日志样本", async () => {
   const source = await readDashboardSource();
   assert.match(source, /useDashboardStats\(\{\s*requestLogLimit: 0,\s*includeAccountHints: false,/s);
-  assert.match(source, /includeApiModels: false,\s*includeApiKeys: false,\s*includeAccountRuntime: false,\s*includeAccountDetails: false,/s);
+  assert.match(
+    source,
+    /includeApiModels: false,\s*includeApiKeys: false,\s*includeAccounts: false,\s*includeUsageSnapshots: false,\s*includeAccountRuntime: false,\s*includeAccountDetails: false,/s,
+  );
 });
 
 test("首页账户统计优先使用启动快照汇总", async () => {

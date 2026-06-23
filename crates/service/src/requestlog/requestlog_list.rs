@@ -1,5 +1,6 @@
 use codexmanager_core::rpc::types::{
-    RequestLogListParams, RequestLogListResult, RequestLogSummary,
+    RequestLogFilterSummaryResult, RequestLogListParams, RequestLogListResult,
+    RequestLogListWithSummaryResult, RequestLogSummary,
 };
 use codexmanager_core::storage::{RequestLog, Storage};
 
@@ -175,8 +176,15 @@ pub(crate) fn read_request_logs_for_key_ids_with_storage(
 pub(crate) fn read_request_log_page(
     params: RequestLogListParams,
 ) -> Result<RequestLogListResult, String> {
-    let params = NormalizedRequestLogParams::from_params(params);
     let storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
+    read_request_log_page_with_storage(&storage, params)
+}
+
+pub(crate) fn read_request_log_page_with_storage(
+    storage: &Storage,
+    params: RequestLogListParams,
+) -> Result<RequestLogListResult, String> {
+    let params = NormalizedRequestLogParams::from_params(params);
     let total = storage
         .count_request_logs(
             params.query.as_deref(),
@@ -185,7 +193,33 @@ pub(crate) fn read_request_log_page(
             params.end_ts,
         )
         .map_err(|err| format!("count request logs failed: {err}"))?;
+    read_request_log_page_with_normalized_total(storage, params, total)
+}
+
+pub(crate) fn read_request_log_page_with_total(
+    storage: &Storage,
+    params: RequestLogListParams,
+    total: i64,
+) -> Result<RequestLogListResult, String> {
+    let params = NormalizedRequestLogParams::from_params(params);
+    read_request_log_page_with_normalized_total(storage, params, total)
+}
+
+fn read_request_log_page_with_normalized_total(
+    storage: &Storage,
+    params: NormalizedRequestLogParams,
+    total: i64,
+) -> Result<RequestLogListResult, String> {
+    let total = total.max(0);
     let page = params.clamped_page(total);
+    if total == 0 {
+        return Ok(RequestLogListResult {
+            items: Vec::new(),
+            total,
+            page,
+            page_size: params.page_size,
+        });
+    }
     let offset = (page - 1) * params.page_size;
     let logs = storage
         .list_request_logs_paginated(
@@ -207,6 +241,24 @@ pub(crate) fn read_request_log_page(
         page,
         page_size: params.page_size,
     })
+}
+
+pub(crate) fn request_log_list_with_summary_result(
+    page: RequestLogListResult,
+    summary: RequestLogFilterSummaryResult,
+) -> RequestLogListWithSummaryResult {
+    RequestLogListWithSummaryResult {
+        items: page.items,
+        total: page.total,
+        page: page.page,
+        page_size: page.page_size,
+        summary,
+    }
+}
+
+pub(crate) fn request_log_page_total_matches_filter_summary(params: &RequestLogListParams) -> bool {
+    let params = NormalizedRequestLogParams::from_params(params.clone());
+    params.query.is_some() || params.status_filter.is_some()
 }
 
 pub(crate) fn read_request_log_page_for_key_ids_with_storage(
@@ -232,7 +284,43 @@ pub(crate) fn read_request_log_page_for_key_ids_with_storage(
             key_ids,
         )
         .map_err(|err| format!("count request logs failed: {err}"))?;
+    read_request_log_page_for_key_ids_with_normalized_total(storage, params, key_ids, total)
+}
+
+pub(crate) fn read_request_log_page_for_key_ids_with_total(
+    storage: &Storage,
+    params: RequestLogListParams,
+    key_ids: &[String],
+    total: i64,
+) -> Result<RequestLogListResult, String> {
+    let params = NormalizedRequestLogParams::from_params(params);
+    if key_ids.is_empty() {
+        return Ok(RequestLogListResult {
+            items: Vec::new(),
+            total: 0,
+            page: 1,
+            page_size: params.page_size,
+        });
+    }
+    read_request_log_page_for_key_ids_with_normalized_total(storage, params, key_ids, total)
+}
+
+fn read_request_log_page_for_key_ids_with_normalized_total(
+    storage: &Storage,
+    params: NormalizedRequestLogParams,
+    key_ids: &[String],
+    total: i64,
+) -> Result<RequestLogListResult, String> {
+    let total = total.max(0);
     let page = params.clamped_page(total);
+    if total == 0 {
+        return Ok(RequestLogListResult {
+            items: Vec::new(),
+            total,
+            page,
+            page_size: params.page_size,
+        });
+    }
     let offset = (page - 1) * params.page_size;
     let logs = storage
         .list_request_logs_paginated_for_keys(

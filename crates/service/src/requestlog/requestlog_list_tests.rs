@@ -2,7 +2,8 @@ use super::{
     derive_canonical_source, derive_size_reject_stage, normalize_optional_text,
     normalize_status_filter, normalize_upstream_url,
     read_request_log_page_for_key_ids_with_storage, read_request_logs_for_key_ids_with_storage,
-    read_request_logs_with_storage, RequestLogListParams, DEFAULT_REQUEST_LOG_PAGE_SIZE,
+    read_request_logs_with_storage, request_log_page_total_matches_filter_summary,
+    RequestLogListParams, DEFAULT_REQUEST_LOG_PAGE_SIZE,
 };
 use codexmanager_core::storage::Storage;
 
@@ -198,6 +199,32 @@ fn normalize_optional_text_trims_blank_values() {
         normalize_optional_text(Some(" trace:=abc ".to_string())).as_deref(),
         Some("trace:=abc")
     );
+}
+
+#[test]
+fn request_log_page_total_matches_filter_summary_only_for_log_filters() {
+    assert!(!request_log_page_total_matches_filter_summary(
+        &RequestLogListParams::default()
+    ));
+    assert!(!request_log_page_total_matches_filter_summary(
+        &RequestLogListParams {
+            status_filter: Some("all".to_string()),
+            query: Some("   ".to_string()),
+            ..RequestLogListParams::default()
+        }
+    ));
+    assert!(request_log_page_total_matches_filter_summary(
+        &RequestLogListParams {
+            status_filter: Some("5xx".to_string()),
+            ..RequestLogListParams::default()
+        }
+    ));
+    assert!(request_log_page_total_matches_filter_summary(
+        &RequestLogListParams {
+            query: Some("trace:=abc".to_string()),
+            ..RequestLogListParams::default()
+        }
+    ));
 }
 
 #[test]
