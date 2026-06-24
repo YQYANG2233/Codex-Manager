@@ -232,6 +232,7 @@ pub async fn service_start(app: tauri::AppHandle, addr: String) -> Result<(), St
         stop_service();
         ensure_bind_target_available(&bind_addr, &connect_addr)?;
         spawn_service_with_addr(&app, &bind_addr, &connect_addr)?;
+        thread::sleep(SERVICE_READY_RETRY_DELAY);
         wait_for_service_ready(
             &connect_addr,
             SERVICE_READY_RETRIES,

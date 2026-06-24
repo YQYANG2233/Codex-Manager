@@ -3,10 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/modals/confirm-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { accountClient } from "@/lib/api/account-client";
 import {
   buildStartupSnapshotQueryKey,
@@ -32,7 +30,6 @@ import { RequestLogsTabContent } from "./page-sections";
 import {
   buildFixedTimePreset,
   LogsPageSkeleton,
-  type LogsTab,
   type StatusFilter,
   type TimeRangePreset,
   fromDateTimeLocalValue,
@@ -81,7 +78,6 @@ function LogsPageContent() {
   const [pageSize, setPageSize] = useState("10");
   const [page, setPage] = useState(1);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<LogsTab>("requests");
   const pageSizeNumber = Number(pageSize) || 10;
   const startTs = useMemo(
     () => fromDateTimeLocalValue(startTimeInput),
@@ -164,7 +160,7 @@ function LogsPageContent() {
       ),
     enabled: areLogQueriesEnabled && isPageActive,
     refetchInterval: (query) => {
-      if (!areLogQueriesEnabled || !isPageActive || activeTab !== "requests") {
+      if (!areLogQueriesEnabled || !isPageActive) {
         return false;
       }
       if (typeof document !== "undefined" && document.visibilityState !== "visible") {
@@ -394,80 +390,60 @@ function LogsPageContent() {
 
   return (
     <div className="animate-in space-y-5 fade-in duration-500">
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          if (value === "requests") {
-            setActiveTab("requests");
-          }
+      <RequestLogsTabContent
+        t={t}
+        isDirectAccountMode={isDirectAccountMode}
+        isAdminMode={isAdminMode}
+        serviceConnected={serviceStatus.connected}
+        search={searchInput}
+        filter={filter}
+        timePreset={timePreset}
+        startTimeInput={startTimeInput}
+        endTimeInput={endTimeInput}
+        compactMetaText={compactMetaText}
+        hasActiveTimeRange={hasActiveTimeRange}
+        pageSize={pageSize}
+        currentFilterLabel={currentFilterLabel}
+        summary={summary}
+        logs={logs}
+        isLogsLoading={isLogsLoading}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        accountNameMap={accountNameMap}
+        apiKeyMap={apiKeyMap}
+        aggregateApiMap={aggregateApiMap}
+        clearMutationPending={clearMutation.isPending}
+        onSearchChange={(value) => {
+          setSearchInput(value);
+          setPage(1);
         }}
-        className="w-full"
-      >
-        <TabsList className="glass-card flex h-11 w-full justify-start overflow-x-auto rounded-xl p-1 no-scrollbar lg:w-fit">
-          <TabsTrigger value="requests" className="gap-2 px-5 shrink-0">
-            <Database className="h-4 w-4" /> {t("请求日志")}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="requests" className="space-y-5">
-          <RequestLogsTabContent
-            t={t}
-            isDirectAccountMode={isDirectAccountMode}
-            isAdminMode={isAdminMode}
-            serviceConnected={serviceStatus.connected}
-            search={searchInput}
-            filter={filter}
-            timePreset={timePreset}
-            startTimeInput={startTimeInput}
-            endTimeInput={endTimeInput}
-            compactMetaText={compactMetaText}
-            hasActiveTimeRange={hasActiveTimeRange}
-            pageSize={pageSize}
-            currentFilterLabel={currentFilterLabel}
-            summary={summary}
-            logs={logs}
-            isLogsLoading={isLogsLoading}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            accountNameMap={accountNameMap}
-            apiKeyMap={apiKeyMap}
-            aggregateApiMap={aggregateApiMap}
-            clearMutationPending={clearMutation.isPending}
-            onSearchChange={(value) => {
-              setSearchInput(value);
-              setPage(1);
-            }}
-            onFilterChange={(value) => {
-              setFilter(value);
-              setPage(1);
-            }}
-            onRefresh={() => {
-              void queryClient.invalidateQueries({ queryKey: ["logs"] });
-            }}
-            onOpenClearConfirm={() => setClearConfirmOpen(true)}
-            onApplyTimePreset={applyTimePreset}
-            onStartTimeChange={(value) => {
-              setTimePreset("custom");
-              setStartTimeInput(value);
-              setPage(1);
-            }}
-            onEndTimeChange={(value) => {
-              setTimePreset("custom");
-              setEndTimeInput(value);
-              setPage(1);
-            }}
-            onClearTimeRange={() => applyTimePreset("all")}
-            onPageSizeChange={(value) => {
-              setPageSize(value || "10");
-              setPage(1);
-            }}
-            onPreviousPage={() => setPage(Math.max(1, currentPage - 1))}
-            onNextPage={() => setPage(Math.min(totalPages, currentPage + 1))}
-          />
-        </TabsContent>
-
-      </Tabs>
-
+        onFilterChange={(value) => {
+          setFilter(value);
+          setPage(1);
+        }}
+        onRefresh={() => {
+          void queryClient.invalidateQueries({ queryKey: ["logs"] });
+        }}
+        onOpenClearConfirm={() => setClearConfirmOpen(true)}
+        onApplyTimePreset={applyTimePreset}
+        onStartTimeChange={(value) => {
+          setTimePreset("custom");
+          setStartTimeInput(value);
+          setPage(1);
+        }}
+        onEndTimeChange={(value) => {
+          setTimePreset("custom");
+          setEndTimeInput(value);
+          setPage(1);
+        }}
+        onClearTimeRange={() => applyTimePreset("all")}
+        onPageSizeChange={(value) => {
+          setPageSize(value || "10");
+          setPage(1);
+        }}
+        onPreviousPage={() => setPage(Math.max(1, currentPage - 1))}
+        onNextPage={() => setPage(Math.min(totalPages, currentPage + 1))}
+      />
       {isAdminMode ? (
         <ConfirmDialog
           open={clearConfirmOpen}

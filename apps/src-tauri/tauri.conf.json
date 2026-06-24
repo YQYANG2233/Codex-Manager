@@ -17,7 +17,9 @@
         "title": "CodexManager",
         "width": 1100,
         "height": 720,
-        "resizable": true
+        "resizable": true,
+        "visible": false,
+        "create": false
       }
     ],
     "security": {
