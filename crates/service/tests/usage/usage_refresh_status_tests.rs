@@ -580,7 +580,7 @@ fn apply_status_available_preserves_manual_disabled_status() {
 }
 
 #[test]
-fn apply_status_available_preserves_region_blocked_status() {
+fn apply_status_available_recovers_region_blocked_status() {
     let storage = Storage::open_in_memory().expect("open");
     storage.init().expect("init");
     let base_updated_at = now_ts() - 10;
@@ -624,13 +624,13 @@ fn apply_status_available_preserves_region_blocked_status() {
         .find_account_by_id("acc-region-blocked-status")
         .expect("find")
         .expect("exists");
-    assert_eq!(account.status, "unavailable");
+    assert_eq!(account.status, "active");
     let reasons = storage
         .latest_account_status_reasons(&["acc-region-blocked-status".to_string()])
         .expect("load reasons");
     assert_eq!(
         reasons.get("acc-region-blocked-status").map(String::as_str),
-        Some(REFRESH_TOKEN_REGION_BLOCKED_REASON)
+        Some("usage_ok")
     );
 }
 

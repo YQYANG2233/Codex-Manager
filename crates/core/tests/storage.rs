@@ -885,6 +885,7 @@ fn tokens_due_for_refresh_include_other_unavailable_accounts_but_skip_deactivate
         account_ids,
         vec![
             "acc-active-refresh".to_string(),
+            "acc-region-blocked-refresh".to_string(),
             "acc-unavailable-refresh".to_string()
         ]
     );

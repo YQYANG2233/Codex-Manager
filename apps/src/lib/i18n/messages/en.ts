@@ -529,6 +529,8 @@ export const EN_MESSAGES: MessageCatalog = {
   开始时间: "Start time",
   结束时间: "End time",
   自定义时间: "Custom time",
+  展开筛选: "Expand filters",
+  收起筛选: "Collapse filters",
   清除时间筛选: "Clear time filter",
   清空日志: "Clear logs",
   当前结果: "Current result",

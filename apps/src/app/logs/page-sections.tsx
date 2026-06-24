@@ -3,13 +3,16 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Database,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Trash2,
   Zap,
 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -122,6 +125,8 @@ export function RequestLogsTabContent({
   onPreviousPage: () => void;
   onNextPage: () => void;
 }) {
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
   return (
     <div className="space-y-4">
       {isDirectAccountMode ? (
@@ -148,8 +153,13 @@ export function RequestLogsTabContent({
 
       <Card className="glass-card overflow-hidden gap-0 py-0 shadow-sm">
         <CardContent className="p-0">
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_390px]">
-            <div className="space-y-4 p-4 xl:border-r xl:border-border/50">
+          <div className={cn("grid", filtersExpanded ? "xl:grid-cols-[minmax(0,1fr)_390px]" : "")}>
+            <div
+              className={cn(
+                "space-y-4 p-4",
+                filtersExpanded ? "xl:border-r xl:border-border/50" : "",
+              )}
+            >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 space-y-1">
                   <div className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
@@ -198,54 +208,48 @@ export function RequestLogsTabContent({
                   />
                 </div>
 
-                <div className="grid grid-cols-4 rounded-xl border border-border/60 bg-muted/30 p-1 sm:w-fit sm:min-w-[304px]">
-                  {[
-                    ["all", "ALL"],
-                    ["2xx", "2XX"],
-                    ["4xx", "4XX"],
-                    ["5xx", "5XX"],
-                  ].map(([value, label]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onFilterChange(value as StatusFilter)}
+                <div className="flex flex-wrap items-center gap-2 2xl:justify-end">
+                  <span className="inline-flex h-9 items-center rounded-xl border border-border/60 bg-background/70 px-3 text-xs font-medium text-muted-foreground">
+                    {currentFilterLabel}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 rounded-xl bg-background/70 px-3"
+                    aria-expanded={filtersExpanded}
+                    onClick={() => setFiltersExpanded((current) => !current)}
+                  >
+                    <SlidersHorizontal className="mr-1.5 h-4 w-4" />
+                    {filtersExpanded ? t("收起筛选") : t("展开筛选")}
+                    <ChevronDown
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-semibold tracking-wide transition-all",
-                        filter === value
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+                        "ml-1.5 h-4 w-4 transition-transform",
+                        filtersExpanded ? "rotate-180" : "rotate-0",
                       )}
-                    >
-                      {label}
-                    </Button>
-                  ))}
+                    />
+                  </Button>
                 </div>
               </div>
 
-              <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] 2xl:items-center">
-                <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-muted/30 p-1">
-                  <Clock3 className="ml-2 size-3.5 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 flex-wrap items-center gap-1">
-                    {(
-                      [
-                        ["all", t("全部时间")],
-                        ["30m", t("最近30分钟")],
-                        ["2h", t("最近2小时")],
-                        ["24h", t("最近24小时")],
-                        ["today", t("今天")],
-                      ] as Array<[TimeRangePreset, string]>
-                    ).map(([value, label]) => (
+              {filtersExpanded ? (
+                <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+                  <div className="grid grid-cols-4 rounded-xl border border-border/60 bg-background/45 p-1 sm:w-fit sm:min-w-[304px]">
+                    {[
+                      ["all", "ALL"],
+                      ["2xx", "2XX"],
+                      ["4xx", "4XX"],
+                      ["5xx", "5XX"],
+                    ].map(([value, label]) => (
                       <Button
                         key={value}
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => onApplyTimePreset(value)}
+                        onClick={() => onFilterChange(value as StatusFilter)}
                         className={cn(
-                          "h-8 rounded-lg px-3 text-xs font-semibold transition-all",
-                          timePreset === value
+                          "h-8 rounded-lg px-3 text-xs font-semibold tracking-wide transition-all",
+                          filter === value
                             ? "bg-background text-foreground shadow-sm"
                             : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
                         )}
@@ -254,31 +258,75 @@ export function RequestLogsTabContent({
                       </Button>
                     ))}
                   </div>
-                </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Input
-                    aria-label={t("开始时间")}
-                    type="datetime-local"
-                    className="h-10 rounded-xl border-border/70 bg-background/80 px-3 shadow-none"
-                    value={startTimeInput}
-                    onChange={(event) => onStartTimeChange(event.target.value)}
-                  />
-                  <Input
-                    aria-label={t("结束时间")}
-                    type="datetime-local"
-                    className="h-10 rounded-xl border-border/70 bg-background/80 px-3 shadow-none"
-                    value={endTimeInput}
-                    onChange={(event) => onEndTimeChange(event.target.value)}
-                  />
-                </div>
-              </div>
+                  <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] 2xl:items-center">
+                    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-background/45 p-1">
+                      <Clock3 className="ml-2 size-3.5 shrink-0 text-muted-foreground" />
+                      <div className="flex min-w-0 flex-wrap items-center gap-1">
+                        {(
+                          [
+                            ["all", t("全部时间")],
+                            ["30m", t("最近30分钟")],
+                            ["2h", t("最近2小时")],
+                            ["24h", t("最近24小时")],
+                            ["today", t("今天")],
+                          ] as Array<[TimeRangePreset, string]>
+                        ).map(([value, label]) => (
+                          <Button
+                            key={value}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onApplyTimePreset(value)}
+                            className={cn(
+                              "h-8 rounded-lg px-3 text-xs font-semibold transition-all",
+                              timePreset === value
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+                            )}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-1 text-[11px] text-muted-foreground">
-                <div>
-                  {t("当前视图")} · {currentFilterLabel}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input
+                        aria-label={t("开始时间")}
+                        type="datetime-local"
+                        className="h-10 rounded-xl border-border/70 bg-background/80 px-3 shadow-none"
+                        value={startTimeInput}
+                        onChange={(event) => onStartTimeChange(event.target.value)}
+                      />
+                      <Input
+                        aria-label={t("结束时间")}
+                        type="datetime-local"
+                        className="h-10 rounded-xl border-border/70 bg-background/80 px-3 shadow-none"
+                        value={endTimeInput}
+                        onChange={(event) => onEndTimeChange(event.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
+                    <div>
+                      {t("当前视图")} · {currentFilterLabel}
+                    </div>
+                    {hasActiveTimeRange ? (
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 text-xs text-primary hover:underline"
+                        onClick={onClearTimeRange}
+                      >
+                        {t("清除时间筛选")}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
-                {hasActiveTimeRange ? (
+              ) : hasActiveTimeRange ? (
+                <div className="flex justify-end border-t border-border/50 pt-2">
                   <Button
                     type="button"
                     variant="link"
@@ -287,52 +335,54 @@ export function RequestLogsTabContent({
                   >
                     {t("清除时间筛选")}
                   </Button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </div>
 
-            <div className="grid gap-3 border-t border-border/50 bg-muted/20 p-4 sm:grid-cols-2 xl:border-t-0">
-              <SummaryCard
-                title={t("当前结果")}
-                value={`${summary.filteredCount}`}
-                description={`${t("总日志")} ${summary.totalCount} ${t("条")}${isDirectAccountMode ? ` · ${t("仅网关流量")}` : ""}`}
-                icon={Zap}
-                toneClass="bg-primary/12 text-primary"
-              />
-              <SummaryCard
-                title={t("2XX 成功")}
-                value={`${summary.successCount}`}
-                description={
-                  isDirectAccountMode
-                    ? `${t("状态码 200-299")} · ${t("仅网关流量")}`
-                    : t("状态码 200-299")
-                }
-                icon={CheckCircle2}
-                toneClass="bg-green-500/12 text-green-500"
-              />
-              <SummaryCard
-                title={t("异常请求")}
-                value={`${summary.errorCount}`}
-                description={
-                  isDirectAccountMode
-                    ? `${t("4xx / 5xx 或显式错误")} · ${t("仅网关流量")}`
-                    : t("4xx / 5xx 或显式错误")
-                }
-                icon={AlertTriangle}
-                toneClass="bg-red-500/12 text-red-500"
-              />
-              <SummaryCard
-                title={t("累计Token")}
-                value={formatCompactTokenAmount(summary.totalTokens)}
-                description={
-                  isDirectAccountMode
-                    ? `${t("当前筛选结果中的总Token")} · ${t("仅网关流量")}`
-                    : t("当前筛选结果中的总Token")
-                }
-                icon={Database}
-                toneClass="bg-amber-500/12 text-amber-500"
-              />
-            </div>
+            {filtersExpanded ? (
+              <div className="grid gap-3 border-t border-border/50 bg-muted/20 p-4 sm:grid-cols-2 xl:border-t-0">
+                <SummaryCard
+                  title={t("当前结果")}
+                  value={`${summary.filteredCount}`}
+                  description={`${t("总日志")} ${summary.totalCount} ${t("条")}${isDirectAccountMode ? ` · ${t("仅网关流量")}` : ""}`}
+                  icon={Zap}
+                  toneClass="bg-primary/12 text-primary"
+                />
+                <SummaryCard
+                  title={t("2XX 成功")}
+                  value={`${summary.successCount}`}
+                  description={
+                    isDirectAccountMode
+                      ? `${t("状态码 200-299")} · ${t("仅网关流量")}`
+                      : t("状态码 200-299")
+                  }
+                  icon={CheckCircle2}
+                  toneClass="bg-green-500/12 text-green-500"
+                />
+                <SummaryCard
+                  title={t("异常请求")}
+                  value={`${summary.errorCount}`}
+                  description={
+                    isDirectAccountMode
+                      ? `${t("4xx / 5xx 或显式错误")} · ${t("仅网关流量")}`
+                      : t("4xx / 5xx 或显式错误")
+                  }
+                  icon={AlertTriangle}
+                  toneClass="bg-red-500/12 text-red-500"
+                />
+                <SummaryCard
+                  title={t("累计Token")}
+                  value={formatCompactTokenAmount(summary.totalTokens)}
+                  description={
+                    isDirectAccountMode
+                      ? `${t("当前筛选结果中的总Token")} · ${t("仅网关流量")}`
+                      : t("当前筛选结果中的总Token")
+                  }
+                  icon={Database}
+                  toneClass="bg-amber-500/12 text-amber-500"
+                />
+              </div>
+            ) : null}
           </div>
         </CardContent>
       </Card>

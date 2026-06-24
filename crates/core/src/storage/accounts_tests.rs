@@ -1648,16 +1648,25 @@ fn list_account_usage_refresh_token_targets_filters_blocked_latest_status_in_sql
     let mut recovered = sample_account("acc-recovered-token-target", "active", now);
     recovered.sort = 0;
     recovered.workspace_id = Some("ws-recovered".to_string());
+    let mut region_blocked = sample_account("acc-region-blocked-token-target", "active", now);
+    region_blocked.sort = 2;
     let mut blocked = sample_account("acc-blocked-token-target", "active", now);
-    blocked.sort = 2;
+    blocked.sort = 3;
     let mut no_access = sample_account("acc-no-access-token-target", "active", now);
-    no_access.sort = 3;
+    no_access.sort = 4;
     let disabled = sample_account("acc-disabled-token-target", "disabled", now);
 
-    for account in [&ready, &recovered, &blocked, &no_access, &disabled] {
+    for account in [
+        &ready,
+        &recovered,
+        &region_blocked,
+        &blocked,
+        &no_access,
+        &disabled,
+    ] {
         storage.insert_account(account).expect("insert account");
     }
-    for account in [&ready, &recovered, &blocked, &disabled] {
+    for account in [&ready, &recovered, &region_blocked, &blocked, &disabled] {
         storage
             .insert_token(&sample_token(account.id.as_str(), now))
             .expect("insert token");
@@ -1687,10 +1696,18 @@ fn list_account_usage_refresh_token_targets_filters_blocked_latest_status_in_sql
         .expect("insert latest recovered allowed event");
     storage
         .insert_event(&Event {
+            account_id: Some(region_blocked.id.clone()),
+            event_type: "account_status_update".to_string(),
+            message: "status=unavailable reason=refresh_token_region_blocked".to_string(),
+            created_at: now + 2,
+        })
+        .expect("insert region blocked event");
+    storage
+        .insert_event(&Event {
             account_id: Some(blocked.id.clone()),
             event_type: "account_status_update".to_string(),
-            message: "status=banned reason=refresh_token_region_blocked".to_string(),
-            created_at: now + 2,
+            message: "status=banned reason=account_deactivated".to_string(),
+            created_at: now + 3,
         })
         .expect("insert blocked event");
 
@@ -1706,12 +1723,20 @@ fn list_account_usage_refresh_token_targets_filters_blocked_latest_status_in_sql
             .iter()
             .map(|target| target.account_id.as_str())
             .collect::<Vec<_>>(),
-        vec!["acc-recovered-token-target", "acc-ready-token-target"]
+        vec![
+            "acc-recovered-token-target",
+            "acc-ready-token-target",
+            "acc-region-blocked-token-target",
+        ]
     );
     assert_eq!(targets[0].workspace_id.as_deref(), Some("ws-recovered"));
     assert_eq!(targets[0].token.account_id, "acc-recovered-token-target");
     assert_eq!(targets[0].token.access_token, "access");
     assert_eq!(targets[1].workspace_id.as_deref(), Some("ws-ready"));
+    assert_eq!(
+        targets[2].token.account_id,
+        "acc-region-blocked-token-target"
+    );
 }
 
 #[test]

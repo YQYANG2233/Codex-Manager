@@ -1886,8 +1886,7 @@ fn usage_refresh_token_targets_by_status_sql(status_condition: &str) -> String {
                 OR ls.reason NOT IN (
                     'account_deactivated',
                     'workspace_deactivated',
-                    'deactivated_workspace',
-                    'refresh_token_region_blocked'
+                    'deactivated_workspace'
                 )
            )"
     )

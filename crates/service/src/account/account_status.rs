@@ -258,23 +258,6 @@ pub(crate) fn analyze_gateway_error(err: &str, has_more_candidates: bool) -> Gat
     }
 }
 
-/// 函数 `is_banned_status_reason`
-///
-/// 作者: gaohongshun
-///
-/// 时间: 2026-04-02
-///
-/// # 参数
-/// - crate: 参数 crate
-///
-/// # 返回
-/// 返回函数执行结果
-pub(crate) fn is_refresh_blocked_status_reason(reason: &str) -> bool {
-    reason
-        .trim()
-        .eq_ignore_ascii_case(REFRESH_TOKEN_REGION_BLOCKED_REASON)
-}
-
 /// 函数 `should_failover_for_deactivation_error`
 ///
 /// 作者: gaohongshun

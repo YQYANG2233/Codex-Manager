@@ -1,7 +1,6 @@
 use crate::account_availability::{evaluate_snapshot, Availability};
 use crate::account_status::{
-    is_refresh_blocked_status_reason, load_account_status_context, set_account_status_with_context,
-    AccountStatusContext,
+    load_account_status_context, set_account_status_with_context, AccountStatusContext,
 };
 use codexmanager_core::storage::{now_ts, Storage, UsageSnapshotRecord};
 use codexmanager_core::usage::parse_usage_snapshot;
@@ -11,13 +10,7 @@ const USAGE_SNAPSHOTS_RETAIN_PER_ACCOUNT_ENV: &str =
     "CODEXMANAGER_USAGE_SNAPSHOTS_RETAIN_PER_ACCOUNT";
 
 fn usage_status_updates_blocked(context: &AccountStatusContext) -> bool {
-    if context.status.trim().eq_ignore_ascii_case("disabled") {
-        return true;
-    }
-    context
-        .reason
-        .as_deref()
-        .is_some_and(is_refresh_blocked_status_reason)
+    context.status.trim().eq_ignore_ascii_case("disabled")
 }
 
 /// 函数 `usage_snapshots_retain_per_account`
