@@ -8,7 +8,6 @@ import {
   FileCog,
   KeyRound,
   Link2,
-  Rocket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,54 +33,32 @@ interface CodexCliOnboardingDialogProps {
 const GUIDE_STEPS = [
   {
     icon: FileCog,
-    title: "第一步：先确认 CodexManager 服务已经可用",
-    description:
-      "先确认软件本身已经连上本地服务，再去配 CLI。这样能避免你配置写对了，但实际上连的是错端口或者空服务。",
+    title: "第一步：确认服务已连接",
+    description: "先确认 CodexManager 本地服务可用，再写 Codex 配置。",
     details: [
-      "打开软件后先看顶部或设置页里的“服务已连接”状态。",
-      "如果你改过监听端口，后面的 `base_url` 也必须用同一个端口。",
-      "服务没启动、证书异常或端口不一致时，CLI 配置不会生效。",
+      "顶部或设置页显示“服务已连接”。",
+      "默认网关地址是 `http://localhost:48760/v1`。",
     ],
   },
   {
     icon: KeyRound,
-    title: "第二步：配置 Codex CLI 的 auth.json",
-    description:
-      "Codex CLI 需要从 `auth.json` 读取 API Key。这里填的是 CodexManager 平台密钥，不是账号里的 access token、refresh token 或 OpenAI 登录 token。",
+    title: "第二步：填写 auth.json",
+    description: "把平台密钥写入 Codex 的 `auth.json`，不要填账号 token。",
     details: [
-      "先到“平台密钥”页面创建或复制一个可用 Key。",
-      "通常放在 `~/.codex/auth.json`，和 `config.toml` 在同一个目录。",
-      "在 Windows 上一般是 `%USERPROFILE%\\\\.codex\\\\auth.json`。",
-      "如果文件不存在就新建；如果已有 `OPENAI_API_KEY`，替换成 CodexManager 生成的平台 Key。",
-    ],
-  },
-  {
-    icon: Rocket,
-    title: "第三步：把下面这份配置写入 Codex CLI 配置文件",
-    description:
-      "推荐先复制右侧模板，再按你的实际端口或运行习惯微调。不要手敲 provider 名称，最容易在这里拼错。",
-    details: [
-      "通常放在 `~/.codex/config.toml`。",
-      "在 Windows 上一般是 `%USERPROFILE%\\\\.codex\\\\config.toml`。",
-      "如果你已经有现成配置，建议先备份，再把这段内容合并进去。",
+      "先到“平台密钥”页面复制一个可用 Key。",
+      "Windows 默认路径：`%USERPROFILE%\\.codex\\auth.json`。",
     ],
   },
   {
     icon: Link2,
-    title: "第四步：保存后重新启动 Codex CLI 并验证 provider",
-    description:
-      "先确认 `auth.json` 能提供 API Key，再检查 provider 名称一致，和 `base_url` 指向本软件的本地网关。只要任意一项错了，CLI 就不会走 CodexManager。",
+    title: "第三步：填写 config.toml 后重启 Codex",
+    description: "复制基础配置即可；如果改过服务端口，只改 `base_url`。",
     details: [
-      "`auth.json` 里的 `OPENAI_API_KEY` 应填写平台密钥页面生成的 Key，不要填账号 token。",
-      '`model_provider = "cm"` 必须和 `[model_providers.cm]` 完全一致。',
-      "`base_url` 默认应指向 `http://localhost:48760/v1`。",
-      "如果你在 Web 端部署并访问，可以去模型管理页点击“导出到本地 Codex 缓存”；浏览器会下载同名 `models_cache.json`，你再手动放入本地 `~/.codex/models_cache.json`。",
-      "修改 `auth.json` 后请重新启动 Codex CLI，避免旧认证缓存继续生效。",
-      "如果你在设置里换过端口，把这里同步改掉后再重新打开 CLI 测试。",
+      "Windows 默认路径：`%USERPROFILE%\\.codex\\config.toml`。",
+      "保存后关闭并重新打开 Codex。",
     ],
   },
 ] as const;
-
 const GUIDE_AUTH_JSON_TEXT = `{
   "OPENAI_API_KEY": "replace_with_codexmanager_platform_key",
   "auth_mode": "apikey"
@@ -89,124 +66,30 @@ const GUIDE_AUTH_JSON_TEXT = `{
 
 const GUIDE_CONFIG_LINES = [
   {
-    comment: "主对话模型，推荐直接使用 gpt-5.4 作为默认工作模型",
-    line: 'model = "gpt-5.4"',
-  },
-  {
-    comment: "默认模型提供方，填写 cm 代表走下面定义的本地 provider",
-    line: 'model_provider = "cm"',
-  },
-  {
-    comment: "代码审查或 review 场景使用的模型，这里也保持与主模型一致",
-    line: 'review_model = "gpt-5.4"',
-  },
-  {
-    comment: "人格预设，none 代表不额外附加风格化人格",
-    line: 'personality = "none"',
-  },
-  {
-    comment: "普通执行任务时的推理强度，xhigh 适合复杂代码与分析任务",
-    line: 'model_reasoning_effort = "xhigh"',
-  },
-  {
-    comment: "进入 plan mode 时的推理强度，继续保持 xhigh 便于做完整拆解",
-    line: 'plan_mode_reasoning_effort = "xhigh"',
-  },
-  {
-    comment: "是否输出推理摘要，detailed 表示尽量返回更详细的摘要信息",
-    line: 'model_reasoning_summary = "detailed"',
-  },
-  {
-    comment: "输出详略程度，medium 兼顾信息量与可读性",
-    line: 'model_verbosity = "medium"',
-  },
-  {
-    comment: "声明当前模型支持 reasoning summary，避免 CLI 错误判断能力",
-    line: "model_supports_reasoning_summaries = true",
-  },
-  {
-    comment: "需要用户审批时采用按需询问模式，危险操作会先确认",
-    line: 'approval_policy = "on-request"',
-  },
-  {
-    comment: "允许 login shell，方便某些环境变量和 shell 初始化脚本生效",
-    line: "allow_login_shell = true",
-  },
-  {
-    comment: "沙箱模式使用 workspace-write，只允许在工作区内读写",
-    line: 'sandbox_mode = "workspace-write"',
-  },
-  {
-    comment: "CLI 认证信息存储方式，file 表示保存在本地文件",
-    line: 'cli_auth_credentials_store = "file"',
-  },
-  {
-    comment: "ChatGPT 后端接口地址，保持官方默认地址即可",
-    line: 'chatgpt_base_url = "https://chatgpt.com/backend-api/"',
-  },
-  {
-    comment: "MCP OAuth 凭据存储方式，auto 表示交给 CLI 自动选择",
-    line: 'mcp_oauth_credentials_store = "auto"',
-  },
-  {
-    comment: "启动时自动检查更新，方便跟进新版本",
-    line: "check_for_update_on_startup = true",
-  },
-  {
-    comment: "Web 搜索模式，live 代表允许实时联网搜索",
-    line: 'web_search = "live"',
-  },
-  {
-    comment: "审批的审核方，这里设为当前用户本人",
-    line: 'approvals_reviewer = "user"',
-  },
-  {
-    comment: "服务层级，fast 通常能兼顾延迟和可用性",
-    line: 'service_tier = "fast"',
+    comment: "让 Codex 使用下面这个本地 provider",
+    line: 'model_provider = "codex"',
   },
   {
     comment: null,
     line: "",
   },
   {
-    comment:
-      "定义名为 cm 的模型提供方，这个名字必须和上面的 model_provider 保持一致",
-    line: "[model_providers.cm]",
+    comment: "provider 名称必须和上面的 model_provider 一致",
+    line: "[model_providers.codex]",
   },
   {
-    comment: "这个 provider 下的审批策略，继续沿用 on-request",
-    line: 'approval_policy = "on-request"',
+    comment: "显示名称",
+    line: 'name = "Codex"',
   },
   {
-    comment: "这个 provider 下的沙箱策略，继续使用 workspace-write",
-    line: 'sandbox_mode = "workspace-write"',
-  },
-  {
-    comment: "这个 provider 下是否允许联网搜索，live 表示开启",
-    line: 'web_search = "live"',
-  },
-  {
-    comment: "展示名称，可写成 OpenAI 方便识别",
-    line: 'name = "OpenAI"',
-  },
-  {
-    comment: "本地网关地址，默认走 CodexManager 暴露出来的 48760 端口",
+    comment: "CodexManager 本地网关地址",
     line: 'base_url = "http://localhost:48760/v1"',
   },
   {
-    comment: "与本软件网关对接时使用 responses 协议",
+    comment: "使用 Responses 协议",
     line: 'wire_api = "responses"',
   },
 ] as const;
-
-const GUIDE_REMINDERS = [
-  "`auth.json` 里的 `OPENAI_API_KEY` 应填写平台密钥页面生成的 Key，不要填账号 token。",
-  "如果你在设置页改过服务端口，记得同步修改 `base_url`，否则 CLI 会连到旧端口。",
-  "如果你在 Web 端想手动替换本地 Codex 缓存，优先用模型管理页右上角的导出按钮；它会下载同名 `models_cache.json` 供你手动放入本地 `.codex` 目录。",
-  "如果 CLI 已经有其它 `model_providers` 配置，不需要全删，只要保证 `cm` 这一段完整且名字一致即可。",
-  "勾选“下次不再显示这份引导”并点击“保存并关闭”后，软件会把这个状态写入数据库；否则仅在当前窗口会话内关闭提醒。",
-] as const;
-
 export function CodexCliOnboardingDialog({
   open,
   onOpenChange,
@@ -334,17 +217,17 @@ export function CodexCliOnboardingDialog({
                 className="max-w-3xl space-y-2 outline-none"
               >
                 <DialogTitle className="text-2xl">
-                  {t("Codex CLI 首次接入引导")}
+                  {t("Codex 首次接入引导")}
                 </DialogTitle>
                 <DialogDescription className="text-sm leading-7">
                   {t(
-                    "先看左侧步骤，再按顺序准备 `auth.json` 和 `config.toml`。只要没有勾选“不再显示”，你下次进入软件时仍会看到它。",
+                    "只需要准备 `auth.json` 和 `config.toml` 两个文件。没有勾选“不再显示”时，下次进入软件仍会看到它。",
                   )}
                 </DialogDescription>
               </div>
               <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-6 text-muted-foreground lg:max-w-sm">
                 {t(
-                  "推荐先完整读一遍，再复制模板；这比自己手写平台 Key、provider 名称和地址更不容易出错。",
+                  "右侧只保留基础配置；复制后按实际端口改 `base_url` 即可。",
                 )}
               </div>
             </div>
@@ -359,7 +242,7 @@ export function CodexCliOnboardingDialog({
                 <div className="flex flex-col gap-4 border-b border-border/50 pb-4">
                   <div className="space-y-1">
                     <h3 className="text-base font-semibold leading-7 text-foreground">
-                      {t("分步导引")}
+                      {t("基础步骤")}
                     </h3>
                     <p className="text-sm leading-6 text-muted-foreground">
                       {t("你当前在第 {current} 步，共 {total} 步。", {
@@ -368,10 +251,10 @@ export function CodexCliOnboardingDialog({
                       })}
                     </p>
                     <p className="text-xs leading-5 text-muted-foreground">
-                      {t("点击步骤标签可直接跳转，按顺序做不容易漏。")}
+                      {t("按顺序完成这三项即可。")}
                     </p>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-2 sm:grid-cols-3">
                     {GUIDE_STEPS.map((step, index) => (
                       <Button
                         key={step.title}
@@ -424,28 +307,17 @@ export function CodexCliOnboardingDialog({
                   </section>
                 </div>
               </section>
-
-              <section className="rounded-xl border border-dashed border-border/70 bg-muted/25 p-5">
-                <h3 className="mb-2 text-base font-semibold leading-7 text-foreground">
-                  {t("使用时最容易忽略的几个点")}
-                </h3>
-                <ul className="list-disc space-y-2 pl-5 text-sm leading-7 text-muted-foreground">
-                  {GUIDE_REMINDERS.map((item) => (
-                    <li key={item}>{t(item)}</li>
-                  ))}
-                </ul>
-              </section>
             </div>
 
             <section className="rounded-xl border border-border/60 bg-background/55 shadow-sm">
               <div className="flex flex-col gap-3 border-b border-border/60 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1">
                   <h3 className="text-base font-semibold leading-7 text-foreground">
-                    {t("推荐配置示例")}
+                    {t("基础配置示例")}
                   </h3>
                   <p className="text-sm leading-6 text-muted-foreground">
                     {t(
-                      "已包含 `auth.json` 与 `config.toml`，可以按文件分别复制，或一键复制完整参考模板。",
+                      "只包含 Codex 接入 CodexManager 所需的最小配置。",
                     )}
                   </p>
                 </div>
@@ -500,7 +372,7 @@ export function CodexCliOnboardingDialog({
                   </div>
                   <pre
                     ref={codeBlockRef}
-                    className="max-h-[34vh] overflow-auto rounded-xl border border-border/60 bg-black/90 p-4 font-mono text-xs leading-6 text-slate-100"
+                    className="max-h-[28vh] overflow-auto rounded-xl border border-border/60 bg-black/90 p-4 font-mono text-xs leading-6 text-slate-100"
                   >
                     <code>{guideConfig}</code>
                   </pre>

@@ -115,7 +115,7 @@ export function Sidebar() {
   const { isDesktopRuntime } = useRuntimeCapabilities();
   const { data: session, isLoading: isSessionLoading } = useAppSession();
   const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
-  const brandTitle = isSidebarOpen ? t("重新打开 Codex CLI 引导") : "CodexManager";
+  const brandTitle = isSidebarOpen ? t("重新打开 Codex 引导") : "CodexManager";
   const toggleTitle = isSidebarOpen ? t("收起侧边栏") : t("展开侧边栏");
   const routeAccess = useMemo(
     () => ({ role, mode: session?.mode ?? null }),
