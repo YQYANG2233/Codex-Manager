@@ -145,20 +145,16 @@
 - 只要该账号仍在可用候选池内，就会覆盖普通 `ordered / balanced` 轮转逻辑
 - 手动优先是显式用户选择，不会因为一次 failover、一次 4xx/5xx，或一次临时过滤就被自动清掉
 
-### Free 账号使用模型
+### 请求模型跟随
 
-设置入口：
+模型处理原则：
 
-- 前端 `appSettings.freeAccountMaxModel`
-- 持久化键 `gateway.free_account_max_model`
-
-行为：
-
-- 默认值是 `auto`（跟随请求）
-- 所有 free / 7天单窗口账号命中候选时，都会在真正发上游前把请求模型改写成这里配置的模型
-- 这样可以避免自动切到 free 账号后，仍带着更高模型去上游触发“模型不支持”类失败
-- 请求日志会保留尝试链路；free 首试失败后再回退 team / pro 时，最终日志仍只落一条记录
-- 这个行为是 CodexManager 的可用性优先策略，不是 Codex 开源源码里的默认处理方式
+- 默认完全跟随客户端请求体里的 `model`
+- 客户端发 `gpt-5.5`，上游请求体继续使用 `gpt-5.5`
+- 客户端发 `codex-auto-review`，上游请求体继续使用 `codex-auto-review`
+- 只有显式模型转发规则、平台密钥强绑模型或聚合 API 自身 `modelOverride` 这类明确配置才会改写请求模型
+- 账号模型映射、聚合 API 模型映射、free / 7 天单窗口账号类型不会隐式改写请求模型
+- 历史设置 `gateway.free_account_max_model` / `appSettings.freeAccountMaxModel` 为兼容旧配置保留，不再参与上游请求模型改写
 
 ### 请求体压缩
 

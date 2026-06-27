@@ -297,10 +297,10 @@ fn resolve_value_source<'a>(
 }
 
 fn resolve_route_details(
-    storage: &Storage,
+    _storage: &Storage,
     trace_context: &RequestLogTraceContext<'_>,
     account_id: Option<&str>,
-    model: Option<&str>,
+    _model: Option<&str>,
 ) -> (Option<String>, Option<String>, Option<String>) {
     let actual_source_kind = normalize_log_text(trace_context.actual_source_kind).or_else(|| {
         account_id
@@ -309,16 +309,7 @@ fn resolve_route_details(
     });
     let actual_source_id = normalize_log_text(trace_context.actual_source_id)
         .or_else(|| normalize_log_text(account_id));
-    let upstream_model = normalize_log_text(trace_context.upstream_model).or_else(|| {
-        let platform_model = model.map(str::trim).filter(|value| !value.is_empty())?;
-        let source_kind = actual_source_kind.as_deref()?;
-        let source_id = actual_source_id.as_deref()?;
-        storage
-            .find_enabled_model_source_mapping(platform_model, source_kind, source_id)
-            .ok()
-            .flatten()
-            .map(|mapping| mapping.upstream_model)
-    });
+    let upstream_model = normalize_log_text(trace_context.upstream_model);
     (upstream_model, actual_source_kind, actual_source_id)
 }
 

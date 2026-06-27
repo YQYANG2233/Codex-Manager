@@ -235,25 +235,6 @@ fn apply_model_forward_rule_if_needed(obj: &mut serde_json::Map<String, Value>) 
     true
 }
 
-fn apply_compact_model_forward_rule_if_needed(obj: &mut serde_json::Map<String, Value>) -> bool {
-    let Some(current_model) = obj
-        .get("model")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        return false;
-    };
-    let Some(forwarded_model) = super::resolve_compact_forwarded_model(current_model) else {
-        return false;
-    };
-    if forwarded_model.eq_ignore_ascii_case(current_model) {
-        return false;
-    }
-    obj.insert("model".to_string(), Value::String(forwarded_model));
-    true
-}
-
 fn compact_model_override_for_path(path: &str) -> Option<String> {
     if responses::is_compact_path(path) {
         return super::current_compact_model_override();
@@ -562,11 +543,7 @@ fn apply_request_overrides_with_prompt_cache_key_mode(
                     .unwrap_or_else(|| model.to_string());
                 obj.insert("model".to_string(), Value::String(forwarded_model));
                 changed = true;
-            } else if responses::is_compact_path(path) {
-                if apply_compact_model_forward_rule_if_needed(obj) {
-                    changed = true;
-                }
-            } else if use_codex_compat_rewrite && apply_model_forward_rule_if_needed(obj) {
+            } else if apply_model_forward_rule_if_needed(obj) {
                 changed = true;
             }
 

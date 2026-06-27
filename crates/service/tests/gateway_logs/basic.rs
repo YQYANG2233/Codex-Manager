@@ -3,6 +3,7 @@ use codexmanager_core::storage::RequestTokenStat;
 
 const MISSING_AUTH_JSON_OPENAI_API_KEY_ERROR: &str =
     "配置错误：未配置auth.json的OPENAI_API_KEY(invalid api key)";
+const LEGACY_COMPACT_MODEL_FORWARD_RULES_SETTING_KEY: &str = "gateway.compact_model_forward_rules";
 
 /// 函数 `gateway_logs_invalid_api_key_error`
 ///
@@ -299,15 +300,15 @@ fn gateway_reports_platform_model_route_errors() {
 }
 
 #[test]
-fn gateway_rewrites_account_pool_model_from_enabled_mapping() {
+fn gateway_follows_client_model_even_when_account_source_mapping_exists() {
     let _lock = test_env_guard();
     let dir = new_test_dir("codexmanager-gateway-account-model-mapping");
     let db_path: PathBuf = dir.join("codexmanager.db");
     let _db_guard = EnvGuard::set("CODEXMANAGER_DB_PATH", db_path.to_string_lossy().as_ref());
 
     let response = serde_json::json!({
-        "id": "resp_model_mapping",
-        "model": "gpt-upstream",
+        "id": "resp_model_follow",
+        "model": "gpt-platform",
         "output": [{
             "type": "message",
             "role": "assistant",
@@ -375,7 +376,7 @@ fn gateway_rewrites_account_pool_model_from_enabled_mapping() {
         .upsert_model_source_model(&ModelSourceModel {
             source_kind: "openai_account".to_string(),
             source_id: "acc_model_mapping".to_string(),
-            upstream_model: "gpt-upstream".to_string(),
+            upstream_model: "gpt-platform".to_string(),
             display_name: None,
             status: "available".to_string(),
             discovery_kind: "manual".to_string(),
@@ -425,14 +426,14 @@ fn gateway_rewrites_account_pool_model_from_enabled_mapping() {
         request_body
             .get("model")
             .and_then(serde_json::Value::as_str),
-        Some("gpt-upstream")
+        Some("gpt-platform")
     );
     let logs = storage
         .list_request_logs(None, 10)
         .expect("list request logs");
     let log = logs.first().expect("request log should be written");
     assert_eq!(log.model.as_deref(), Some("gpt-platform"));
-    assert_eq!(log.upstream_model.as_deref(), Some("gpt-upstream"));
+    assert_eq!(log.upstream_model.as_deref(), None);
     assert_eq!(log.actual_source_kind.as_deref(), Some("openai_account"));
     assert_eq!(log.actual_source_id.as_deref(), Some("acc_model_mapping"));
 }
@@ -555,6 +556,136 @@ fn gateway_applies_saved_model_forward_rules_to_codex_responses_request() {
             .get("model")
             .and_then(serde_json::Value::as_str),
         Some("gpt-5.4-mini")
+    );
+}
+
+#[test]
+fn gateway_applies_migrated_legacy_compact_model_forward_rules() {
+    let _lock = test_env_guard();
+    let dir = new_test_dir("codexmanager-gateway-legacy-compact-forward-rules");
+    let db_path: PathBuf = dir.join("codexmanager.db");
+    let _db_guard = EnvGuard::set("CODEXMANAGER_DB_PATH", db_path.to_string_lossy().as_ref());
+
+    let response = serde_json::json!({
+        "id": "resp_legacy_compact_forward_rules",
+        "model": "gpt-5.4-openai-compact",
+        "output": [{
+            "type": "message",
+            "role": "assistant",
+            "content": [{ "type": "output_text", "text": "ok" }]
+        }],
+        "usage": { "input_tokens": 2, "output_tokens": 1, "total_tokens": 3 }
+    });
+    let platform_key = "pk_legacy_compact_forward_rules";
+    let storage = Storage::open(&db_path).expect("open db");
+    storage.init().expect("init schema");
+    let now = now_ts();
+    seed_model_catalog_models(&storage, &["gpt-5.4", "gpt-5.4-openai-compact"]);
+    storage
+        .insert_account(&Account {
+            id: "acc_legacy_compact_forward_rules".to_string(),
+            label: "legacy-compact-forward-rules".to_string(),
+            issuer: "https://auth.openai.com".to_string(),
+            chatgpt_account_id: None,
+            workspace_id: Some("ws_legacy_compact_forward_rules".to_string()),
+            group_name: None,
+            sort: 1,
+            status: "active".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("insert account");
+    storage
+        .insert_token(&Token {
+            account_id: "acc_legacy_compact_forward_rules".to_string(),
+            id_token: String::new(),
+            access_token: "access_token_legacy_compact_forward_rules".to_string(),
+            refresh_token: String::new(),
+            api_key_access_token: Some("api_access_token_legacy_compact_forward_rules".to_string()),
+            last_refresh: now,
+        })
+        .expect("insert token");
+    storage
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: "openai_account".to_string(),
+            source_id: "acc_legacy_compact_forward_rules".to_string(),
+            upstream_model: "gpt-5.4-openai-compact".to_string(),
+            display_name: Some("gpt-5.4-openai-compact".to_string()),
+            status: "available".to_string(),
+            discovery_kind: "manual".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("seed source model");
+    storage
+        .set_app_setting(
+            LEGACY_COMPACT_MODEL_FORWARD_RULES_SETTING_KEY,
+            "gpt-5.4=gpt-5.4-openai-compact",
+            now,
+        )
+        .expect("save legacy compact model forward rules");
+    storage
+        .insert_api_key(&ApiKey {
+            id: "gk_legacy_compact_forward_rules".to_string(),
+            name: Some("legacy-compact-forward-rules".to_string()),
+            model_slug: None,
+            reasoning_effort: None,
+            service_tier: None,
+            rotation_strategy: "account_rotation".to_string(),
+            aggregate_api_id: None,
+            account_plan_filter: None,
+            aggregate_api_url: None,
+            client_type: "codex".to_string(),
+            protocol_type: "openai_compat".to_string(),
+            auth_scheme: "authorization_bearer".to_string(),
+            upstream_base_url: None,
+            static_headers_json: None,
+            key_hash: hash_platform_key_for_test(platform_key),
+            status: "active".to_string(),
+            created_at: now,
+            last_used_at: None,
+        })
+        .expect("insert api key");
+    drop(storage);
+
+    codexmanager_service::sync_runtime_settings_from_storage();
+    assert_eq!(
+        codexmanager_service::current_gateway_model_forward_rules(),
+        "gpt-5.4=gpt-5.4-openai-compact"
+    );
+
+    let (upstream_addr, upstream_rx, upstream_join) =
+        start_mock_upstream_once(&serde_json::to_string(&response).expect("serialize response"));
+    let upstream_base = format!("http://{upstream_addr}/backend-api/codex");
+    let _upstream_guard = EnvGuard::set("CODEXMANAGER_UPSTREAM_BASE_URL", &upstream_base);
+
+    let server = codexmanager_service::start_one_shot_server().expect("start server");
+    let (status, response_body) = post_http_raw(
+        &server.addr,
+        "/v1/responses/compact",
+        r#"{"model":"gpt-5.4","input":"hello","stream":false}"#,
+        &[
+            ("Content-Type", "application/json"),
+            ("Authorization", &format!("Bearer {platform_key}")),
+        ],
+    );
+    server.join();
+    assert_eq!(status, 200, "gateway response: {response_body}");
+
+    let upstream_request = upstream_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("receive upstream request");
+    upstream_join.join().expect("join upstream");
+    let request_body: serde_json::Value =
+        serde_json::from_slice(&decode_upstream_request_body(&upstream_request))
+            .expect("parse upstream request body");
+    assert_eq!(
+        request_body
+            .get("model")
+            .and_then(serde_json::Value::as_str),
+        Some("gpt-5.4-openai-compact")
     );
 }
 

@@ -317,17 +317,6 @@ impl<'a> GatewayUpstreamExecutionContext<'a> {
         let platform_model_for_log = self.model_for_log.or(model_for_log);
         let direct_upstream_model =
             resolve_direct_upstream_model_for_log(platform_model_for_log, model_for_log);
-        let mapped_upstream_model = final_account_id.and_then(|account_id| {
-            let platform_model =
-                platform_model_for_mapping_lookup(platform_model_for_log, direct_upstream_model)?;
-            self.storage
-                .find_enabled_model_source_mapping(platform_model, "openai_account", account_id)
-                .ok()
-                .flatten()
-                .map(|mapping| mapping.upstream_model)
-                .filter(|upstream_model| !upstream_model.trim().is_empty())
-        });
-        let upstream_model_for_log = direct_upstream_model.or(mapped_upstream_model.as_deref());
         super::super::super::request_log::write_request_log_with_attempts(
             self.storage,
             super::super::super::request_log::RequestLogTraceContext {
@@ -346,7 +335,7 @@ impl<'a> GatewayUpstreamExecutionContext<'a> {
                 service_tier: self.service_tier_for_log,
                 effective_service_tier: self.effective_service_tier_for_log,
                 service_tier_source: self.service_tier_source_for_log,
-                upstream_model: upstream_model_for_log,
+                upstream_model: direct_upstream_model,
                 actual_source_kind: final_account_id.map(|_| "openai_account"),
                 actual_source_id: final_account_id,
                 ..Default::default()
@@ -391,18 +380,6 @@ fn resolve_direct_upstream_model_for_log<'a>(
         .map(str::trim)
         .filter(|value| !value.is_empty())?;
     (candidate_model != platform_model).then_some(candidate_model)
-}
-
-fn platform_model_for_mapping_lookup<'a>(
-    platform_model_for_log: Option<&'a str>,
-    direct_upstream_model: Option<&str>,
-) -> Option<&'a str> {
-    if direct_upstream_model.is_some() {
-        return None;
-    }
-    platform_model_for_log
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
 }
 
 #[cfg(test)]

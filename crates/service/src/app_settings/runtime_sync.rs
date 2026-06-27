@@ -1,10 +1,11 @@
 use crate::gateway;
 use crate::usage_refresh;
+use std::collections::HashMap;
 
 use super::{
     apply_env_overrides_to_process, list_app_settings_map, normalize_optional_text,
     persisted_env_overrides_missing_process_env, reload_runtime_after_env_override_apply,
-    set_service_bind_mode, BackgroundTasksInput, QuotaGuardInput,
+    save_persisted_app_setting, set_service_bind_mode, BackgroundTasksInput, QuotaGuardInput,
     APP_SETTING_GATEWAY_ACCOUNT_MAX_INFLIGHT_KEY, APP_SETTING_GATEWAY_BACKGROUND_TASKS_KEY,
     APP_SETTING_GATEWAY_COMPACT_MODEL_FORWARD_RULES_KEY,
     APP_SETTING_GATEWAY_FREE_ACCOUNT_MAX_MODEL_KEY, APP_SETTING_GATEWAY_MODEL_FORWARD_RULES_KEY,
@@ -49,6 +50,62 @@ fn any_process_env_has_value(names: &[&str]) -> bool {
     names.iter().any(|name| process_env_has_value(name))
 }
 
+fn merge_legacy_compact_model_forward_rules(
+    model_forward_rules: Option<&str>,
+    compact_model_forward_rules: Option<&str>,
+) -> Option<(String, bool)> {
+    let compact_lines = compact_model_forward_rules?
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty());
+    let mut lines = model_forward_rules
+        .unwrap_or_default()
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    let mut merged = false;
+    for compact_line in compact_lines {
+        if lines.iter().any(|line| line == compact_line) {
+            continue;
+        }
+        lines.push(compact_line.to_string());
+        merged = true;
+    }
+    Some((lines.join("\n"), merged))
+}
+
+fn migrate_legacy_compact_model_forward_rules(settings: &HashMap<String, String>) -> bool {
+    let Some((merged, merged_new_rules)) = merge_legacy_compact_model_forward_rules(
+        settings
+            .get(APP_SETTING_GATEWAY_MODEL_FORWARD_RULES_KEY)
+            .map(String::as_str),
+        settings
+            .get(APP_SETTING_GATEWAY_COMPACT_MODEL_FORWARD_RULES_KEY)
+            .map(String::as_str),
+    ) else {
+        return false;
+    };
+    if !process_env_has_value("CODEXMANAGER_MODEL_FORWARD_RULES") {
+        if let Err(err) = gateway::set_model_forward_rules(merged.as_str()) {
+            log::warn!("migrate legacy compact model forward rules failed: {err}");
+            return false;
+        }
+    }
+    if merged_new_rules {
+        let _ = save_persisted_app_setting(
+            APP_SETTING_GATEWAY_MODEL_FORWARD_RULES_KEY,
+            Some(merged.as_str()),
+        );
+    }
+    let _ = save_persisted_app_setting(APP_SETTING_GATEWAY_COMPACT_MODEL_FORWARD_RULES_KEY, None);
+    if !process_env_has_value("CODEXMANAGER_COMPACT_MODEL_FORWARD_RULES") {
+        let _ = gateway::set_compact_model_forward_rules("");
+    }
+    true
+}
+
 /// 函数 `sync_runtime_settings_from_storage`
 ///
 /// 作者: gaohongshun
@@ -61,7 +118,10 @@ fn any_process_env_has_value(names: &[&str]) -> bool {
 /// # 返回
 /// 无
 pub fn sync_runtime_settings_from_storage() {
-    let settings = list_app_settings_map();
+    let mut settings = list_app_settings_map();
+    if migrate_legacy_compact_model_forward_rules(&settings) {
+        settings = list_app_settings_map();
+    }
     let env_overrides = persisted_env_overrides_missing_process_env();
     if !env_overrides.is_empty() {
         apply_env_overrides_to_process(&env_overrides, &env_overrides);

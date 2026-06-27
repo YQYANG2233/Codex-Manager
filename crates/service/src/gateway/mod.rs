@@ -731,10 +731,6 @@ pub(crate) fn resolve_forwarded_model(model: &str) -> Option<String> {
     runtime_config::resolve_forwarded_model(model)
 }
 
-pub(crate) fn resolve_compact_forwarded_model(model: &str) -> Option<String> {
-    runtime_config::resolve_compact_forwarded_model(model)
-}
-
 /// 函数 `resolve_builtin_forwarded_model`
 ///
 /// 作者: gaohongshun

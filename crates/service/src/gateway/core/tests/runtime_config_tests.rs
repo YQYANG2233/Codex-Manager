@@ -591,7 +591,7 @@ fn set_model_forward_rules_rejects_invalid_target_auto() {
 }
 
 #[test]
-fn set_compact_model_forward_rules_updates_env_cache_and_matching() {
+fn set_compact_model_forward_rules_keeps_legacy_storage_only() {
     let _guard = crate::test_env_guard();
     let _rules_guard = EnvGuard::clear(ENV_COMPACT_MODEL_FORWARD_RULES);
 
@@ -606,11 +606,6 @@ fn set_compact_model_forward_rules_updates_env_cache_and_matching() {
             .as_deref(),
         Some(applied.as_str())
     );
-    assert_eq!(
-        resolve_compact_forwarded_model("gpt-5.4"),
-        Some("gpt-5.4-openai-compact".to_string())
-    );
-    assert_eq!(resolve_compact_forwarded_model("gpt-5.4-mini"), None);
     assert_eq!(resolve_forwarded_model("gpt-5.4"), None);
 }
 

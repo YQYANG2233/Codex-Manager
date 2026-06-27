@@ -612,7 +612,6 @@ export const EN_MESSAGES: MessageCatalog = {
   选择策略: "Choose a strategy",
   "顺序优先 (Ordered)": "Ordered priority (Ordered)",
   "均衡轮询 (Balanced)": "Balanced rotation (Balanced)",
-  "Free 账号使用模型": "Free-account model cap",
   模型转发规则: "Model forwarding rules",
   后台任务线程: "Background task workers",
   用量轮询线程: "Usage polling worker",
@@ -948,14 +947,11 @@ export const EN_MESSAGES: MessageCatalog = {
   源模型: "Source model",
   目标模型: "Target model",
   新增规则: "Add rule",
-  压缩模型转发规则: "Compact model forwarding rules",
   "例如：spark*": "e.g. spark*",
   "例如：gpt-5.4": "e.g. gpt-5.4",
   "例如：gpt-5.4-openai-compact": "e.g. gpt-5.4-openai-compact",
   "左边匹配请求模型，右边填写转发目标；支持":
     "Match the request model on the left and enter the forwarding target on the right. Supports",
-  "仅对 /v1/responses/compact 生效；命中后会在 compact 请求里优先改写模型。":
-    "Applies only to /v1/responses/compact. When matched, the model is rewritten first for compact requests.",
   "通配。平台 Key 没有强绑模型时，会先按这里把请求模型改写，再进入账号路由。":
     "Wildcard. When the platform key doesn't force a model, the request model is rewritten here before account routing.",
   "通配兼容 (Codex / Claude Code / Gemini CLI)":
@@ -1104,8 +1100,6 @@ export const EN_MESSAGES: MessageCatalog = {
     "Minimum threads reserved for normal HTTP requests to avoid being too idle.",
   普通请求自动并发: "Normal request auto concurrency",
   普通请求最低保底: "Normal request minimum",
-  "设为“跟随请求”时，不会额外改写 free / 7天单窗口账号的模型；只有你选了具体模型后，命中这些账号时才会统一改写为该模型。":
-    'When set to "Follow request", the model for free/7-day single-window accounts won\'t be rewritten; only when you choose a specific model will those accounts be rewritten to it.',
   适合小规模或低峰值场景: "Suitable for small scale or low peaks",
   "顺序优先：按账号候选顺序优先尝试，默认只会在头部小窗口内按健康度做轻微换头；均衡轮询：按“平台密钥 + 模型”维度严格轮询可用账号，默认不做健康度换头。":
     "Ordered: try accounts in order, with slight health-based head swapping in the top small window; Balanced: strictly round-robin available accounts by “API key + model”, no health swapping by default.",

@@ -8,23 +8,10 @@ pub(in super::super) enum CandidateSkipReason {
 }
 
 fn account_source_ids_for_model(storage: &Storage, model: &str) -> Result<HashSet<String>, String> {
-    let mut account_source_ids: HashSet<String> = storage
-        .list_enabled_model_source_mapping_source_ids_for_platform_and_kind(model, "openai_account")
-        .map_err(|err| format!("list model source mapping source ids failed: {err}"))?
-        .into_iter()
-        .collect();
-    if account_source_ids.is_empty()
-        && !storage
-            .has_enabled_model_source_mapping_for_platform_and_kind(model, "aggregate_api")
-            .map_err(|err| format!("check aggregate model source mappings failed: {err}"))?
-    {
-        account_source_ids.extend(
-            storage
-                .list_available_source_model_ids_by_upstream_model("openai_account", model)
-                .map_err(|err| format!("list source models by upstream model failed: {err}"))?,
-        );
-    }
-    Ok(account_source_ids)
+    storage
+        .list_available_source_model_ids_by_upstream_model("openai_account", model)
+        .map(|ids| ids.into_iter().collect())
+        .map_err(|err| format!("list source models by upstream model failed: {err}"))
 }
 
 /// 函数 `prepare_gateway_candidates`
@@ -90,32 +77,6 @@ pub(crate) fn prepare_gateway_candidates(
         });
     }
     Ok(candidates)
-}
-
-/// 函数 `free_account_model_override`
-///
-/// 作者: gaohongshun
-///
-/// 时间: 2026-04-02
-///
-/// # 参数
-/// - in super: 参数 in super
-///
-/// # 返回
-/// 返回函数执行结果
-pub(in super::super) fn free_account_model_override_with_snapshot(
-    token: &Token,
-    snapshot: Option<&UsageSnapshotRecord>,
-) -> Option<String> {
-    if !crate::account_plan::is_free_or_single_window_account_with_snapshot(token, snapshot) {
-        return None;
-    }
-    let configured = super::super::super::current_free_account_max_model();
-    if configured.eq_ignore_ascii_case("auto") {
-        None
-    } else {
-        Some(configured)
-    }
 }
 
 /// 函数 `allow_openai_fallback_for_account`

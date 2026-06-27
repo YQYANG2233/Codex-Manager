@@ -1,9 +1,9 @@
 use super::{
     allow_openai_fallback_for_account_with_snapshot, candidate_skip_reason_for_proxy,
-    free_account_model_override_with_snapshot, CandidateSkipReason,
+    CandidateSkipReason,
 };
 use codexmanager_core::storage::{
-    now_ts, Account, ModelSourceMapping, ModelSourceModel, Storage, Token, UsageSnapshotRecord,
+    now_ts, Account, ModelSourceMapping, ModelSourceModel, Storage, Token,
 };
 
 fn insert_active_account_with_token(storage: &Storage, account_id: &str, sort: i64) {
@@ -34,84 +34,22 @@ fn insert_active_account_with_token(storage: &Storage, account_id: &str, sort: i
         .expect("insert token");
 }
 
-/// 函数 `free_account_model_override_uses_configured_model_for_free_account`
-///
-/// 作者: gaohongshun
-///
-/// 时间: 2026-04-02
-///
-/// # 参数
-/// 无
-///
-/// # 返回
-/// 无
-#[test]
-fn free_account_model_override_uses_configured_model_for_free_account() {
-    let _guard = crate::test_env_guard();
-    let storage = Storage::open_in_memory().expect("open");
-    storage.init().expect("init");
+fn upsert_account_source_model(storage: &Storage, account_id: &str, upstream_model: &str) {
     let now = now_ts();
     storage
-        .insert_account(&Account {
-            id: "acc-free".to_string(),
-            label: "acc-free".to_string(),
-            issuer: "issuer".to_string(),
-            chatgpt_account_id: None,
-            workspace_id: None,
-            group_name: None,
-            sort: 0,
-            status: "active".to_string(),
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: "openai_account".to_string(),
+            source_id: account_id.to_string(),
+            upstream_model: upstream_model.to_string(),
+            display_name: Some(upstream_model.to_string()),
+            status: "available".to_string(),
+            discovery_kind: "manual".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
             created_at: now,
             updated_at: now,
         })
-        .expect("insert account");
-    let token = Token {
-        account_id: "acc-free".to_string(),
-        id_token: "header.payload.sig".to_string(),
-        access_token: "header.payload.sig".to_string(),
-        refresh_token: "refresh".to_string(),
-        api_key_access_token: None,
-        last_refresh: now,
-    };
-    storage.insert_token(&token).expect("insert token");
-    storage
-        .insert_usage_snapshot(&UsageSnapshotRecord {
-            account_id: "acc-free".to_string(),
-            used_percent: Some(10.0),
-            window_minutes: Some(300),
-            resets_at: None,
-            secondary_used_percent: Some(20.0),
-            secondary_window_minutes: Some(10_080),
-            secondary_resets_at: None,
-            credits_json: Some(r#"{"planType":"free"}"#.to_string()),
-            captured_at: now,
-        })
-        .expect("insert usage");
-
-    let original = crate::gateway::current_free_account_max_model();
-    crate::gateway::set_free_account_max_model("gpt-5.2").expect("set free model");
-
-    let account = Account {
-        id: "acc-free".to_string(),
-        label: "acc-free".to_string(),
-        issuer: "issuer".to_string(),
-        chatgpt_account_id: None,
-        workspace_id: None,
-        group_name: None,
-        sort: 0,
-        status: "active".to_string(),
-        created_at: now,
-        updated_at: now,
-    };
-    let snapshot = storage
-        .latest_usage_snapshot_for_account(account.id.as_str())
-        .ok()
-        .flatten();
-    let actual = free_account_model_override_with_snapshot(&token, snapshot.as_ref());
-
-    let _ = crate::gateway::set_free_account_max_model(&original);
-
-    assert_eq!(actual.as_deref(), Some("gpt-5.2"));
+        .expect("upsert account source model");
 }
 
 #[test]
@@ -172,7 +110,7 @@ fn prepare_gateway_candidates_accepts_direct_upstream_model_without_platform_map
 }
 
 #[test]
-fn prepare_gateway_candidates_skips_source_model_fallback_when_aggregate_mapping_exists() {
+fn prepare_gateway_candidates_uses_direct_source_model_even_when_aggregate_mapping_exists() {
     let _guard = crate::test_env_guard();
     let storage = Storage::open_in_memory().expect("open");
     storage.init().expect("init");
@@ -216,7 +154,8 @@ fn prepare_gateway_candidates_skips_source_model_fallback_when_aggregate_mapping
     )
     .expect("prepare candidates");
 
-    assert!(candidates.is_empty());
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].0.id, "acc-aggregate-owned");
 }
 
 #[test]
@@ -227,6 +166,7 @@ fn prepare_gateway_candidates_keeps_explicit_account_mapping_with_aggregate_mapp
     let now = now_ts();
     insert_active_account_with_token(&storage, "acc-explicit-route", 0);
     insert_active_account_with_token(&storage, "acc-other-route", 1);
+    upsert_account_source_model(&storage, "acc-explicit-route", "gpt-hybrid-route");
     storage
         .upsert_model_source_mapping(&ModelSourceMapping {
             id: "map-explicit-account".to_string(),
@@ -278,6 +218,7 @@ fn prepare_gateway_candidates_with_account_mapping_bypasses_global_candidate_cac
     let now = now_ts();
     insert_active_account_with_token(&storage, "acc-cached-other", 0);
     insert_active_account_with_token(&storage, "acc-mapped-only", 1);
+    upsert_account_source_model(&storage, "acc-mapped-only", "gpt-scoped-route");
     storage
         .upsert_model_source_mapping(&ModelSourceMapping {
             id: "map-scoped-account".to_string(),
@@ -319,164 +260,39 @@ fn prepare_gateway_candidates_with_account_mapping_bypasses_global_candidate_cac
     );
 }
 
-/// 函数 `free_account_model_override_accepts_single_window_weekly_account`
-///
-/// 作者: gaohongshun
-///
-/// 时间: 2026-04-02
-///
-/// # 参数
-/// 无
-///
-/// # 返回
-/// 无
 #[test]
-fn free_account_model_override_accepts_single_window_weekly_account() {
+fn prepare_gateway_candidates_ignores_mapping_to_different_upstream_model() {
     let _guard = crate::test_env_guard();
     let storage = Storage::open_in_memory().expect("open");
     storage.init().expect("init");
     let now = now_ts();
+    insert_active_account_with_token(&storage, "acc-review-only", 0);
+    upsert_account_source_model(&storage, "acc-review-only", "codex-auto-review");
     storage
-        .insert_account(&Account {
-            id: "acc-weekly".to_string(),
-            label: "acc-weekly".to_string(),
-            issuer: "issuer".to_string(),
-            chatgpt_account_id: None,
-            workspace_id: None,
-            group_name: None,
-            sort: 0,
-            status: "active".to_string(),
+        .upsert_model_source_mapping(&ModelSourceMapping {
+            id: "map-review-only".to_string(),
+            platform_model_slug: "gpt-5.5".to_string(),
+            source_kind: "openai_account".to_string(),
+            source_id: "acc-review-only".to_string(),
+            upstream_model: "codex-auto-review".to_string(),
+            enabled: true,
+            priority: 0,
+            weight: 1,
+            billing_model_slug: None,
             created_at: now,
             updated_at: now,
         })
-        .expect("insert account");
-    let token = Token {
-        account_id: "acc-weekly".to_string(),
-        id_token: "header.payload.sig".to_string(),
-        access_token: "header.payload.sig".to_string(),
-        refresh_token: "refresh".to_string(),
-        api_key_access_token: None,
-        last_refresh: now,
-    };
-    storage.insert_token(&token).expect("insert token");
-    storage
-        .insert_usage_snapshot(&UsageSnapshotRecord {
-            account_id: "acc-weekly".to_string(),
-            used_percent: Some(10.0),
-            window_minutes: Some(10_080),
-            resets_at: None,
-            secondary_used_percent: None,
-            secondary_window_minutes: None,
-            secondary_resets_at: None,
-            credits_json: None,
-            captured_at: now,
-        })
-        .expect("insert usage");
+        .expect("upsert account mapping");
 
-    let original = crate::gateway::current_free_account_max_model();
-    crate::gateway::set_free_account_max_model("gpt-5.2").expect("set free model");
+    let candidates = super::prepare_gateway_candidates(
+        &storage,
+        Some("gpt-5.5"),
+        None,
+        crate::gateway::LowQuotaCandidateMode::NormalOnly,
+    )
+    .expect("prepare candidates");
 
-    let account = Account {
-        id: "acc-weekly".to_string(),
-        label: "acc-weekly".to_string(),
-        issuer: "issuer".to_string(),
-        chatgpt_account_id: None,
-        workspace_id: None,
-        group_name: None,
-        sort: 0,
-        status: "active".to_string(),
-        created_at: now,
-        updated_at: now,
-    };
-    let snapshot = storage
-        .latest_usage_snapshot_for_account(account.id.as_str())
-        .ok()
-        .flatten();
-    let actual = free_account_model_override_with_snapshot(&token, snapshot.as_ref());
-
-    let _ = crate::gateway::set_free_account_max_model(&original);
-
-    assert_eq!(actual.as_deref(), Some("gpt-5.2"));
-}
-
-/// 函数 `free_account_model_override_skips_rewrite_when_configured_auto`
-///
-/// 作者: gaohongshun
-///
-/// 时间: 2026-04-02
-///
-/// # 参数
-/// 无
-///
-/// # 返回
-/// 无
-#[test]
-fn free_account_model_override_skips_rewrite_when_configured_auto() {
-    let _guard = crate::test_env_guard();
-    let storage = Storage::open_in_memory().expect("open");
-    storage.init().expect("init");
-    let now = now_ts();
-    storage
-        .insert_account(&Account {
-            id: "acc-auto".to_string(),
-            label: "acc-auto".to_string(),
-            issuer: "issuer".to_string(),
-            chatgpt_account_id: None,
-            workspace_id: None,
-            group_name: None,
-            sort: 0,
-            status: "active".to_string(),
-            created_at: now,
-            updated_at: now,
-        })
-        .expect("insert account");
-    let token = Token {
-        account_id: "acc-auto".to_string(),
-        id_token: "header.payload.sig".to_string(),
-        access_token: "header.payload.sig".to_string(),
-        refresh_token: "refresh".to_string(),
-        api_key_access_token: None,
-        last_refresh: now,
-    };
-    storage.insert_token(&token).expect("insert token");
-    storage
-        .insert_usage_snapshot(&UsageSnapshotRecord {
-            account_id: "acc-auto".to_string(),
-            used_percent: Some(10.0),
-            window_minutes: Some(300),
-            resets_at: None,
-            secondary_used_percent: Some(20.0),
-            secondary_window_minutes: Some(10_080),
-            secondary_resets_at: None,
-            credits_json: Some(r#"{"planType":"free"}"#.to_string()),
-            captured_at: now,
-        })
-        .expect("insert usage");
-
-    let original = crate::gateway::current_free_account_max_model();
-    crate::gateway::set_free_account_max_model("auto").expect("set free model");
-
-    let account = Account {
-        id: "acc-auto".to_string(),
-        label: "acc-auto".to_string(),
-        issuer: "issuer".to_string(),
-        chatgpt_account_id: None,
-        workspace_id: None,
-        group_name: None,
-        sort: 0,
-        status: "active".to_string(),
-        created_at: now,
-        updated_at: now,
-    };
-    let snapshot = storage
-        .latest_usage_snapshot_for_account(account.id.as_str())
-        .ok()
-        .flatten();
-    let actual = free_account_model_override_with_snapshot(&token, snapshot.as_ref());
-
-    let _ = crate::gateway::set_free_account_max_model(&original);
-
-    assert_eq!(actual, None);
+    assert!(candidates.is_empty());
 }
 
 /// 函数 `allow_openai_fallback_for_account_accepts_individual_plan_tiers`

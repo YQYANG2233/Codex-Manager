@@ -11,7 +11,9 @@ use crate::gateway::upstream::executor::{
 use codexmanager_core::rpc::types::{
     ManagedModelCatalogEntry, ManagedModelCatalogResult, ModelInfo,
 };
-use codexmanager_core::storage::{now_ts, Account, AggregateApi, ModelSourceMapping, Storage};
+use codexmanager_core::storage::{
+    now_ts, Account, AggregateApi, ModelSourceMapping, ModelSourceModel, Storage,
+};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
@@ -79,6 +81,24 @@ fn seed_platform_catalog(storage: &Storage, slug: &str) {
         },
     )
     .expect("seed platform catalog");
+}
+
+fn seed_source_model(storage: &Storage, source_kind: &str, source_id: &str, upstream_model: &str) {
+    let now = now_ts();
+    storage
+        .upsert_model_source_model(&ModelSourceModel {
+            source_kind: source_kind.to_string(),
+            source_id: source_id.to_string(),
+            upstream_model: upstream_model.to_string(),
+            display_name: Some(upstream_model.to_string()),
+            status: "available".to_string(),
+            discovery_kind: "manual".to_string(),
+            last_synced_at: Some(now),
+            extra_json: "{}".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .expect("seed source model");
 }
 
 /// 函数 `exhausted_gateway_error_includes_attempts_skips_and_last_error`
@@ -308,6 +328,12 @@ fn aggregate_route_model_filter_uses_batched_source_mappings() {
     insert_test_aggregate_api(&storage, "agg-with-model");
     insert_test_aggregate_api(&storage, "agg-without-model");
     let now = now_ts();
+    seed_source_model(
+        &storage,
+        "aggregate_api",
+        "agg-with-model",
+        "vendor-batched",
+    );
     for (id, source_id, upstream_model, priority) in [
         ("map-low", "agg-with-model", "vendor-low", 0),
         ("map-top", "agg-with-model", "vendor-top", 5),
@@ -339,7 +365,7 @@ fn aggregate_route_model_filter_uses_batched_source_mappings() {
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].id, "agg-with-model");
-    assert_eq!(candidates[0].model_override.as_deref(), Some("vendor-top"));
+    assert_eq!(candidates[0].model_override.as_deref(), None);
 }
 
 #[test]
@@ -349,6 +375,18 @@ fn explicit_aggregate_route_candidate_precedes_provider_candidates() {
     insert_test_aggregate_api_with_provider(&storage, "agg-codex-explicit", "codex");
     insert_test_aggregate_api_with_provider(&storage, "agg-claude-explicit", "claude");
     let now = now_ts();
+    seed_source_model(
+        &storage,
+        "aggregate_api",
+        "agg-codex-explicit",
+        "vendor-cross-provider",
+    );
+    seed_source_model(
+        &storage,
+        "aggregate_api",
+        "agg-claude-explicit",
+        "vendor-cross-provider",
+    );
     for (id, source_id, upstream_model) in [
         ("map-codex-explicit", "agg-codex-explicit", "vendor-codex"),
         (
@@ -389,10 +427,7 @@ fn explicit_aggregate_route_candidate_precedes_provider_candidates() {
         openai_candidate_ids,
         vec!["agg-claude-explicit", "agg-codex-explicit"]
     );
-    assert_eq!(
-        openai_candidates[0].model_override.as_deref(),
-        Some("vendor-claude")
-    );
+    assert_eq!(openai_candidates[0].model_override.as_deref(), None);
 
     let anthropic_candidates = resolve_aggregate_candidates_for_route(
         &storage,
@@ -409,10 +444,7 @@ fn explicit_aggregate_route_candidate_precedes_provider_candidates() {
         anthropic_candidate_ids,
         vec!["agg-codex-explicit", "agg-claude-explicit"]
     );
-    assert_eq!(
-        anthropic_candidates[0].model_override.as_deref(),
-        Some("vendor-codex")
-    );
+    assert_eq!(anthropic_candidates[0].model_override.as_deref(), None);
 }
 
 #[test]

@@ -285,10 +285,8 @@ fn resolve_compact_model_override_for_request(
     if let Some(explicit_override) = super::super::current_compact_model_override() {
         return Some(explicit_override);
     }
-    let model = base_model
-        .map(str::trim)
-        .filter(|value| !value.is_empty())?;
-    super::super::resolve_compact_forwarded_model(model)
+    let _ = base_model;
+    None
 }
 
 fn maybe_wrap_compact_response_adapter(

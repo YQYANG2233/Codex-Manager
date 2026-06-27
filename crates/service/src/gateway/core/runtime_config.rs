@@ -734,18 +734,6 @@ pub(crate) fn resolve_forwarded_model(model: &str) -> Option<String> {
     resolve_builtin_forwarded_model(normalized_model.as_str())
 }
 
-pub(crate) fn resolve_compact_forwarded_model(model: &str) -> Option<String> {
-    ensure_runtime_config_loaded();
-    let normalized_model = normalize_model_forward_lookup_model(model)?;
-    resolve_forwarded_model_from_rules(
-        &crate::lock_utils::read_recover(
-            compact_model_forward_rules_cell(),
-            "compact_model_forward_rules",
-        ),
-        normalized_model.as_str(),
-    )
-}
-
 /// 函数 `resolve_builtin_forwarded_model`
 ///
 /// 作者: gaohongshun

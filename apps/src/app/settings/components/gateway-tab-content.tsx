@@ -20,12 +20,10 @@ import {
 } from "@/components/ui/select";
 import { ModelForwardRulesEditor } from "@/app/settings/components/model-forward-rules-editor";
 import {
-  DEFAULT_FREE_ACCOUNT_MAX_MODEL_OPTIONS,
   EMPTY_RESIDENCY_OPTION,
   RESIDENCY_REQUIREMENT_LABELS,
   ROUTE_STRATEGY_LABELS,
   ensureModelForwardRuleRows,
-  formatFreeAccountModelLabel,
 } from "@/app/settings/settings-page-helpers";
 
 export function GatewayTabContent({
@@ -42,9 +40,6 @@ export function GatewayTabContent({
   modelForwardRuleRows,
   updateModelForwardRuleRows,
   commitModelForwardRulesDraft,
-  compactModelForwardRuleRows,
-  updateCompactModelForwardRuleRows,
-  commitCompactModelForwardRulesDraft,
   gatewayOriginatorInput,
   gatewayOriginatorDraft,
   setGatewayOriginatorDraft,
@@ -85,11 +80,6 @@ export function GatewayTabContent({
     updater: (rows: Array<{ pattern: string; target: string }>) => Array<{ pattern: string; target: string }>,
   ) => void;
   commitModelForwardRulesDraft: () => void;
-  compactModelForwardRuleRows: Array<{ pattern: string; target: string }>;
-  updateCompactModelForwardRuleRows: (
-    updater: (rows: Array<{ pattern: string; target: string }>) => Array<{ pattern: string; target: string }>,
-  ) => void;
-  commitCompactModelForwardRulesDraft: () => void;
   gatewayOriginatorInput: string;
   gatewayOriginatorDraft: string | null;
   setGatewayOriginatorDraft: React.Dispatch<React.SetStateAction<string | null>>;
@@ -233,41 +223,6 @@ export function GatewayTabContent({
         </div>
 
         <div className="grid gap-2">
-          <Label>{t("Free 账号使用模型")}</Label>
-          <Select
-            value={snapshot.freeAccountMaxModel || "auto"}
-            onValueChange={(value) =>
-              updateSettings.mutate({
-                freeAccountMaxModel: value || "auto",
-              })
-            }
-          >
-            <SelectTrigger className="w-full md:w-[300px]">
-              <SelectValue placeholder={t("选择 free 账号使用模型")}>
-                {(value) => t(formatFreeAccountModelLabel(String(value || "")))}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {(snapshot.freeAccountMaxModelOptions?.length
-                  ? snapshot.freeAccountMaxModelOptions
-                  : DEFAULT_FREE_ACCOUNT_MAX_MODEL_OPTIONS
-                ).map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {t(formatFreeAccountModelLabel(model))}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <p className="text-[10px] text-muted-foreground">
-            {t(
-              "设为“跟随请求”时，不会额外改写 free / 7天单窗口账号的模型；只有你选了具体模型后，命中这些账号时才会统一改写为该模型。",
-            )}
-          </p>
-        </div>
-
-        <div className="grid gap-2">
           <Label>{t("模型转发规则")}</Label>
           <ModelForwardRulesEditor
             rows={modelForwardRuleRows}
@@ -285,26 +240,6 @@ export function GatewayTabContent({
           <p className="text-[10px] text-muted-foreground">
             {t("左边匹配请求模型，右边填写转发目标；支持")} <code>*</code>{" "}
             {t("通配。平台 Key 没有强绑模型时，会先按这里把请求模型改写，再进入账号路由。")}
-          </p>
-        </div>
-
-        <div className="grid gap-2">
-          <Label>{t("压缩模型转发规则")}</Label>
-          <ModelForwardRulesEditor
-            rows={compactModelForwardRuleRows}
-            sourcePlaceholder={t("例如：gpt-5.4")}
-            targetPlaceholder={t("例如：gpt-5.4-openai-compact")}
-            sourceLabel={t("源模型")}
-            targetLabel={t("目标模型")}
-            addButtonLabel={t("新增规则")}
-            deleteButtonLabel={t("删除条目")}
-            onRowsChange={(updater) =>
-              updateCompactModelForwardRuleRows((rows) => ensureModelForwardRuleRows(updater(rows)))
-            }
-            onCommit={commitCompactModelForwardRulesDraft}
-          />
-          <p className="text-[10px] text-muted-foreground">
-            {t("仅对 /v1/responses/compact 生效；命中后会在 compact 请求里优先改写模型。")}
           </p>
         </div>
 

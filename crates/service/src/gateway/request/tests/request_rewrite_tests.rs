@@ -2350,12 +2350,39 @@ fn responses_platform_key_bound_spark_model_keeps_original_slug() {
 }
 
 #[test]
-fn responses_compact_applies_compact_model_forward_rules() {
+fn responses_apply_global_model_forward_rules_for_plain_openai_base() {
     let _guard = crate::test_env_guard();
-    let original_rules = crate::gateway::current_compact_model_forward_rules();
-    let _ = crate::gateway::set_compact_model_forward_rules("");
-    crate::gateway::set_compact_model_forward_rules("gpt-5.4=gpt-5.4-openai-compact")
-        .expect("set compact model forward rules");
+    let original_rules = crate::gateway::current_model_forward_rules();
+    crate::gateway::set_model_forward_rules("spark*=gpt-5.4-mini")
+        .expect("set model forward rules");
+
+    let body = json!({
+        "model": "spark",
+        "input": "hello"
+    });
+    let out = apply_request_overrides(
+        "/v1/responses",
+        serde_json::to_vec(&body).expect("serialize request body"),
+        None,
+        None,
+        Some("https://api.openai.com/v1"),
+    );
+    let value: serde_json::Value = serde_json::from_slice(&out).expect("parse output body");
+
+    assert_eq!(
+        value.get("model").and_then(serde_json::Value::as_str),
+        Some("gpt-5.4-mini")
+    );
+
+    let _ = crate::gateway::set_model_forward_rules(original_rules.as_str());
+}
+
+#[test]
+fn responses_compact_uses_global_model_forward_rules() {
+    let _guard = crate::test_env_guard();
+    let original_rules = crate::gateway::current_model_forward_rules();
+    crate::gateway::set_model_forward_rules("gpt-5.4=gpt-5.4-openai-compact")
+        .expect("set model forward rules");
 
     let body = json!({
         "model": "gpt-5.4",
@@ -2375,7 +2402,7 @@ fn responses_compact_applies_compact_model_forward_rules() {
         Some("gpt-5.4-openai-compact")
     );
 
-    let _ = crate::gateway::set_compact_model_forward_rules(original_rules.as_str());
+    let _ = crate::gateway::set_model_forward_rules(original_rules.as_str());
 }
 
 #[test]

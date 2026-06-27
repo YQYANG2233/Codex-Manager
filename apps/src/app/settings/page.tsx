@@ -302,10 +302,6 @@ function AdminSettingsPage() {
   const [modelForwardRuleRowsDraft, setModelForwardRuleRowsDraft] = useState<
     ReturnType<typeof parseModelForwardRules> | null
   >(null);
-  const [
-    compactModelForwardRuleRowsDraft,
-    setCompactModelForwardRuleRowsDraft,
-  ] = useState<ReturnType<typeof parseModelForwardRules> | null>(null);
   const [lastUpdateCheck, setLastUpdateCheck] =
     useState<UpdateCheckResult | null>(null);
   const [updateDialogCheck, setUpdateDialogCheck] =
@@ -396,10 +392,6 @@ function AdminSettingsPage() {
   const modelForwardRuleRows = ensureModelForwardRuleRows(
     modelForwardRuleRowsDraft ??
       parseModelForwardRules(snapshot?.modelForwardRules || ""),
-  );
-  const compactModelForwardRuleRows = ensureModelForwardRuleRows(
-    compactModelForwardRuleRowsDraft ??
-      parseModelForwardRules(snapshot?.compactModelForwardRules || ""),
   );
   usePageTransitionReady(
     "/settings/",
@@ -755,37 +747,6 @@ function AdminSettingsPage() {
         modelForwardRules: nextSerialized,
       })
       .then(() => setModelForwardRuleRowsDraft(null))
-      .catch(() => undefined);
-  };
-  const updateCompactModelForwardRuleRows = (
-    updater: (rows: ReturnType<typeof parseModelForwardRules>) => ReturnType<
-      typeof parseModelForwardRules
-    >,
-  ) => {
-    const sourceRows =
-      compactModelForwardRuleRowsDraft ??
-      parseModelForwardRules(snapshot?.compactModelForwardRules || "");
-    setCompactModelForwardRuleRowsDraft(
-      updater(ensureModelForwardRuleRows(sourceRows)),
-    );
-  };
-  const commitCompactModelForwardRulesDraft = () => {
-    if (compactModelForwardRuleRowsDraft == null) return;
-    const nextSerialized = serializeModelForwardRules(
-      compactModelForwardRuleRowsDraft,
-    );
-    if (
-      nextSerialized.trim() ===
-      (snapshot?.compactModelForwardRules || "").trim()
-    ) {
-      setCompactModelForwardRuleRowsDraft(null);
-      return;
-    }
-    void updateSettings
-      .mutateAsync({
-        compactModelForwardRules: nextSerialized,
-      })
-      .then(() => setCompactModelForwardRuleRowsDraft(null))
       .catch(() => undefined);
   };
   const transportInputValues = {
@@ -1484,9 +1445,6 @@ function AdminSettingsPage() {
             modelForwardRuleRows={modelForwardRuleRows}
             updateModelForwardRuleRows={updateModelForwardRuleRows}
             commitModelForwardRulesDraft={commitModelForwardRulesDraft}
-            compactModelForwardRuleRows={compactModelForwardRuleRows}
-            updateCompactModelForwardRuleRows={updateCompactModelForwardRuleRows}
-            commitCompactModelForwardRulesDraft={commitCompactModelForwardRulesDraft}
             gatewayOriginatorInput={gatewayOriginatorInput}
             gatewayOriginatorDraft={gatewayOriginatorDraft}
             setGatewayOriginatorDraft={setGatewayOriginatorDraft}

@@ -166,15 +166,9 @@ fn model_route_error(
         return Err((500, err));
     }
     let route_source_kinds = source_kinds_for_route(execution_plan);
-    let has_route_mapping = storage
-        .has_enabled_model_source_mapping_for_platform_matching_kinds(model, &route_source_kinds)
-        .map_err(|err| (500, format!("model_mapping_read_failed: {err}")))?;
-    let has_upstream_source_match = if has_route_mapping {
-        true
-    } else {
-        direct_upstream_model_matches_route(storage, model, execution_plan)
-            .map_err(|err| (500, format!("source_model_read_failed: {err}")))?
-    };
+    let has_upstream_source_match =
+        direct_upstream_model_matches_route(storage, model, &route_source_kinds)
+            .map_err(|err| (500, format!("source_model_read_failed: {err}")))?;
     if !has_upstream_source_match {
         return Err((503, format!("model_unavailable: {model}")));
     }
@@ -184,15 +178,9 @@ fn model_route_error(
 fn direct_upstream_model_matches_route(
     storage: &codexmanager_core::storage::Storage,
     model: &str,
-    execution_plan: super::executor::GatewayUpstreamExecutionPlan,
+    source_kinds: &[&str],
 ) -> Result<bool, String> {
-    for source_kind in source_kinds_for_route(execution_plan) {
-        let has_conflicting_mapping = storage
-            .has_enabled_model_source_mapping_for_platform_outside_kinds(model, &[source_kind])
-            .map_err(|err| err.to_string())?;
-        if has_conflicting_mapping {
-            continue;
-        }
+    for source_kind in source_kinds {
         let ids = storage
             .list_available_source_model_ids_by_upstream_model(source_kind, model)
             .map_err(|err| err.to_string())?;
@@ -330,7 +318,7 @@ fn resolve_aggregate_candidates_for_route(
         candidates.retain(|candidate| candidate.id != explicit_candidate.id);
         candidates.insert(0, explicit_candidate);
     }
-    apply_aggregate_model_mapping(storage, candidates, model_for_log)
+    apply_aggregate_model_filter(storage, candidates, model_for_log)
 }
 
 fn resolve_active_explicit_aggregate_candidate(
@@ -350,7 +338,7 @@ fn resolve_active_explicit_aggregate_candidate(
     Ok(candidate.filter(|api| api.status.trim().eq_ignore_ascii_case("active")))
 }
 
-fn apply_aggregate_model_mapping(
+fn apply_aggregate_model_filter(
     storage: &codexmanager_core::storage::Storage,
     mut candidates: Vec<codexmanager_core::storage::AggregateApi>,
     model_for_log: Option<&str>,
@@ -361,21 +349,13 @@ fn apply_aggregate_model_mapping(
     else {
         return Ok(candidates);
     };
-    let candidate_ids = candidates
-        .iter()
-        .map(|api| api.id.clone())
-        .collect::<Vec<_>>();
-    let mappings = storage
-        .list_enabled_model_source_mappings_for_sources(model, "aggregate_api", &candidate_ids)
-        .map_err(|err| format!("list aggregate model source mappings failed: {err}"))?;
-    candidates = candidates
+    let source_ids = storage
+        .list_available_source_model_ids_by_upstream_model("aggregate_api", model)
+        .map_err(|err| format!("list aggregate source models failed: {err}"))?;
+    let allowed = source_ids
         .into_iter()
-        .filter_map(|mut api| {
-            let mapping = mappings.get(api.id.as_str())?;
-            api.model_override = Some(mapping.upstream_model.clone());
-            Some(api)
-        })
-        .collect();
+        .collect::<std::collections::HashSet<_>>();
+    candidates.retain(|api| allowed.contains(&api.id));
     if candidates.is_empty() {
         Err(format!("model_unavailable: {model}"))
     } else {

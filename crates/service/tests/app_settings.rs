@@ -10,6 +10,7 @@ use support::test_env_guard;
 
 const CODEX_IMAGE_AUTO_INJECT_TOOL_ENV: &str =
     "CODEXMANAGER_CODEX_IMAGE_GENERATION_AUTO_INJECT_TOOL";
+const LEGACY_COMPACT_MODEL_FORWARD_RULES_SETTING_KEY: &str = "gateway.compact_model_forward_rules";
 
 const ISOLATED_RUNTIME_ENV_KEYS: &[&str] = &[
     CODEX_IMAGE_AUTO_INJECT_TOOL_ENV,
@@ -18,6 +19,7 @@ const ISOLATED_RUNTIME_ENV_KEYS: &[&str] = &[
     "CODEXMANAGER_ROUTE_STRATEGY",
     "CODEXMANAGER_FREE_ACCOUNT_MAX_MODEL",
     "CODEXMANAGER_MODEL_FORWARD_RULES",
+    "CODEXMANAGER_COMPACT_MODEL_FORWARD_RULES",
     "CODEXMANAGER_QUOTA_GUARD_ENABLED",
     "CODEXMANAGER_QUOTA_GUARD_5H_MIN_REMAINING_PERCENT",
     "CODEXMANAGER_QUOTA_GUARD_WEEKLY_MIN_REMAINING_PERCENT",
@@ -84,6 +86,7 @@ fn reset_runtime_defaults() {
         "routeStrategy": "balanced",
         "freeAccountMaxModel": "gpt-5.2",
         "modelForwardRules": "",
+        "compactModelForwardRules": "",
         "quotaGuard": {
             "enabled": true,
             "primaryMinRemainingPercent": 5,
@@ -1008,6 +1011,61 @@ fn app_settings_set_preserves_model_forward_rules_case() {
                 .get_app_setting(codexmanager_service::APP_SETTING_GATEWAY_MODEL_FORWARD_RULES_KEY)
                 .expect("read model forward rules"),
             Some("Spark*=GPT-5.4-mini\nClaude-Sonnet-4*=Gemini-2.5-Pro".to_string())
+        );
+    });
+}
+
+#[test]
+fn app_settings_get_migrates_legacy_compact_model_forward_rules() {
+    with_temp_db(|db_path| {
+        let storage = Storage::open(db_path).expect("open storage");
+        storage
+            .set_app_setting(
+                codexmanager_service::APP_SETTING_GATEWAY_MODEL_FORWARD_RULES_KEY,
+                "spark*=gpt-5.4-mini",
+                now_ts(),
+            )
+            .expect("save model forward rules");
+        storage
+            .set_app_setting(
+                LEGACY_COMPACT_MODEL_FORWARD_RULES_SETTING_KEY,
+                "gpt-5.4=gpt-5.4-openai-compact",
+                now_ts(),
+            )
+            .expect("save legacy compact model forward rules");
+        drop(storage);
+
+        let snapshot = codexmanager_service::app_settings_get().expect("get app settings");
+
+        assert_eq!(
+            snapshot
+                .get("modelForwardRules")
+                .and_then(|value| value.as_str()),
+            Some("spark*=gpt-5.4-mini\ngpt-5.4=gpt-5.4-openai-compact")
+        );
+        assert_eq!(
+            snapshot
+                .get("compactModelForwardRules")
+                .and_then(|value| value.as_str()),
+            Some("")
+        );
+        assert_eq!(
+            codexmanager_service::current_gateway_model_forward_rules(),
+            "spark*=gpt-5.4-mini\ngpt-5.4=gpt-5.4-openai-compact"
+        );
+
+        let storage = Storage::open(db_path).expect("open storage");
+        assert_eq!(
+            storage
+                .get_app_setting(codexmanager_service::APP_SETTING_GATEWAY_MODEL_FORWARD_RULES_KEY)
+                .expect("read migrated model forward rules"),
+            Some("spark*=gpt-5.4-mini\ngpt-5.4=gpt-5.4-openai-compact".to_string())
+        );
+        assert_eq!(
+            storage
+                .get_app_setting(LEGACY_COMPACT_MODEL_FORWARD_RULES_SETTING_KEY)
+                .expect("read legacy compact model forward rules"),
+            Some(String::new())
         );
     });
 }

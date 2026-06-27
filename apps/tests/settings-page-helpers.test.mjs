@@ -92,3 +92,21 @@ test("formatRuntimeTimeZoneLabel 显示后端传回的时区和偏移", () => {
     "Server local time zone (UTC+01:00)"
   );
 });
+
+test("parseModelForwardRules 解析多行模型转发规则", () => {
+  assert.deepEqual(
+    helpers.parseModelForwardRules(
+      "spark*=gpt-5.4-mini\ngpt-5.4=gpt-5.4-openai-compact"
+    ),
+    [
+      { pattern: "spark*", target: "gpt-5.4-mini" },
+      { pattern: "gpt-5.4", target: "gpt-5.4-openai-compact" },
+    ]
+  );
+});
+
+test("ensureModelForwardRuleRows 在空规则时保留一行可编辑空行", () => {
+  assert.deepEqual(helpers.ensureModelForwardRuleRows([]), [
+    { pattern: "", target: "" },
+  ]);
+});
