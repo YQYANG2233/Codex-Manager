@@ -38,13 +38,11 @@ const DEFAULT_SERVICE_ADDR = "localhost:48760";
  * 返回函数执行结果
  */
 export function Header() {
-  const {
-    appSettings,
-    serviceStatus,
-    setServiceStatus,
-    setAppSettings,
-    currentShellPath,
-  } = useAppStore();
+  const appSettings = useAppStore((state) => state.appSettings);
+  const serviceStatus = useAppStore((state) => state.serviceStatus);
+  const currentShellPath = useAppStore((state) => state.currentShellPath);
+  const setServiceStatus = useAppStore((state) => state.setServiceStatus);
+  const setAppSettings = useAppStore((state) => state.setAppSettings);
   const { t } = useI18n();
   const [isToggling, setIsToggling] = useState(false);
   const [portInput, setPortInput] = useState("48760");

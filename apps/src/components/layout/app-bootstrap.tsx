@@ -111,16 +111,14 @@ export function startupAppSettingsTimeoutMs(runtimeMode?: string | null): number
  * 返回函数执行结果
  */
 export function AppBootstrap({ children }: { children: React.ReactNode }) {
-  const {
-    setServiceStatus,
-    setAppSettings,
-    setRuntimeCapabilities,
-    closeCodexCliGuide,
-    serviceStatus,
-    appSettings,
-    isCodexCliGuideOpen,
-    runtimeCapabilities,
-  } = useAppStore();
+  const serviceStatus = useAppStore((state) => state.serviceStatus);
+  const appSettings = useAppStore((state) => state.appSettings);
+  const runtimeCapabilities = useAppStore((state) => state.runtimeCapabilities);
+  const isCodexCliGuideOpen = useAppStore((state) => state.isCodexCliGuideOpen);
+  const setServiceStatus = useAppStore((state) => state.setServiceStatus);
+  const setAppSettings = useAppStore((state) => state.setAppSettings);
+  const setRuntimeCapabilities = useAppStore((state) => state.setRuntimeCapabilities);
+  const closeCodexCliGuide = useAppStore((state) => state.closeCodexCliGuide);
   const { setTheme } = useTheme();
   const { t } = useI18n();
   const pathname = usePathname();

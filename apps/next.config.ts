@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
-const nextConfig: NextConfig = {
+const baseNextConfig: NextConfig = {
   // 暂时禁用 Beta 版编译器以确保稳定性
   reactCompiler: false,
   experimental: {
@@ -20,5 +21,38 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
 };
+
+const configureDevWebpack: NonNullable<NextConfig["webpack"]> = (config) => {
+  const ignored = config.watchOptions?.ignored;
+  const ignoredPatterns = Array.isArray(ignored)
+    ? ignored.filter(
+        (pattern): pattern is string =>
+          typeof pattern === "string" && pattern.length > 0,
+      )
+    : typeof ignored === "string" && ignored.length > 0
+      ? [ignored]
+      : [];
+
+  config.watchOptions = {
+    ...config.watchOptions,
+    ignored: [
+      ...ignoredPatterns,
+      "**/node_modules/**",
+      "**/src-tauri/target/**",
+      "**/.pnpm-store/**",
+    ],
+    poll: 1000,
+  };
+
+  return config;
+};
+
+const nextConfig = (phase: string): NextConfig =>
+  phase === PHASE_DEVELOPMENT_SERVER
+    ? {
+        ...baseNextConfig,
+        webpack: configureDevWebpack,
+      }
+    : baseNextConfig;
 
 export default nextConfig;

@@ -105,13 +105,11 @@ NavItem.displayName = "NavItem";
 export function Sidebar() {
   const { t } = useI18n();
   const [logoFailed, setLogoFailed] = useState(false);
-  const {
-    isSidebarOpen,
-    toggleSidebar,
-    openCodexCliGuide,
-    currentShellPath,
-    navigateShellPath,
-  } = useAppStore();
+  const isSidebarOpen = useAppStore((state) => state.isSidebarOpen);
+  const currentShellPath = useAppStore((state) => state.currentShellPath);
+  const toggleSidebar = useAppStore((state) => state.toggleSidebar);
+  const openCodexCliGuide = useAppStore((state) => state.openCodexCliGuide);
+  const navigateShellPath = useAppStore((state) => state.navigateShellPath);
   const { isDesktopRuntime } = useRuntimeCapabilities();
   const { data: session, isLoading: isSessionLoading } = useAppSession();
   const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);

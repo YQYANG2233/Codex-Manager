@@ -83,6 +83,9 @@ export default function TrayPreviewPage() {
   } = useDashboardStats({
     forceActive: true,
     requestLogLimit: TRAY_PREVIEW_REQUEST_LOG_LIMIT,
+    includeApiModels: false,
+    includeApiKeys: false,
+    includeAccountDetails: false,
   });
 
   const openMainWindow = async () => {

@@ -56,7 +56,7 @@ function LogsPageContent() {
   const { t } = useI18n();
   const localDayRange = useLocalDayRange();
   const searchParams = useSearchParams();
-  const { serviceStatus } = useAppStore();
+  const serviceStatus = useAppStore((state) => state.serviceStatus);
   const { isDesktopRuntime } = useRuntimeCapabilities();
   const { data: session, isLoading: isSessionLoading } = useAppSession();
   const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);

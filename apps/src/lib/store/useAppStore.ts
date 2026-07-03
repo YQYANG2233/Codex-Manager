@@ -38,6 +38,22 @@ interface AppState {
 
 const initialShellPath: TopLevelRoutePath = "/";
 
+function hasPartialStateChanges<T extends object>(
+  current: T,
+  patch: Partial<T>,
+): boolean {
+  for (const key of Object.keys(patch) as Array<keyof T>) {
+    if (!Object.is(current[key], patch[key])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function areTabsEqual(left: TopLevelRoutePath[], right: TopLevelRoutePath[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
 export const useAppStore = create<AppState>((set) => ({
   serviceStatus: {
     connected: false,
@@ -143,25 +159,48 @@ export const useAppStore = create<AppState>((set) => ({
   currentShellPath: initialShellPath,
   openShellTabs: [initialShellPath],
 
-  setServiceStatus: (status) => 
-    set((state) => ({ serviceStatus: { ...state.serviceStatus, ...status } })),
+  setServiceStatus: (status) =>
+    set((state) =>
+      hasPartialStateChanges(state.serviceStatus, status)
+        ? { serviceStatus: { ...state.serviceStatus, ...status } }
+        : state,
+    ),
   
   setAppSettings: (settings) =>
-    set((state) => ({ appSettings: { ...state.appSettings, ...settings } })),
+    set((state) =>
+      hasPartialStateChanges(state.appSettings, settings)
+        ? { appSettings: { ...state.appSettings, ...settings } }
+        : state,
+    ),
 
-  setRuntimeCapabilities: (runtimeCapabilities) => set({ runtimeCapabilities }),
+  setRuntimeCapabilities: (runtimeCapabilities) =>
+    set((state) =>
+      Object.is(state.runtimeCapabilities, runtimeCapabilities)
+        ? state
+        : { runtimeCapabilities },
+    ),
     
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   
-  setSidebarOpen: (open) => set({ isSidebarOpen: open }),
+  setSidebarOpen: (open) =>
+    set((state) => (state.isSidebarOpen === open ? state : { isSidebarOpen: open })),
 
-  openCodexCliGuide: () => set({ isCodexCliGuideOpen: true }),
+  openCodexCliGuide: () =>
+    set((state) =>
+      state.isCodexCliGuideOpen ? state : { isCodexCliGuideOpen: true },
+    ),
 
-  closeCodexCliGuide: () => set({ isCodexCliGuideOpen: false }),
+  closeCodexCliGuide: () =>
+    set((state) =>
+      state.isCodexCliGuideOpen ? { isCodexCliGuideOpen: false } : state,
+    ),
 
   syncShellPathFromLocation: (path) =>
     set((state) => {
       const nextPath = toTopLevelRoutePath(path);
+      if (state.currentShellPath === nextPath && state.openShellTabs.includes(nextPath)) {
+        return state;
+      }
       return {
         currentShellPath: nextPath,
         openShellTabs: state.openShellTabs.includes(nextPath)
@@ -217,6 +256,13 @@ export const useAppStore = create<AppState>((set) => ({
           "",
           buildStaticRouteUrl(nextCurrent),
         );
+      }
+
+      if (
+        state.currentShellPath === nextCurrent &&
+        areTabsEqual(state.openShellTabs, normalizedTabs)
+      ) {
+        return state;
       }
 
       return {
