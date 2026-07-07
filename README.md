@@ -7,19 +7,29 @@
 <p align="center">本地桌面端 + 服务进程的 Codex 账号管理器+网关转发</p>
 
 <p align="center">
-  <a href="docs/en/README.md">English</a>|
-  <a href="docs/ru/README.md">Русский</a>|
-  <a href="docs/ko/README.md">한국어</a>|
-  <a href="https://github.com/qxcnm/Codex-Manager">GitHub 主仓库</a>|
-  <a href="https://atomgit.com/qxnm/Codex-Manager">AtomGit 国内托管</a>|
-  <a href="https://qxnm.top">官网</a>|
-  <a href="#赞助商">赞助商</a>
+  <a href="docs/en/README.md">English</a>
+  ·
+  <a href="docs/ru/README.md">Русский</a>
+  ·
+  <a href="docs/ko/README.md">한국어</a>
 </p>
 
 <p align="center">
-  <a href="https://atomgit.com/qxnm/Codex-Manager">
-    <img src="https://atomgit.com/qxnm/Codex-Manager/star/badge.svg" alt="AtomGitStars" />
+  <a href="https://github.com/qxcnm/Codex-Manager">
+    <img alt="GitHub" src="https://img.shields.io/badge/GitHub-%E4%B8%BB%E4%BB%93%E5%BA%93-181717?logo=github&logoColor=white" />
   </a>
+  <a href="https://atomgit.com/qxnm/Codex-Manager">
+    <img alt="AtomGit" src="https://atomgit.com/qxnm/Codex-Manager/star/badge.svg" />
+  </a>
+  <a href="https://gitee.com/hongshungao/Codex-Manager">
+    <img alt="Gitee" src="https://img.shields.io/badge/Gitee-%E4%BB%93%E5%BA%93-C71D23?logo=gitee&logoColor=white" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://qxnm.top">官网</a>
+  ·
+  <a href="#赞助商">赞助商</a>
 </p>
 
 <p align="center"><strong>本地桌面端 + 服务进程的 Codex 账号池管理器</strong></p>
