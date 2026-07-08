@@ -709,9 +709,6 @@ fn gateway_aggregate_api_model_override_rewrites_minimax_responses_request() {
     assert_eq!(
         request_body
             .get("input")
-            .and_then(serde_json::Value::as_array)
-            .and_then(|items| items.first())
-            .and_then(|item| item.get("content"))
             .and_then(serde_json::Value::as_str),
         Some("hello")
     );

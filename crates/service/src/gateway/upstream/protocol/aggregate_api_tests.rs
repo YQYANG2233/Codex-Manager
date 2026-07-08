@@ -88,6 +88,14 @@ fn build_upstream_url_keeps_root_base_behavior() {
 }
 
 #[test]
+fn build_upstream_url_deduplicates_v1_base_path() {
+    let url = build_upstream_url("https://api.minimax.io/v1", "/v1/responses")
+        .expect("build upstream url");
+
+    assert_eq!(url.as_str(), "https://api.minimax.io/v1/responses");
+}
+
+#[test]
 fn responses_bridge_uses_messages_suffix_for_anthropic_v1_base_url() {
     let mut api = aggregate_api_with_action(None);
     api.url = "https://api.anthropic.com/v1".to_string();

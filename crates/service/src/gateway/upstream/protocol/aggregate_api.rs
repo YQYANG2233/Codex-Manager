@@ -97,8 +97,18 @@ fn build_upstream_url(base_url: &str, effective_path: &str) -> Result<reqwest::U
     let (path_part, query_part) = trimmed_path
         .split_once('?')
         .map_or((trimmed_path, None), |(path, query)| (path, Some(query)));
-    let suffix = path_part.trim_start_matches('/');
+    let raw_suffix = path_part.trim_start_matches('/');
     let base_path = url.path().trim_end_matches('/').to_string();
+    let suffix = if (base_path == "/v1" || base_path.ends_with("/v1"))
+        && (raw_suffix == "v1" || raw_suffix.starts_with("v1/"))
+    {
+        raw_suffix
+            .strip_prefix("v1")
+            .unwrap_or(raw_suffix)
+            .trim_start_matches('/')
+    } else {
+        raw_suffix
+    };
     let combined_path = if base_path.is_empty() || base_path == "/" {
         format!("/{}", suffix)
     } else if suffix.is_empty() {
@@ -158,14 +168,14 @@ fn is_minimax_responses_request(base_url: &str, supplier_name: Option<&str>, pat
         .is_some_and(|host| host == "minimax.io" || host.ends_with(".minimax.io"))
 }
 
-fn normalize_minimax_text_content(value: &mut Value) -> bool {
+fn minimax_text_content(value: &Value) -> Option<String> {
     let Some(items) = value.as_array() else {
-        return false;
+        return value.as_str().map(str::to_string);
     };
     let mut parts = Vec::new();
     for item in items {
         let Some(obj) = item.as_object() else {
-            return false;
+            return None;
         };
         let item_type = obj
             .get("type")
@@ -173,17 +183,60 @@ fn normalize_minimax_text_content(value: &mut Value) -> bool {
             .map(str::trim)
             .unwrap_or_default();
         if !matches!(item_type, "input_text" | "output_text" | "text") {
-            return false;
+            return None;
         }
         let Some(text) = obj.get("text").and_then(Value::as_str) else {
-            return false;
+            return None;
         };
         parts.push(text);
     }
     if parts.is_empty() {
+        return None;
+    }
+    Some(parts.join("\n"))
+}
+
+fn normalize_minimax_text_content(value: &mut Value) -> bool {
+    let Some(text) = minimax_text_content(value) else {
+        return false;
+    };
+    *value = Value::String(text);
+    true
+}
+
+fn minimax_input_item_text(value: &Value) -> Option<String> {
+    if let Some(text) = value.as_str() {
+        return Some(text.to_string());
+    }
+    let obj = value.as_object()?;
+    if obj
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .is_some_and(|item_type| matches!(item_type, "input_text" | "output_text" | "text"))
+    {
+        return obj.get("text").and_then(Value::as_str).map(str::to_string);
+    }
+    obj.get("content").and_then(minimax_text_content)
+}
+
+fn normalize_minimax_responses_input(input: &mut Value) -> bool {
+    let Some(items) = input.as_array() else {
+        return false;
+    };
+    let mut parts = Vec::new();
+    for item in items {
+        let Some(text) = minimax_input_item_text(item) else {
+            return false;
+        };
+        if !text.is_empty() {
+            parts.push(text);
+        }
+    }
+    if parts.is_empty() {
         return false;
     }
-    *value = Value::String(parts.join("\n"));
+    *input = Value::String(parts.join("\n\n"));
     true
 }
 
@@ -212,6 +265,9 @@ fn rewrite_minimax_responses_body(
                 }
             }
         }
+    }
+    if normalize_minimax_responses_input(input) {
+        changed = true;
     }
 
     if !changed {
