@@ -21,6 +21,10 @@ test("sidebar collapse avoids transitions that continuously reflow the active pa
   assert.doesNotMatch(source, /transition-\[clip-path\]/);
   assert.doesNotMatch(source, /will-change:clip-path/);
   assert.doesNotMatch(source, /app-sidebar-motion-(?:layer|surface)/);
+  assert.match(
+    source,
+    /data-slot="app-sidebar-motion-edge"[\s\S]{0,300}transition-transform/,
+  );
 });
 
 test("main content exposes a stable layout target for sidebar regression checks", async () => {

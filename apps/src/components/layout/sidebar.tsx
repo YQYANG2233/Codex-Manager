@@ -196,7 +196,7 @@ export function Sidebar() {
         )}
       >
         {isSidebarOpen ? (
-          <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+          <div className="animate-in px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70 fade-in slide-in-from-left-1 duration-200 motion-reduce:animate-none">
             {t(section.label)}
           </div>
         ) : null}
@@ -228,7 +228,16 @@ export function Sidebar() {
         isSidebarOpen ? "w-60" : "w-16"
       )}
     >
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-primary/45 to-transparent" />
+      <div
+        aria-hidden="true"
+        data-slot="app-sidebar-motion-edge"
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 z-20 w-px bg-gradient-to-b from-transparent via-primary/55 to-transparent transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none",
+          isSidebarOpen
+            ? "translate-x-[calc(15rem-1px)]"
+            : "translate-x-[calc(4rem-1px)]",
+        )}
+      />
       <div
         className={cn(
           "flex h-[76px] items-center border-b border-border/70 shrink-0",
@@ -259,7 +268,7 @@ export function Sidebar() {
             )}
           </div>
           {isSidebarOpen && (
-            <div className="flex flex-col overflow-hidden animate-in fade-in duration-300">
+            <div className="flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-1 duration-200 motion-reduce:animate-none">
               <span className="truncate text-sm font-semibold text-foreground">CodexManager</span>
               <span className="truncate font-mono text-[10px] uppercase text-primary/70">
                 Admin Console
