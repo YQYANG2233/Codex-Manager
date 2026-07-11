@@ -777,7 +777,7 @@ fn aggregate_passthrough_applies_model_reasoning_and_service_tier_overrides_with
     );
     assert_eq!(
         payload.get("service_tier").and_then(Value::as_str),
-        Some("priority")
+        Some("fast")
     );
     assert_eq!(model_for_log.as_deref(), Some("gpt-5.4"));
     assert_eq!(reasoning_for_log.as_deref(), Some("high"));
@@ -840,7 +840,7 @@ fn hybrid_passthrough_fallback_body_uses_aggregate_override_shape() {
     );
     assert_eq!(
         payload.get("service_tier").and_then(Value::as_str),
-        Some("priority")
+        Some("fast")
     );
     assert_eq!(payload.get("stream").and_then(Value::as_bool), Some(true));
 }
@@ -1437,7 +1437,7 @@ fn aggregate_passthrough_preserves_fast_service_tier_for_log_when_request_is_rew
 
     assert_eq!(
         payload.get("service_tier").and_then(Value::as_str),
-        Some("priority")
+        Some("Fast")
     );
     assert_eq!(model_for_log.as_deref(), Some("gpt-5.4"));
     assert_eq!(reasoning_for_log.as_deref(), Some("high"));
@@ -1446,7 +1446,7 @@ fn aggregate_passthrough_preserves_fast_service_tier_for_log_when_request_is_rew
 }
 
 #[test]
-fn codex_backend_passthrough_maps_fast_to_priority_but_keeps_fast_for_log() {
+fn deferred_passthrough_keeps_fast_until_codex_candidate_is_selected() {
     let mut api_key = sample_api_key(
         crate::apikey_profile::PROTOCOL_OPENAI_COMPAT,
         Some("gpt-5.4"),
@@ -1470,7 +1470,7 @@ fn codex_backend_passthrough_maps_fast_to_priority_but_keeps_fast_for_log() {
 
     assert_eq!(
         payload.get("service_tier").and_then(Value::as_str),
-        Some("priority")
+        Some("fast")
     );
     assert_eq!(request_meta.service_tier.as_deref(), Some("fast"));
     assert_eq!(model_for_log.as_deref(), Some("gpt-5.4"));

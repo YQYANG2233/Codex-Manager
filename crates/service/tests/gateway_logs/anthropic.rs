@@ -132,6 +132,15 @@ fn gateway_claude_protocol_rewrites_messages_path_with_sticky_prompt_cache_key()
     let second_payload: serde_json::Value =
         serde_json::from_slice(&second_body).expect("parse second upstream payload");
 
+    assert_eq!(
+        first_payload["instructions"],
+        "Follow the user's instructions."
+    );
+    assert_eq!(
+        second_payload["instructions"],
+        "Follow the user's instructions."
+    );
+
     assert_eq!(first.path, "/backend-api/codex/responses");
     assert_eq!(second.path, "/backend-api/codex/responses");
     let first_prompt_cache_key = first_payload
@@ -772,6 +781,10 @@ fn gateway_claude_protocol_end_to_end_uses_codex_headers() {
     let upstream_payload: serde_json::Value =
         serde_json::from_slice(&captured.body).expect("parse upstream payload");
     assert_eq!(upstream_payload["model"], "claude-3-5-sonnet-20241022");
+    assert_eq!(
+        upstream_payload["instructions"],
+        "Follow the user's instructions."
+    );
     assert_eq!(upstream_payload["stream"], true);
     assert_eq!(upstream_payload["input"][0]["type"], "message");
     assert_eq!(upstream_payload["input"][0]["role"], "user");

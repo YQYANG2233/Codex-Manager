@@ -1680,24 +1680,22 @@ fn apply_passthrough_request_overrides(
     let effective_model = model_override
         .map(str::to_string)
         .or(default_effective_model);
-    let rewritten_body =
-        super::super::apply_request_overrides_with_service_tier_and_prompt_cache_key_scope(
-            path,
-            body,
-            effective_model.as_deref(),
-            effective_reasoning.as_deref(),
-            effective_service_tier.as_deref(),
-            api_key.upstream_base_url.as_deref(),
-            None,
-            true,
-        );
-    let normalized = normalize_official_responses_body_snapshot(
-        transport_request_path(path).as_str(),
-        rewritten_body,
+    // Aggregate and hybrid fallback requests share this body across candidates.
+    // Candidate-specific Codex transport rules are applied only inside the
+    // aggregate attempt loop after the actual upstream has been selected.
+    let rewritten_body = super::super::apply_request_overrides_for_deferred_aggregate(
+        path,
+        body,
+        effective_model.as_deref(),
+        effective_reasoning.as_deref(),
+        effective_service_tier.as_deref(),
     );
-    let request_meta = normalized.metadata;
+    let request_meta = super::super::parse_request_json_value(&rewritten_body)
+        .as_ref()
+        .map(super::super::parse_request_metadata_from_value)
+        .unwrap_or_default();
     (
-        normalized.body,
+        rewritten_body,
         request_meta.model.or(api_key.model_slug.clone()),
         request_meta
             .reasoning_effort
