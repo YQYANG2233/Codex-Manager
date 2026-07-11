@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use rusqlite::{params, Connection, OptionalExtension, Result, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
-use super::{now_ts, ModelPriceTierV2, Storage};
+use super::{now_ts, ModelGroupAccess, ModelGroupModel, ModelPriceTierV2, Storage};
 
 const MIGRATION_VERSION: &str = "112_model_catalog_v2";
 const DEFAULT_MODEL_GROUP_ID: &str = "mg_default";
@@ -145,35 +146,29 @@ fn clean_optional(value: Option<String>) -> Option<String> {
     value.filter(|value| !value.trim().is_empty())
 }
 
-fn stable_id_part(value: &str) -> String {
-    value
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
+fn stable_hash(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    digest
+        .iter()
+        .take(12)
+        .map(|byte| format!("{byte:02x}"))
         .collect()
 }
 
 fn builtin_id(slug: &str) -> String {
-    format!("builtin:{}", stable_id_part(slug))
+    format!("builtin:{}", slug.trim().to_ascii_lowercase())
 }
 
 fn custom_id(slug: &str) -> String {
-    format!("custom:{}", stable_id_part(slug))
+    format!("custom:{}", stable_hash(&slug.trim().to_ascii_lowercase()))
 }
 
 fn route_id(model_id: &str, route: &ModelRouteV2) -> String {
-    format!(
-        "route:{}:{}:{}:{}",
-        stable_id_part(model_id),
-        stable_id_part(&route.source_kind),
-        stable_id_part(&route.source_id),
-        stable_id_part(&route.upstream_model)
-    )
+    let identity = format!(
+        "{model_id}\0{}\0{}\0{}",
+        route.source_kind, route.source_id, route.upstream_model
+    );
+    format!("route:{}", stable_hash(&identity))
 }
 
 fn validate_price(model: &ManagedModelV2) -> Result<()> {
@@ -497,7 +492,7 @@ fn migrate_legacy_catalog(conn: &Connection) -> Result<()> {
         "SELECT slug,display_name,source_kind,user_edited,description,default_reasoning_level,
                 visibility,supported_in_api,context_window,extra_json,sort_index,updated_at
          FROM model_catalog_models
-         WHERE TRIM(slug) <> ''
+         WHERE scope='default' AND TRIM(slug) <> ''
          ORDER BY sort_index ASC,slug ASC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -582,8 +577,11 @@ fn migrate_legacy_catalog(conn: &Connection) -> Result<()> {
                sort_order,context_window,max_context_window,default_reasoning_effort,
                capabilities_json,instructions_mode,instructions_text,builtin_revision,user_edited,
                created_at,updated_at
-             ) VALUES (?1,?2,?3,?4,'custom',1,?5,?6,?7,?8,?8,?9,?10,'passthrough',NULL,NULL,1,?11,?11)",
-            params![id, slug, display_name, description, supported.unwrap_or(true), if matches!(visibility.as_deref(), Some("hide" | "hidden")) { "hide" } else { "list" }, sort, context, reasoning, capabilities.to_string(), updated_at],
+             ) VALUES (?1,?2,?3,?4,'custom',?5,?6,?7,?8,?9,?9,?10,?11,'passthrough',NULL,NULL,1,?12,?12)",
+            params![id, slug, display_name, description,
+                !matches!(visibility.as_deref(), Some("disabled" | "unavailable")),
+                supported.unwrap_or(true), if matches!(visibility.as_deref(), Some("hide" | "hidden")) { "hide" } else { "list" },
+                sort, context, reasoning, capabilities.to_string(), updated_at],
         )?;
         conn.execute(
             "INSERT INTO model_prices(model_id,currency,price_status,created_at,updated_at)
@@ -612,7 +610,7 @@ fn migrate_legacy_prices(conn: &Connection) -> Result<()> {
                 long_context_cached_input_price_per_1m,long_context_output_price_per_1m,
                 source,updated_at
          FROM model_price_rules
-         WHERE enabled=1 AND match_type='exact'
+         WHERE enabled=1 AND match_type='exact' AND source='custom'
          ORDER BY priority ASC,updated_at ASC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -697,8 +695,19 @@ fn migrate_legacy_prices(conn: &Connection) -> Result<()> {
 fn migrate_legacy_routes(conn: &Connection) -> Result<()> {
     let now = now_ts();
     let mut stmt = conn.prepare(
-        "SELECT platform_model_slug,source_kind,source_id,upstream_model,enabled,priority,weight
-         FROM model_source_mappings WHERE enabled=1 ORDER BY priority DESC,id ASC",
+        "SELECT r.platform_model_slug,r.source_kind,r.source_id,r.upstream_model,
+                r.enabled,r.priority,r.weight
+         FROM model_source_mappings r
+         JOIN aggregate_apis a ON a.id=r.source_id
+         LEFT JOIN model_source_mapping_preferences pref
+           ON pref.source_kind=r.source_kind AND pref.source_id=r.source_id
+          AND pref.upstream_model=r.upstream_model
+         WHERE r.enabled=1 AND r.source_kind='aggregate_api' AND pref.preference IS NULL
+           AND (r.upstream_model<>r.platform_model_slug OR r.priority<>0 OR r.weight<>1
+             OR EXISTS(SELECT 1 FROM quota_source_model_assignments q
+                       WHERE q.source_kind=r.source_kind AND q.source_id=r.source_id
+                         AND q.model_slug=r.platform_model_slug))
+         ORDER BY r.priority DESC,r.id ASC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok((
@@ -1116,21 +1125,154 @@ impl Storage {
             .collect()
     }
 
-    pub fn resolve_model_group_rate_v2(
+    pub fn list_model_group_models_v2(&self) -> Result<Vec<ModelGroupModel>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT gm.group_id,m.slug,gm.enabled,gm.rate_multiplier_millis,
+                    gm.created_at,gm.updated_at
+             FROM model_group_models_v2 gm JOIN models m ON m.id=gm.model_id
+             ORDER BY gm.group_id ASC,m.slug ASC",
+        )?;
+        stmt.query_map([], |row| {
+            Ok(ModelGroupModel {
+                group_id: row.get(0)?,
+                platform_model_slug: row.get(1)?,
+                enabled: row.get::<_, i64>(2)? != 0,
+                rate_multiplier_millis: row.get(3)?,
+                billing_model_slug: None,
+                note: Some("model_catalog_v2".to_string()),
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })?
+        .collect()
+    }
+
+    pub fn replace_model_group_models_v2(
+        &self,
+        group_id: &str,
+        models: &[ModelGroupModel],
+    ) -> Result<()> {
+        let is_default = self.conn.query_row(
+            "SELECT is_default FROM model_groups WHERE id=?1",
+            [group_id],
+            |row| row.get::<_, i64>(0),
+        )? != 0;
+        if is_default && !models.is_empty() {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "default model group uses all_enabled_models and cannot store explicit models"
+                    .to_string(),
+            ));
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM model_group_models_v2 WHERE group_id=?1",
+            [group_id],
+        )?;
+        for model in models {
+            let (model_id, price_status) = tx.query_row(
+                "SELECT m.id,p.price_status FROM models m JOIN model_prices p ON p.model_id=m.id
+                 WHERE m.slug=?1 COLLATE NOCASE AND m.enabled=1 AND m.supported_in_api=1",
+                [model.platform_model_slug.as_str()],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )?;
+            if price_status == "missing" {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "model_price_missing: {}",
+                    model.platform_model_slug
+                )));
+            }
+            tx.execute(
+                "INSERT INTO model_group_models_v2(group_id,model_id,enabled,
+                   rate_multiplier_millis,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6)",
+                params![
+                    group_id,
+                    model_id,
+                    model.enabled,
+                    model.rate_multiplier_millis,
+                    model.created_at,
+                    model.updated_at
+                ],
+            )?;
+        }
+        tx.commit()
+    }
+
+    pub fn resolve_model_group_access_for_user_v2(
         &self,
         user_id: &str,
         slug: &str,
         now: i64,
-    ) -> Result<Option<i64>> {
-        self.conn.query_row(
-            "SELECT MIN(COALESCE(gm.rate_multiplier_millis,g.rate_multiplier_millis))
+    ) -> Result<Option<ModelGroupAccess>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT g.id,g.name,m.slug,g.rate_multiplier_millis,gm.rate_multiplier_millis
              FROM user_model_groups u JOIN model_groups g ON g.id=u.group_id
              JOIN models m ON m.slug=?2 COLLATE NOCASE AND m.enabled=1 AND m.supported_in_api=1
              JOIN model_prices p ON p.model_id=m.id
              LEFT JOIN model_group_models_v2 gm ON gm.group_id=g.id AND gm.model_id=m.id AND gm.enabled=1
              WHERE u.user_id=?1 AND u.status='active' AND (u.expires_at IS NULL OR u.expires_at>?3)
                AND g.status='active' AND ((g.is_default=1) OR (gm.model_id IS NOT NULL AND p.price_status<>'missing'))",
-            params![user_id,slug.trim(),now],|row| row.get(0)).optional().map(Option::flatten)
+        )?;
+        let rows = stmt.query_map(params![user_id, slug.trim(), now], |row| {
+            let group_rate = row.get::<_, i64>(3)?.max(0);
+            let model_rate = row.get::<_, Option<i64>>(4)?.unwrap_or(1_000).max(0);
+            let effective = i128::from(group_rate) * i128::from(model_rate) / 1_000;
+            Ok(ModelGroupAccess {
+                group_id: row.get(0)?,
+                group_name: row.get(1)?,
+                platform_model_slug: row.get(2)?,
+                rate_multiplier_millis: i64::try_from(effective).map_err(|_| {
+                    rusqlite::Error::InvalidParameterName(
+                        "model group multiplier exceeds SQLite INTEGER range".to_string(),
+                    )
+                })?,
+                billing_model_slug: None,
+            })
+        })?;
+        let mut best = None;
+        for row in rows {
+            let access = row?;
+            if best.as_ref().is_none_or(|current: &ModelGroupAccess| {
+                access.rate_multiplier_millis < current.rate_multiplier_millis
+            }) {
+                best = Some(access);
+            }
+        }
+        Ok(best)
+    }
+
+    pub fn resolve_model_group_rate_v2(
+        &self,
+        user_id: &str,
+        slug: &str,
+        now: i64,
+    ) -> Result<Option<i64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT g.rate_multiplier_millis,gm.rate_multiplier_millis
+             FROM user_model_groups u JOIN model_groups g ON g.id=u.group_id
+             JOIN models m ON m.slug=?2 COLLATE NOCASE AND m.enabled=1 AND m.supported_in_api=1
+             JOIN model_prices p ON p.model_id=m.id
+             LEFT JOIN model_group_models_v2 gm ON gm.group_id=g.id AND gm.model_id=m.id AND gm.enabled=1
+             WHERE u.user_id=?1 AND u.status='active' AND (u.expires_at IS NULL OR u.expires_at>?3)
+               AND g.status='active' AND ((g.is_default=1) OR (gm.model_id IS NOT NULL AND p.price_status<>'missing'))",
+        )?;
+        let rows = stmt.query_map(params![user_id, slug.trim(), now], |row| {
+            let group_rate = row.get::<_, i64>(0)?.max(0);
+            let model_rate = row.get::<_, Option<i64>>(1)?.unwrap_or(1_000).max(0);
+            let effective = i128::from(group_rate) * i128::from(model_rate) / 1_000;
+            i64::try_from(effective).map_err(|_| {
+                rusqlite::Error::InvalidParameterName(
+                    "model group multiplier exceeds SQLite INTEGER range".to_string(),
+                )
+            })
+        })?;
+        let mut best = None;
+        for row in rows {
+            let rate = row?;
+            if best.is_none_or(|current| rate < current) {
+                best = Some(rate);
+            }
+        }
+        Ok(best)
     }
 }
 

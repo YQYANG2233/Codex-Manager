@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{Seek, SeekFrom, Write};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::{Condvar, Mutex, MutexGuard, OnceLock};
@@ -25,18 +25,16 @@ const MODEL_CATALOG_V2_MIGRATION: &str = "112_model_catalog_v2";
 
 struct ModelCatalogMigrationLock {
     path: PathBuf,
-    _file: File,
+    file: File,
 }
 
 impl Drop for ModelCatalogMigrationLock {
     fn drop(&mut self) {
-        if let Err(err) = fs::remove_file(&self.path) {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                log::warn!(
-                    "remove model catalog migration lock failed: {} ({err})",
-                    self.path.display()
-                );
-            }
+        if let Err(err) = self.file.unlock() {
+            log::warn!(
+                "unlock model catalog migration lock failed: {} ({err})",
+                self.path.display()
+            );
         }
     }
 }
@@ -527,22 +525,27 @@ fn acquire_model_catalog_migration_lock(
         })?;
     }
     let mut file = OpenOptions::new()
+        .read(true)
         .write(true)
-        .create_new(true)
+        .create(true)
+        .truncate(false)
         .open(&lock_path)
         .map_err(|err| {
-            if err.kind() == std::io::ErrorKind::AlreadyExists {
-                format!(
-                    "model catalog migration lock is held by another process: {}",
-                    lock_path.display()
-                )
-            } else {
-                format!(
-                    "create model catalog migration lock failed ({}): {err}",
-                    lock_path.display()
-                )
-            }
+            format!(
+                "open model catalog migration lock failed ({}): {err}",
+                lock_path.display()
+            )
         })?;
+    file.try_lock().map_err(|err| {
+        format!(
+            "model catalog migration lock is held by another process ({}): {err}",
+            lock_path.display()
+        )
+    })?;
+    file.set_len(0)
+        .map_err(|err| format!("truncate model catalog migration lock failed: {err}"))?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|err| format!("seek model catalog migration lock failed: {err}"))?;
     writeln!(
         file,
         "pid={} started_at={}",
@@ -554,7 +557,7 @@ fn acquire_model_catalog_migration_lock(
         .map_err(|err| format!("sync model catalog migration lock failed: {err}"))?;
     Ok(ModelCatalogMigrationLock {
         path: lock_path,
-        _file: file,
+        file,
     })
 }
 

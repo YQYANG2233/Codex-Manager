@@ -1563,7 +1563,9 @@ impl Storage {
             include_str!("../../migrations/048_drop_model_options_cache.sql"),
         )?;
         self.apply_model_catalog_string_items_migration()?;
-        self.ensure_model_catalog_models_table()?;
+        if !self.has_migration("112_model_catalog_v2")? {
+            self.ensure_model_catalog_models_table()?;
+        }
         self.apply_sql_migration(
             "050_api_key_profiles_drop_azure_protocol",
             include_str!("../../migrations/050_api_key_profiles_drop_azure_protocol.sql"),
@@ -1858,11 +1860,9 @@ impl Storage {
         self.apply_model_catalog_v2_migration()?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
-        self.ensure_aggregate_api_supplier_model_tables()?;
         self.ensure_aggregate_api_secrets_table()?;
         self.ensure_aggregate_api_balance_secrets_table()?;
         self.ensure_api_key_quota_limits_table()?;
-        self.ensure_model_price_rules_table()?;
         self.ensure_request_token_stats_table()?;
         self.ensure_request_log_request_type_and_service_tier_columns()?;
         self.ensure_request_log_effective_service_tier_column()?;
@@ -1871,13 +1871,9 @@ impl Storage {
         self.ensure_request_log_route_strategy_columns()?;
         self.ensure_request_log_first_response_column()?;
         self.ensure_request_log_route_detail_columns()?;
-        self.ensure_model_catalog_models_table()?;
         self.ensure_account_subscriptions_table()?;
         self.ensure_quota_pool_tables()?;
         self.ensure_account_manager_tables()?;
-        self.ensure_model_source_tables()?;
-        self.ensure_aggregate_api_supplier_model_tables()?;
-        self.ensure_model_group_tables()?;
         self.seed_missing_builtin_models_v2()?;
         Ok(())
     }

@@ -2178,6 +2178,7 @@ dependencies = [
 name = "rusqlite"
 version = "0.31.0"
 dependencies = [
+ "libsqlite3-sys",
  "sqlx",
  "tokio",
  "url",
