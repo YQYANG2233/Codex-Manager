@@ -141,8 +141,13 @@ pub(crate) fn build_codex_upstream_headers(
             residency_requirement,
         ));
     }
-    if let Some(client_request_id) = resolve_client_request_id(input.incoming_client_request_id) {
-        headers.push(("x-client-request-id".to_string(), client_request_id));
+    let resolved_client_request_id = resolve_client_request_id(input.incoming_client_request_id);
+    if let Some(client_request_id) = resolved_client_request_id.as_deref() {
+        headers.push((
+            "x-client-request-id".to_string(),
+            client_request_id.to_string(),
+        ));
+        headers.push(("thread-id".to_string(), client_request_id.to_string()));
     }
     if let Some(subagent) = input
         .incoming_subagent
@@ -217,7 +222,7 @@ pub(crate) fn build_codex_upstream_headers(
         input.strip_session_affinity,
     );
     if let Some(session_id) = resolved_session_id.as_deref() {
-        headers.push(("session_id".to_string(), session_id.to_string()));
+        headers.push(("session-id".to_string(), session_id.to_string()));
     }
     if let Some(window_id) = resolve_window_id(
         input.incoming_window_id,
@@ -328,10 +333,10 @@ pub(crate) fn build_codex_compact_upstream_headers(
         input.strip_session_affinity,
     );
     if let Some(session_id) = resolved_session_id.clone() {
-        headers.push(("session_id".to_string(), session_id));
+        headers.push(("session-id".to_string(), session_id));
     }
     if let Some(thread_id) = normalize_non_empty(input.thread_id) {
-        headers.push(("thread_id".to_string(), thread_id.to_string()));
+        headers.push(("thread-id".to_string(), thread_id.to_string()));
     }
     if let Some(window_id) = resolve_window_id(
         input.incoming_window_id,

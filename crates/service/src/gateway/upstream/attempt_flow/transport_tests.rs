@@ -333,6 +333,8 @@ fn gemini_codex_compat_header_profile_matches_cpa_executor_shape() {
             "parent-thread".to_string(),
         ),
         ("x-openai-subagent".to_string(), "subagent".to_string()),
+        ("session-id".to_string(), "session-current".to_string()),
+        ("thread-id".to_string(), "thread-current".to_string()),
     ];
 
     apply_gemini_codex_compat_header_profile(&mut headers, None);
@@ -347,6 +349,8 @@ fn gemini_codex_compat_header_profile_matches_cpa_executor_shape() {
     assert_eq!(header_value(&headers, "x-codex-turn-state"), None);
     assert_eq!(header_value(&headers, "x-codex-parent-thread-id"), None);
     assert_eq!(header_value(&headers, "x-openai-subagent"), None);
+    assert_eq!(header_value(&headers, "session-id"), None);
+    assert_eq!(header_value(&headers, "thread-id"), None);
     assert_eq!(header_value(&headers, "session_id").map(str::len), Some(36));
 }
 

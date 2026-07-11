@@ -188,9 +188,15 @@ fn build_codex_upstream_headers_keeps_final_affinity_shape() {
         Some("conversation-anchor")
     );
     assert_eq!(
-        header_value(&headers, "session_id"),
+        header_value(&headers, "session-id"),
         Some("conversation-anchor")
     );
+    assert_eq!(
+        header_value(&headers, "thread-id"),
+        Some("conversation-anchor")
+    );
+    assert_eq!(header_value(&headers, "session_id"), None);
+    assert_eq!(header_value(&headers, "thread_id"), None);
     assert_eq!(
         header_value(&headers, "x-codex-window-id"),
         Some("conversation-anchor:7")
@@ -257,7 +263,11 @@ fn build_codex_upstream_headers_clears_turn_state_when_affinity_diverges() {
         Some("conversation-anchor")
     );
     assert_eq!(
-        header_value(&headers, "session_id"),
+        header_value(&headers, "session-id"),
+        Some("conversation-anchor")
+    );
+    assert_eq!(
+        header_value(&headers, "thread-id"),
         Some("conversation-anchor")
     );
     assert_eq!(
@@ -327,10 +337,12 @@ fn build_codex_compact_upstream_headers_use_session_fallback_only() {
     );
     assert_eq!(header_value(&headers, "x-client-request-id"), None);
     assert_eq!(
-        header_value(&headers, "session_id"),
+        header_value(&headers, "session-id"),
         Some("conversation-anchor")
     );
-    assert_eq!(header_value(&headers, "thread_id"), Some("thread-anchor-c"));
+    assert_eq!(header_value(&headers, "thread-id"), Some("thread-anchor-c"));
+    assert_eq!(header_value(&headers, "session_id"), None);
+    assert_eq!(header_value(&headers, "thread_id"), None);
     assert_eq!(
         header_value(&headers, "x-codex-window-id"),
         Some("conversation-anchor:0")
@@ -383,7 +395,8 @@ fn build_codex_upstream_headers_rebuilds_mismatched_window_id_from_session() {
         has_body: true,
     });
 
-    assert_eq!(header_value(&headers, "session_id"), Some("session-anchor"));
+    assert_eq!(header_value(&headers, "session-id"), Some("session-anchor"));
+    assert_eq!(header_value(&headers, "thread-id"), Some("request-anchor"));
     assert_eq!(
         header_value(&headers, "x-codex-window-id"),
         Some("session-anchor:0")
@@ -486,5 +499,5 @@ fn build_codex_compact_upstream_headers_omits_thread_id_when_missing() {
         has_body: false,
     });
 
-    assert_eq!(header_value(&headers, "thread_id"), None);
+    assert_eq!(header_value(&headers, "thread-id"), None);
 }

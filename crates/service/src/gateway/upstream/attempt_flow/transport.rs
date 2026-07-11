@@ -217,6 +217,8 @@ fn apply_gemini_codex_compat_header_profile(
     remove_header(headers, "x-codex-turn-state");
     remove_header(headers, "x-codex-parent-thread-id");
     remove_header(headers, "x-openai-subagent");
+    remove_header(headers, "session-id");
+    remove_header(headers, "thread-id");
     if !has_header(headers, "session_id") {
         headers.push(("Session_id".to_string(), random_cpa_session_id()));
     }
