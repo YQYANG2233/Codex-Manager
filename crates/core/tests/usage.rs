@@ -109,12 +109,13 @@ fn reset_credit_snapshot_parses_compatible_fields() {
         "credits": [
             { "creditId": "available", "state": "available", "expiresAt": future * 1000 },
             { "id": "expired", "expires_at": past },
-            { "id": "used", "status": "redeemed", "redeemed_at": past }
+            { "id": "used", "status": "redeemed", "redeemed_at": past },
+            { "id": "unknown", "status": "pending", "expires_at": future }
         ]
     }));
 
     assert_eq!(snapshot.available_count, Some(1));
-    assert_eq!(snapshot.credits.len(), 3);
+    assert_eq!(snapshot.credits.len(), 4);
     assert_eq!(snapshot.credits[0].id.as_deref(), Some("available"));
     assert_eq!(snapshot.credits[0].expires_at, Some(future));
     assert_eq!(snapshot.next_expires_at, Some(future));

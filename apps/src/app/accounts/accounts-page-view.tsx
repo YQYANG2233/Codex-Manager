@@ -22,6 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AddAccountModal } from "@/components/modals/add-account-modal";
+import { AccountResetCreditControl } from "@/components/account-reset-credit-control";
 import { ConfirmDialog } from "@/components/modals/confirm-dialog";
 import UsageModal from "@/components/modals/usage-modal";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -938,6 +939,10 @@ export function AccountsPageView(props: AccountsPageViewProps) {
                               {t("未设置账号容量覆盖")}
                             </span>
                           )}
+                          <AccountResetCreditControl
+                            account={account}
+                            disabled={!isServiceReady}
+                          />
                         </div>
                       </TableCell>
                       <TableCell>

@@ -123,6 +123,15 @@ test("createWebCommandMap 为批量账号排序提供 Web RPC 映射", () => {
   });
 });
 
+test("createWebCommandMap 为额度重置查询和消费提供 Web RPC 映射", () => {
+  assert.deepEqual(commandMap.service_usage_reset_credits, {
+    rpcMethod: "account/usage/resetCredits",
+  });
+  assert.deepEqual(commandMap.service_usage_reset_credit_consume, {
+    rpcMethod: "account/usage/resetCredit/consume",
+  });
+});
+
 test("createWebCommandMap 为 Codex profile 管理提供 Web RPC 映射", () => {
   assert.deepEqual(commandMap.service_codex_profile_get, {
     rpcMethod: "codexProfile/get",

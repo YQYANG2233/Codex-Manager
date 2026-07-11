@@ -292,13 +292,10 @@ fn reset_credit_is_available(credit: &ResetCredit, now: i64) -> bool {
         .status
         .as_deref()
         .or(credit.raw_status.as_deref())
-        .unwrap_or("available")
+        .unwrap_or("")
         .trim()
         .to_ascii_lowercase();
-    if matches!(
-        status.as_str(),
-        "redeemed" | "used" | "consumed" | "expired" | "revoked" | "invalid"
-    ) {
+    if status != "available" {
         return false;
     }
     credit
