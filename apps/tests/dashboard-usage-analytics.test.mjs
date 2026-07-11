@@ -35,7 +35,7 @@ test("模型曲线保留原日曲线回退并提供可访问交互", async () =>
 
   assert.match(
     pageSource,
-    /summary\.modelUsage\.length > 0[\s\S]*<AdminUsageTrendChart[\s\S]*<DailyTokenLineChart/,
+    /summary\.seriesUsage\.length > 0[\s\S]*<AdminUsageTrendChart[\s\S]*<DailyTokenLineChart/,
   );
   assert.match(chartSource, /type AdminUsageMetric = "tokens" \| "requests"/);
   assert.match(chartSource, /export type AdminUsageGranularity = "day" \| "hour"/);

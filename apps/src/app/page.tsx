@@ -756,7 +756,7 @@ function AdminUsageAnalyticsCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {summary.modelUsage.length > 0 ? (
+        {summary.seriesUsage.length > 0 ? (
           <AdminUsageTrendChart
             summary={summary}
             granularity={granularity}
