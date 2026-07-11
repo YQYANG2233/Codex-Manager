@@ -4,6 +4,7 @@ use codexmanager_core::rpc::types::{
     ManagedModelSourceMappingUpsertParams, ManagedModelSourceModelUpsertParams,
     ManagedModelSourceSyncParams, ModelsResponse,
 };
+use codexmanager_core::storage::{ManagedModelV2, ManagedModelV2Upsert, ModelCatalogV2Stats};
 
 use crate::RpcActor;
 use crate::{
@@ -38,11 +39,65 @@ fn allowed_model_slugs_for_actor(
     let storage =
         crate::storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
     let slugs = storage
-        .allowed_model_slugs_for_user(user_id, codexmanager_core::storage::now_ts())
+        .allowed_model_slugs_for_user_v2(user_id, codexmanager_core::storage::now_ts())
         .map_err(|err| format!("read allowed model groups failed: {err}"))?
         .into_iter()
         .collect();
     Ok(Some(slugs))
+}
+
+fn filter_models_v2_for_actor(
+    actor: &RpcActor,
+    mut result: crate::models_v2::ManagedModelListV2Result,
+) -> Result<crate::models_v2::ManagedModelListV2Result, String> {
+    let Some(allowed) = allowed_model_slugs_for_actor(actor)? else {
+        return Ok(result);
+    };
+    result
+        .items
+        .retain(|model| allowed.contains(model.slug.as_str()));
+    for model in &mut result.items {
+        model.routes.clear();
+        model.permission_group_ids.clear();
+        model.instructions_text = None;
+    }
+    result.stats = ModelCatalogV2Stats {
+        total: result.items.len() as i64,
+        enabled: result.items.iter().filter(|model| model.enabled).count() as i64,
+        builtin: result
+            .items
+            .iter()
+            .filter(|model| model.origin == "builtin")
+            .count() as i64,
+        custom: result
+            .items
+            .iter()
+            .filter(|model| model.origin == "custom")
+            .count() as i64,
+        price_missing: result
+            .items
+            .iter()
+            .filter(|model| model.price.price_status == "missing")
+            .count() as i64,
+        missing_route: 0,
+    };
+    Ok(result)
+}
+
+fn filter_model_v2_for_actor(
+    actor: &RpcActor,
+    mut model: ManagedModelV2,
+) -> Result<ManagedModelV2, String> {
+    let Some(allowed) = allowed_model_slugs_for_actor(actor)? else {
+        return Ok(model);
+    };
+    if !allowed.contains(model.slug.as_str()) {
+        return Err(super::permission_denied("apikey/managedModelGetV2"));
+    }
+    model.routes.clear();
+    model.permission_group_ids.clear();
+    model.instructions_text = None;
+    Ok(model)
 }
 
 fn filter_models_for_actor(
@@ -161,6 +216,84 @@ pub(super) fn try_handle(req: &JsonRpcRequest, actor: &RpcActor) -> Option<JsonR
                 ensure_api_key_access(actor, key_id)
                     .and_then(|_| apikey_read_secret::read_api_key_secret(key_id)),
             )
+        }
+        "apikey/managedModelListV2" => {
+            let include_hidden =
+                actor.is_admin() && super::bool_param(req, "includeHidden").unwrap_or(false);
+            super::value_or_error(
+                crate::models_v2::list(include_hidden)
+                    .and_then(|result| filter_models_v2_for_actor(actor, result)),
+            )
+        }
+        "apikey/managedModelGetV2" => {
+            let slug = super::str_param(req, "slug").unwrap_or("");
+            super::value_or_error(
+                crate::models_v2::get(slug)
+                    .and_then(|model| filter_model_v2_for_actor(actor, model)),
+            )
+        }
+        "apikey/managedModelUpsertV2" => {
+            if !actor.is_admin() {
+                super::value_or_error::<ManagedModelV2>(Err(super::permission_denied(
+                    "apikey/managedModelUpsertV2",
+                )))
+            } else {
+                let params = req
+                    .params
+                    .clone()
+                    .ok_or_else(|| "missing managed model V2 payload".to_string())
+                    .and_then(|value| {
+                        serde_json::from_value::<ManagedModelV2Upsert>(value)
+                            .map_err(|err| format!("parse managed model V2 payload failed: {err}"))
+                    });
+                super::value_or_error(params.and_then(crate::models_v2::upsert))
+            }
+        }
+        "apikey/managedModelDeleteV2" => {
+            if !actor.is_admin() {
+                super::ok_or_error(Err(super::permission_denied("apikey/managedModelDeleteV2")))
+            } else {
+                let slug = super::str_param(req, "slug").unwrap_or("");
+                super::ok_or_error(crate::models_v2::delete(slug))
+            }
+        }
+        "apikey/managedModelImportPreviewV2" => {
+            if !actor.is_admin() {
+                super::value_or_error::<crate::models_v2::ManagedModelImportPreviewV2Result>(Err(
+                    super::permission_denied("apikey/managedModelImportPreviewV2"),
+                ))
+            } else {
+                let params = req
+                    .params
+                    .clone()
+                    .ok_or_else(|| "missing model import preview payload".to_string())
+                    .and_then(|value| {
+                        serde_json::from_value::<
+                            crate::models_v2::ManagedModelImportPreviewV2Params,
+                        >(value)
+                        .map_err(|err| format!("parse model import preview payload failed: {err}"))
+                    });
+                super::value_or_error(params.and_then(crate::models_v2::preview_import))
+            }
+        }
+        "apikey/managedModelImportCommitV2" => {
+            if !actor.is_admin() {
+                super::value_or_error::<crate::models_v2::ManagedModelImportPreviewV2Result>(Err(
+                    super::permission_denied("apikey/managedModelImportCommitV2"),
+                ))
+            } else {
+                let params = req
+                    .params
+                    .clone()
+                    .ok_or_else(|| "missing model import commit payload".to_string())
+                    .and_then(|value| {
+                        serde_json::from_value::<
+                            crate::models_v2::ManagedModelImportCommitV2Params,
+                        >(value)
+                        .map_err(|err| format!("parse model import commit payload failed: {err}"))
+                    });
+                super::value_or_error(params.and_then(crate::models_v2::commit_import))
+            }
         }
         "apikey/models" => {
             let refresh_remote = super::bool_param(req, "refreshRemote").unwrap_or(false);

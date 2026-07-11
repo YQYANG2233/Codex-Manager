@@ -14,6 +14,7 @@ mod http;
 mod lifecycle;
 mod logging;
 mod model_groups;
+mod models_v2;
 mod plugin;
 mod quota;
 mod requestlog;

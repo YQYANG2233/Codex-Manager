@@ -35,9 +35,10 @@ const PREF_UNLINKED: &str = "unlinked";
 ///
 /// # 返回
 /// 返回函数执行结果
-pub(crate) fn read_model_options(refresh_remote: bool) -> Result<ModelsResponse, String> {
-    read_managed_model_catalog(refresh_remote)
-        .map(|catalog| managed_catalog_to_models_response(&catalog))
+pub(crate) fn read_model_options(_refresh_remote: bool) -> Result<ModelsResponse, String> {
+    let storage =
+        storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
+    crate::models_v2::models_response_with_storage(&storage)
 }
 
 pub(crate) fn save_model_options_with_storage(
@@ -64,55 +65,15 @@ pub(crate) fn save_model_options_with_storage(
 }
 
 pub(crate) fn read_model_options_from_storage(storage: &Storage) -> Result<ModelsResponse, String> {
-    read_managed_model_catalog_from_storage(storage)
-        .map(|catalog| managed_catalog_to_models_response(&catalog))
+    crate::models_v2::models_response_with_storage(storage)
 }
 
 pub(crate) fn read_managed_model_catalog(
-    refresh_remote: bool,
+    _refresh_remote: bool,
 ) -> Result<ManagedModelCatalogResult, String> {
     let storage =
         storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
-    let cached_catalog = read_managed_model_catalog_from_storage(&storage)?;
-    let should_fetch_remote = refresh_remote
-        || (!managed_catalog_has_catalog_text_model(&cached_catalog)
-            && crate::app_settings::current_gateway_model_catalog_auto_remote_fetch());
-    if !should_fetch_remote {
-        return Ok(cached_catalog);
-    }
-
-    match gateway::fetch_models_for_picker() {
-        Ok(models) => {
-            let models = normalize_models_response(models);
-            if !models_response_has_catalog_text_model(&models) {
-                if managed_catalog_has_catalog_text_model(&cached_catalog) {
-                    log::warn!(
-                        "event=model_catalog_refresh_ignored_empty_remote cached_models={}",
-                        cached_catalog.items.len()
-                    );
-                    return Ok(cached_catalog);
-                }
-                if refresh_remote {
-                    return Err("远端模型目录没有返回可用模型，已拒绝覆盖本地目录".to_string());
-                }
-            }
-            let merged_catalog = merge_managed_model_catalog(cached_catalog.clone(), models);
-            if !merged_catalog.items.is_empty() {
-                let _ = save_managed_model_catalog_with_storage(&storage, &merged_catalog);
-            }
-            Ok(merged_catalog)
-        }
-        Err(err) => {
-            if managed_catalog_has_catalog_text_model(&cached_catalog) {
-                return Ok(cached_catalog);
-            }
-            if refresh_remote {
-                Err(err)
-            } else {
-                Ok(ManagedModelCatalogResult::default())
-            }
-        }
-    }
+    read_managed_model_catalog_from_storage(&storage)
 }
 
 fn model_is_catalog_text_model(model: &ModelInfo) -> bool {
@@ -133,56 +94,22 @@ fn managed_catalog_has_catalog_text_model(catalog: &ManagedModelCatalogResult) -
 pub(crate) fn read_managed_model_catalog_from_storage(
     storage: &Storage,
 ) -> Result<ManagedModelCatalogResult, String> {
-    let snapshot = storage
-        .load_model_catalog_storage_snapshot(MODEL_CACHE_SCOPE_DEFAULT)
-        .map_err(|e| e.to_string())?;
-    let rows = snapshot.models;
-
-    if !rows.is_empty() {
-        let mut reasoning_by_slug = group_reasoning_levels_by_slug(snapshot.reasoning_levels);
-        let mut speed_tiers_by_slug = group_string_items_by_slug(snapshot.additional_speed_tiers);
-        let mut tools_by_slug = group_string_items_by_slug(snapshot.experimental_supported_tools);
-        let mut modalities_by_slug = group_string_items_by_slug(snapshot.input_modalities);
-        let mut plans_by_slug = group_string_items_by_slug(snapshot.available_in_plans);
-
-        let response_extra = snapshot
-            .scope
-            .as_ref()
-            .and_then(|record| parse_extra_json_map(Some(record.extra_json.as_str())))
-            .unwrap_or_default();
-
-        let mut rebuilt_items = Vec::new();
-        for row in rows.iter().cloned() {
-            let slug = row.slug.clone();
-            if let Some(item) = managed_catalog_entry_from_row(
-                row,
-                reasoning_by_slug.remove(&slug),
-                speed_tiers_by_slug.remove(&slug),
-                tools_by_slug.remove(&slug),
-                modalities_by_slug.remove(&slug),
-                plans_by_slug.remove(&slug),
-            ) {
-                rebuilt_items.push(item);
-            }
-        }
-
-        if !rebuilt_items.is_empty() {
-            let updated_at = rows
-                .iter()
-                .map(|row| row.updated_at)
-                .max()
-                .unwrap_or_else(now_ts);
-            let response = normalize_managed_model_catalog(ManagedModelCatalogResult {
-                items: rebuilt_items,
-                extra: response_extra,
-            });
-            if needs_structured_backfill(&rows, snapshot.scope.is_none()) {
-                let _ = save_managed_model_catalog_rows(storage, &response, updated_at);
-            }
-            return Ok(response);
-        }
-    }
-    Ok(ManagedModelCatalogResult::default())
+    let items = storage
+        .list_managed_models_v2(true)
+        .map_err(|err| format!("list managed models V2 failed: {err}"))?
+        .into_iter()
+        .map(|model| ManagedModelCatalogEntry {
+            model: crate::models_v2::model_info(&model),
+            source_kind: model.origin,
+            user_edited: model.user_edited,
+            sort_index: model.sort_order,
+            updated_at: model.updated_at,
+        })
+        .collect();
+    Ok(ManagedModelCatalogResult {
+        items,
+        extra: Default::default(),
+    })
 }
 
 pub(crate) fn save_managed_model_catalog_with_storage(
