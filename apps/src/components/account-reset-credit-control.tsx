@@ -135,7 +135,7 @@ export function AccountResetCreditControl({
       if (result.warning) {
         toast.warning(t("额度已重置，但最新用量同步失败，请稍后手动刷新"));
       } else {
-        toast.success(t("5 小时额度已重置"));
+        toast.success(t("5 小时和 7 天额度已重置"));
       }
       setOpen(false);
     } catch (consumeError) {
@@ -165,28 +165,49 @@ export function AccountResetCreditControl({
             variant="outline"
             size="sm"
             className={cn(
-              "h-6 gap-1 rounded-full px-2 text-[10px] font-medium shadow-none transition-colors",
+              "h-7 gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-all duration-200",
               buttonCount > 0
-                ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 hover:border-emerald-500/55 hover:bg-emerald-500/15 dark:text-emerald-300"
-                : "border-border/60 bg-background/40 text-muted-foreground",
+                ? "border-emerald-500/55 bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-cyan-500/20 text-emerald-800 shadow-[0_4px_14px_-8px_rgba(16,185,129,0.95)] hover:-translate-y-px hover:border-emerald-500/75 hover:from-emerald-500/30 hover:via-teal-500/25 hover:to-cyan-500/30 hover:text-emerald-900 hover:shadow-[0_6px_18px_-8px_rgba(16,185,129,1)] dark:text-emerald-200 dark:hover:text-emerald-100"
+                : "border-border/70 bg-background/55 text-muted-foreground shadow-sm hover:border-emerald-500/35 hover:bg-emerald-500/8",
             )}
             disabled={disabled}
             onClick={() => handleOpenChange(true)}
             aria-label={
               availableCount == null
-                ? t("重置额度，次数待核对")
-                : t("重置额度，可用 {count} 次", { count: availableCount })
+                ? t("重置 5 小时和 7 天额度，次数待核对")
+                : t("重置 5 小时和 7 天额度，可用 {count} 次", {
+                    count: availableCount,
+                  })
             }
           >
-            <RotateCcw className="h-3 w-3" />
-            {t("重置额度")} · {buttonCountLabel}
+            <span
+              className={cn(
+                "flex h-4 w-4 items-center justify-center rounded-full",
+                buttonCount > 0
+                  ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              <RotateCcw className="h-2.5 w-2.5" />
+            </span>
+            {t("重置 5h + 7d")}
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                buttonCount > 0
+                  ? "bg-emerald-600 text-white dark:bg-emerald-400 dark:text-emerald-950"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              {buttonCountLabel}
+            </span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
           {availableCount == null
             ? t("打开后实时核对可用次数和发放记录")
             : buttonCount > 0
-              ? t("可消耗一次重置券，立即恢复当前 5 小时额度")
+              ? t("可消耗一次重置券，同时恢复当前 5 小时和 7 天额度")
               : t("当前没有可用重置券，可查看发放记录")}
         </TooltipContent>
       </Tooltip>
@@ -198,9 +219,11 @@ export function AccountResetCreditControl({
               <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/12 text-emerald-600 shadow-sm dark:text-emerald-300">
                 <RotateCcw className="h-5 w-5" />
               </div>
-              <DialogTitle>{t("重置当前 5 小时额度")}</DialogTitle>
+              <DialogTitle>{t("重置当前 5 小时和 7 天额度")}</DialogTitle>
               <DialogDescription className="max-w-[48ch]">
-                {t("此操作会消耗 1 次重置券。提交成功后无法撤销，但不会影响周额度。")}
+                {t(
+                  "此操作会消耗 1 次重置券，并同时恢复当前 5 小时和 7 天额度。提交成功后无法撤销。",
+                )}
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -262,7 +285,7 @@ export function AccountResetCreditControl({
                       >
                         <div className="min-w-0">
                           <div className="truncate text-xs font-medium">
-                            {credit.resetType || t("5 小时额度重置券")}
+                            {credit.resetType || t("5 小时和 7 天额度重置券")}
                           </div>
                           <div className="mt-0.5 text-[10px] text-muted-foreground">
                             {t("到期：{time}", {

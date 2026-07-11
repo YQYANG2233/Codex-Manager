@@ -217,14 +217,21 @@ test("account reset-credit control verifies, confirms, consumes, and refreshes u
   await expect(page.getByRole("heading", { name: "OpenAI 账号池" })).toBeVisible();
 
   const resetButton = page.getByRole("button", {
-    name: "重置额度，可用 2 次",
+    name: "重置 5 小时和 7 天额度，可用 2 次",
   });
   await expect(resetButton).toBeVisible();
-  await expect(page.getByRole("button", { name: /重置额度/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /重置 5 小时和 7 天额度/ })).toHaveCount(1);
 
   await resetButton.click();
-  const dialog = page.getByRole("dialog", { name: "重置当前 5 小时额度" });
+  const dialog = page.getByRole("dialog", {
+    name: "重置当前 5 小时和 7 天额度",
+  });
   await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText(
+      "此操作会消耗 1 次重置券，并同时恢复当前 5 小时和 7 天额度。提交成功后无法撤销。",
+    ),
+  ).toBeVisible();
   await expect(dialog.getByText("Reset Credit Account")).toBeVisible();
   await expect(dialog.getByText("可用次数")).toBeVisible();
   await expect(dialog.getByText("2", { exact: true })).toBeVisible();
@@ -233,8 +240,10 @@ test("account reset-credit control verifies, confirms, consumes, and refreshes u
   await dialog.getByRole("button", { name: "消耗 1 次并重置" }).click();
   await expect.poll(() => consumeCount).toBe(1);
   expect(consumeParams.accountId).toBe("acct-reset-credit");
-  await expect(page.getByText("5 小时额度已重置")).toBeVisible();
+  await expect(page.getByText("5 小时和 7 天额度已重置")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "重置额度，可用 1 次" }),
+    page.getByRole("button", {
+      name: "重置 5 小时和 7 天额度，可用 1 次",
+    }),
   ).toBeVisible();
 });
