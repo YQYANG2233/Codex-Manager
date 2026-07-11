@@ -1,9 +1,10 @@
 use super::{
     AccountListResult, AccountSummary, ApiKeyUsageStatSummary, DashboardAdminUsageSummaryResult,
-    DashboardDailyUsagePoint, DashboardSourceUsageSummary, DashboardTokenUsageResult,
-    DashboardUserUsageSummary, ProxyProfileEntry, ProxyProfileListResult, ProxyProfileUrlTestEntry,
-    ProxyTestDefaults, ProxyTestFileSizePreset, ProxyTestPresetsResult,
-    ProxyTestProviderFilePreset, ProxyTestSpeedProviderPreset, ProxyTestUploadEndpointStatus,
+    DashboardDailyUsagePoint, DashboardModelUsageSeries, DashboardSourceUsageSummary,
+    DashboardTokenUsageResult, DashboardUsageSeriesPoint, DashboardUserUsageSummary,
+    ProxyProfileEntry, ProxyProfileListResult, ProxyProfileUrlTestEntry, ProxyTestDefaults,
+    ProxyTestFileSizePreset, ProxyTestPresetsResult, ProxyTestProviderFilePreset,
+    ProxyTestSpeedProviderPreset, ProxyTestUploadEndpointStatus,
     RequestLogFilterSummaryResult, RequestLogListParams, RequestLogListResult, RequestLogSummary,
 };
 
@@ -420,6 +421,21 @@ fn dashboard_admin_usage_summary_serialization_uses_camel_case() {
             day_end_ts: 1_700_086_400,
             usage: usage.clone(),
         }],
+        series_bucket_seconds: 3_600,
+        series_usage: vec![DashboardUsageSeriesPoint {
+            bucket_start_ts: 1_700_000_000,
+            bucket_end_ts: 1_700_003_600,
+            usage: usage.clone(),
+        }],
+        model_usage: vec![DashboardModelUsageSeries {
+            model: "gpt-5".to_string(),
+            usage: usage.clone(),
+            points: vec![DashboardUsageSeriesPoint {
+                bucket_start_ts: 1_700_000_000,
+                bucket_end_ts: 1_700_003_600,
+                usage: usage.clone(),
+            }],
+        }],
         users: vec![DashboardUserUsageSummary {
             user_id: "usr-1".to_string(),
             username: Some("member-one".to_string()),
@@ -459,6 +475,9 @@ fn dashboard_admin_usage_summary_serialization_uses_camel_case() {
         "todayEndTs",
         "todayUsage",
         "dailyUsage",
+        "seriesBucketSeconds",
+        "seriesUsage",
+        "modelUsage",
         "openaiAccounts",
         "aggregateApis",
     ] {
@@ -467,6 +486,8 @@ fn dashboard_admin_usage_summary_serialization_uses_camel_case() {
     assert!(obj["todayUsage"].get("inputTokens").is_some());
     assert!(obj["users"][0].get("walletAvailableCreditMicros").is_some());
     assert!(obj["openaiAccounts"][0].get("sourceKind").is_some());
+    assert!(obj["seriesUsage"][0].get("bucketStartTs").is_some());
+    assert_eq!(obj["modelUsage"][0]["model"], "gpt-5");
 }
 
 #[test]

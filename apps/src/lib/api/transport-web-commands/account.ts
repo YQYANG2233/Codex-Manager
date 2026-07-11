@@ -90,7 +90,14 @@ export function createAccountWebCommands(postWebRpc: WebRpcCaller): Record<strin
       rpcMethod: "dashboard/adminUsageSummary",
       mapParams: (params) => {
         const source = asRecord(params) ?? {};
-        return { startTs: source.start_ts ?? source.startTs, endTs: source.end_ts ?? source.endTs };
+        return {
+          startTs: source.start_ts ?? source.startTs,
+          endTs: source.end_ts ?? source.endTs,
+          includeBreakdowns: source.include_breakdowns ?? source.includeBreakdowns,
+          includeSeries: source.include_series ?? source.includeSeries,
+          seriesBucketSeconds:
+            source.series_bucket_seconds ?? source.seriesBucketSeconds,
+        };
       },
     },
     service_dashboard_member_summary: {

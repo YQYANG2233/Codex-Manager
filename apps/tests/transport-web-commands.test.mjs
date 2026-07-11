@@ -234,10 +234,22 @@ test("createWebCommandMap 为管理员用量分析提供 Web RPC 映射", () => 
   const summary = commandMap.service_dashboard_admin_usage_summary;
   assert.equal(summary.rpcMethod, "dashboard/adminUsageSummary");
   assert.ok(summary.mapParams);
-  assert.deepEqual(summary.mapParams({ start_ts: 100, end_ts: 200 }), {
-    startTs: 100,
-    endTs: 200,
-  });
+  assert.deepEqual(
+    summary.mapParams({
+      start_ts: 100,
+      end_ts: 200,
+      include_breakdowns: false,
+      include_series: true,
+      series_bucket_seconds: 3_600,
+    }),
+    {
+      startTs: 100,
+      endTs: 200,
+      includeBreakdowns: false,
+      includeSeries: true,
+      seriesBucketSeconds: 3_600,
+    },
+  );
 });
 
 test("createWebCommandMap 为模型目录 V2 原子命令提供 Web RPC 映射", () => {

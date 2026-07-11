@@ -845,6 +845,14 @@ pub struct DailyTokenUsageRollup {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct ModelTokenUsageRollup {
+    pub bucket_start_ts: i64,
+    pub bucket_end_ts: i64,
+    pub model: String,
+    pub usage: TokenUsageRollup,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct UserTokenUsageRollup {
     pub user_id: String,
     pub usage: TokenUsageRollup,
