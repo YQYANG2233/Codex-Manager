@@ -17,6 +17,8 @@ mod api_keys;
 mod conversation_bindings;
 mod events;
 mod key_id_filters;
+mod model_billing_v2;
+mod model_catalog_v2;
 mod model_groups;
 mod model_options;
 mod model_price_rules;
@@ -30,6 +32,13 @@ mod request_token_stats;
 mod settings;
 mod tokens;
 mod usage;
+
+pub use model_billing_v2::{
+    ChargeComputationV2, ChargeSnapshotInputV2, ChargeSnapshotV2, ModelPriceTierV2,
+};
+pub use model_catalog_v2::{
+    ManagedModelV2, ManagedModelV2Upsert, ModelCatalogV2Stats, ModelPriceV2, ModelRouteV2,
+};
 
 #[derive(Debug, Clone)]
 pub struct Account {
@@ -1266,7 +1275,7 @@ impl Storage {
         // 中文注释：并发写入时给 SQLite 一点等待时间，避免瞬时 lock 导致请求直接失败。
         conn.busy_timeout(Duration::from_millis(3000))?;
         // 中文注释：复杂筛选/聚合的临时 B-tree 优先走内存，减少报表查询落盘开销。
-        conn.execute_batch("PRAGMA temp_store=MEMORY;")?;
+        conn.execute_batch("PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON;")?;
         Ok(())
     }
 
@@ -1846,6 +1855,7 @@ impl Storage {
             "111_model_source_platform_slug_lookup_indexes",
             include_str!("../../migrations/111_model_source_platform_slug_lookup_indexes.sql"),
         )?;
+        self.apply_model_catalog_v2_migration()?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
         self.ensure_aggregate_api_supplier_model_tables()?;
@@ -1868,6 +1878,7 @@ impl Storage {
         self.ensure_model_source_tables()?;
         self.ensure_aggregate_api_supplier_model_tables()?;
         self.ensure_model_group_tables()?;
+        self.seed_missing_builtin_models_v2()?;
         Ok(())
     }
 
