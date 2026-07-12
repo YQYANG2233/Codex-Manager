@@ -206,6 +206,20 @@ fn gateway_reports_wallet_quota_exhaustion_in_chinese() {
             "usr_wallet_quota_exhausted",
         )
         .expect("ensure zero wallet");
+    storage
+        .replace_user_model_groups_for_group(
+            "mg_default",
+            &[UserModelGroup {
+                user_id: "usr_wallet_quota_exhausted".to_string(),
+                group_id: "mg_default".to_string(),
+                status: "active".to_string(),
+                expires_at: None,
+                created_at: now,
+                updated_at: now,
+            }],
+        )
+        .expect("assign default model group");
+    seed_model_catalog_models(&storage, &["gpt-5.3-codex"]);
 
     let server = TestServer::start();
     let req_body = r#"{"model":"gpt-5.3-codex","input":"hello"}"#;
@@ -295,8 +309,8 @@ fn gateway_reports_platform_model_route_errors() {
     server.join();
     assert_eq!(status, 503, "response body: {body}");
     assert!(
-        body.contains("model_unavailable"),
-        "gateway should report platform model without enabled mappings, got {body}"
+        body.contains("no_available_account"),
+        "gateway should report a routed model without available account candidates, got {body}"
     );
 }
 
@@ -617,6 +631,14 @@ fn gateway_aggregate_api_model_override_rewrites_minimax_responses_request() {
     storage
         .upsert_aggregate_api_secret(aggregate_id, "upstream-secret")
         .expect("insert aggregate secret");
+    seed_model_catalog_route(
+        &storage,
+        "gpt-5.4",
+        "aggregate_api",
+        aggregate_id,
+        "MiniMax-M3",
+        10,
+    );
     storage
         .upsert_model_source_model(&ModelSourceModel {
             source_kind: "aggregate_api".to_string(),
@@ -829,6 +851,22 @@ fn gateway_aggregate_codex_failover_to_minimax_isolates_candidate_request_bodies
             .upsert_aggregate_api_secret(aggregate_id, "upstream-secret")
             .expect("insert aggregate secret");
     }
+    seed_model_catalog_route(
+        &storage,
+        "gpt-5.4",
+        "aggregate_api",
+        codex_id,
+        "gpt-5.4",
+        20,
+    );
+    seed_model_catalog_route(
+        &storage,
+        "gpt-5.4",
+        "aggregate_api",
+        minimax_id,
+        "MiniMax-M3",
+        10,
+    );
 
     let platform_key = "pk_aggregate_codex_minimax_failover";
     storage

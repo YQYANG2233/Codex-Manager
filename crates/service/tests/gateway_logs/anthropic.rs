@@ -222,35 +222,14 @@ fn gateway_aggregate_messages_passthrough_accepts_message_stop_for_non_claude_pr
     storage
         .upsert_aggregate_api_secret(aggregate_id, "upstream-secret")
         .expect("insert aggregate secret");
-    storage
-        .upsert_model_source_model(&ModelSourceModel {
-            source_kind: "aggregate_api".to_string(),
-            source_id: aggregate_id.to_string(),
-            upstream_model: "claude-3-5-sonnet-20241022".to_string(),
-            display_name: Some("Claude 3.5 Sonnet".to_string()),
-            status: "available".to_string(),
-            discovery_kind: "manual".to_string(),
-            last_synced_at: Some(now),
-            extra_json: "{}".to_string(),
-            created_at: now,
-            updated_at: now,
-        })
-        .expect("insert aggregate source model");
-    storage
-        .upsert_model_source_mapping(&ModelSourceMapping {
-            id: "mapping_non_claude_messages_sse".to_string(),
-            platform_model_slug: "claude-3-5-sonnet-20241022".to_string(),
-            source_kind: "aggregate_api".to_string(),
-            source_id: aggregate_id.to_string(),
-            upstream_model: "claude-3-5-sonnet-20241022".to_string(),
-            enabled: true,
-            priority: 0,
-            weight: 1,
-            billing_model_slug: None,
-            created_at: now,
-            updated_at: now,
-        })
-        .expect("insert aggregate source mapping");
+    seed_model_catalog_route(
+        &storage,
+        "claude-3-5-sonnet-20241022",
+        "aggregate_api",
+        aggregate_id,
+        "claude-3-5-sonnet-20241022",
+        10,
+    );
 
     let platform_key = "pk_non_claude_messages_sse";
     storage
@@ -393,35 +372,14 @@ fn gateway_aggregate_responses_bridge_adds_anthropic_headers_and_messages_path()
     storage
         .upsert_aggregate_api_secret(aggregate_id, "upstream-secret")
         .expect("insert aggregate secret");
-    storage
-        .upsert_model_source_model(&ModelSourceModel {
-            source_kind: "aggregate_api".to_string(),
-            source_id: aggregate_id.to_string(),
-            upstream_model: "claude-3-5-sonnet-20241022".to_string(),
-            display_name: Some("Claude 3.5 Sonnet".to_string()),
-            status: "available".to_string(),
-            discovery_kind: "manual".to_string(),
-            last_synced_at: Some(now),
-            extra_json: "{}".to_string(),
-            created_at: now,
-            updated_at: now,
-        })
-        .expect("insert aggregate source model");
-    storage
-        .upsert_model_source_mapping(&ModelSourceMapping {
-            id: "mapping_claude_responses_bridge_headers".to_string(),
-            platform_model_slug: "claude-3-5-sonnet-20241022".to_string(),
-            source_kind: "aggregate_api".to_string(),
-            source_id: aggregate_id.to_string(),
-            upstream_model: "claude-3-5-sonnet-20241022".to_string(),
-            enabled: true,
-            priority: 0,
-            weight: 1,
-            billing_model_slug: None,
-            created_at: now,
-            updated_at: now,
-        })
-        .expect("insert aggregate source mapping");
+    seed_model_catalog_route(
+        &storage,
+        "claude-3-5-sonnet-20241022",
+        "aggregate_api",
+        aggregate_id,
+        "claude-3-5-sonnet-20241022",
+        10,
+    );
 
     let platform_key = "pk_claude_responses_bridge_headers";
     storage

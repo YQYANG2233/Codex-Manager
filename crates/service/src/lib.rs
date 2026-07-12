@@ -38,18 +38,14 @@ pub(crate) use account::status as account_status;
 pub(crate) use account::update as account_update;
 pub(crate) use account::warmup as account_warmup;
 pub(crate) use aggregate_api::{
-    create_aggregate_api, delete_aggregate_api, delete_aggregate_api_supplier_model,
-    discover_aggregate_api_models, import_aggregate_api_supplier_models,
-    list_aggregate_api_supplier_models, list_aggregate_apis, read_aggregate_api_secret,
-    refresh_aggregate_api_balance, save_aggregate_api_supplier_model,
-    test_aggregate_api_connection, update_aggregate_api,
+    create_aggregate_api, delete_aggregate_api, list_aggregate_apis, read_aggregate_api_secret,
+    refresh_aggregate_api_balance, test_aggregate_api_connection, update_aggregate_api,
 };
 pub(crate) use apikey::create as apikey_create;
 pub(crate) use apikey::delete as apikey_delete;
 pub(crate) use apikey::disable as apikey_disable;
 pub(crate) use apikey::enable as apikey_enable;
 pub(crate) use apikey::list as apikey_list;
-pub(crate) use apikey::models as apikey_models;
 pub(crate) use apikey::profile as apikey_profile;
 pub(crate) use apikey::read_secret as apikey_read_secret;
 pub(crate) use apikey::update_model as apikey_update_model;

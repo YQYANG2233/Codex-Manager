@@ -142,7 +142,7 @@ fn member_actor_cannot_call_admin_only_rpc() {
 }
 
 #[test]
-fn password_mode_can_call_admin_and_model_source_rpcs() {
+fn password_mode_can_call_admin_rpcs() {
     let _guard = test_env_guard();
     let db_path = setup_dashboard_test_db("codexmanager-password-model-source-rpc");
     set_web_access_password(Some("password123")).expect("set web password");
@@ -164,69 +164,37 @@ fn password_mode_can_call_admin_and_model_source_rpcs() {
         "password mode unexpectedly denied accountManager/users/list: {admin_err}"
     );
 
-    for (method, params) in [
-        (
-            "apikey/modelSourceSync",
-            serde_json::json!({ "sourceKind": "aggregate_api" }),
-        ),
-        (
-            "apikey/modelSourceModelSave",
-            serde_json::json!({
-                "sourceKind": "aggregate_api",
-                "sourceId": "ag_test",
-                "upstreamModel": "gpt-4o"
-            }),
-        ),
-        (
-            "apikey/modelSourceMappingSave",
-            serde_json::json!({
-                "platformModelSlug": "gpt-4o",
-                "sourceKind": "aggregate_api",
-                "sourceId": "ag_test",
-                "upstreamModel": "gpt-4o"
-            }),
-        ),
-        (
-            "apikey/modelSourceMappingDelete",
-            serde_json::json!({
-                "id": "map_test",
-                "sourceKind": "openai_account",
-                "sourceId": "acc_test",
-                "upstreamModel": "gpt-test",
-            }),
-        ),
-    ] {
-        let resp = response_result(handle_request_with_actor(
-            rpc_request(method, params),
-            actor.clone(),
-        ));
-        let err = rpc_error(&resp);
-        assert!(
-            !err.contains("permission_denied"),
-            "{method} unexpectedly denied: {err}"
-        );
-    }
-
     let _ = std::fs::remove_file(db_path);
 }
 
 #[test]
-fn password_mode_member_cannot_prune_stale_remote_catalog() {
+fn removed_legacy_model_rpcs_return_unknown_method() {
     let _guard = test_env_guard();
     let db_path = setup_dashboard_test_db("codexmanager-member-prune-stale-remote-denied");
     set_web_access_password(Some("password123")).expect("set web password");
     set_web_auth_mode("password").expect("enable password mode");
 
-    let resp = response_result(handle_request_with_actor(
-        rpc_request("apikey/modelCatalogPruneStaleRemote", serde_json::json!({})),
-        RpcActor::from_parts(Some(ROLE_MEMBER), Some("member-user")),
-    ));
-
-    assert!(
-        rpc_error(&resp).contains("permission_denied"),
-        "{:?}",
-        resp.result
-    );
+    for method in [
+        "apikey/modelCatalogPruneStaleRemote",
+        "apikey/modelSourceSync",
+        "apikey/modelSourceModelSave",
+        "apikey/modelSourceMappingSave",
+        "apikey/modelSourceMappingDelete",
+        "quota/modelPriceRule/upsert",
+        "aggregateApi/supplierModels/list",
+    ] {
+        let resp = handle_request_with_actor(
+            rpc_request(method, serde_json::json!({})),
+            RpcActor::from_parts(Some(ROLE_MEMBER), Some("member-user")),
+        );
+        match resp {
+            JsonRpcMessage::Error(err) => {
+                assert_eq!(err.error.code, -32601, "{method}");
+                assert_eq!(err.error.message, "unknown_method", "{method}");
+            }
+            other => panic!("{method}: expected unknown_method, got {other:?}"),
+        }
+    }
 
     let _ = std::fs::remove_file(db_path);
 }
@@ -638,7 +606,7 @@ fn startup_snapshot_can_skip_account_details_for_light_dashboard_reads() {
     let full_account = &full_resp.result["accounts"][0];
     assert_eq!(full_account["note"].as_str(), Some("note"));
     assert_eq!(full_account["subscriptionPlan"].as_str(), Some("plus"));
-    assert_eq!(full_account["modelSlugs"].as_array().map(Vec::len), Some(1));
+    assert_eq!(full_account["modelSlugs"].as_array().map(Vec::len), Some(0));
     assert_eq!(
         full_account["quotaCapacityPrimaryWindowTokens"].as_i64(),
         Some(100)

@@ -948,7 +948,10 @@ impl Storage {
         }
         let has_legacy_catalog = self.has_table("model_catalog_models")?;
         let has_legacy_prices = self.has_table("model_price_rules")?;
-        let has_legacy_routes = self.has_table("model_source_mappings")?;
+        let has_legacy_routes = self.has_table("model_source_mappings")?
+            && self.has_table("aggregate_apis")?
+            && self.has_table("model_source_mapping_preferences")?
+            && self.has_table("quota_source_model_assignments")?;
         let has_legacy_groups = self.has_table("model_group_models")?;
         let tx = self.conn.unchecked_transaction()?;
         tx.execute_batch(include_str!("../../migrations/112_model_catalog_v2.sql"))?;
@@ -1391,5 +1394,34 @@ mod tests {
             ])
             .unwrap_err();
         assert!(storage.get_managed_model_v2("ok-custom").unwrap().is_none());
+    }
+
+    #[test]
+    fn migration_ignores_incomplete_legacy_route_schema() {
+        let storage = Storage::open_in_memory().expect("open storage");
+        storage
+            .conn
+            .execute_batch(
+                "CREATE TABLE schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at INTEGER NOT NULL
+                 );
+                 CREATE TABLE model_groups (id TEXT PRIMARY KEY);
+                 CREATE TABLE request_logs (id INTEGER PRIMARY KEY);
+                 CREATE TABLE model_source_mappings (id TEXT PRIMARY KEY);",
+            )
+            .expect("create partial legacy schema");
+
+        storage
+            .apply_model_catalog_v2_migration()
+            .expect("migrate partial legacy schema");
+
+        assert_eq!(
+            storage
+                .list_managed_models_v2(true)
+                .expect("list migrated models")
+                .len(),
+            8
+        );
     }
 }

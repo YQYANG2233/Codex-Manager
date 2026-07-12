@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use codexmanager_core::rpc::types::{
     AccountQuotaCapacityOverrideResult, AccountQuotaCapacityTemplateResult, BillingRuleResult,
-    ModelPriceRuleEntry, ModelPriceRuleListResult, ModelPriceRuleUpsertInput,
     QuotaAggregateApiOverviewResult, QuotaApiKeyOverviewResult, QuotaBillingRulesResult,
     QuotaCapacityConfigResult, QuotaModelPoolItem, QuotaModelPoolsResult, QuotaModelUsageItem,
     QuotaModelUsageResult, QuotaOpenAiAccountOverviewResult, QuotaOverviewResult,
@@ -11,10 +10,10 @@ use codexmanager_core::rpc::types::{
     QuotaSystemPoolResult, QuotaTodayUsageResult,
 };
 use codexmanager_core::storage::{
-    now_ts, AccountQuotaCapacityOverride, AccountQuotaCapacityTemplate, AccountQuotaPoolSource,
+    AccountQuotaCapacityOverride, AccountQuotaCapacityTemplate, AccountQuotaPoolSource,
     AccountQuotaSourceSummary, AccountSubscription, AccountTokenPlan,
-    AggregateApiQuotaSourceSummary, BillingRule, ModelPriceRule, QuotaSourceModelAssignment,
-    Storage, UsageSnapshotQuotaSourceRow, UsageSnapshotRecord,
+    AggregateApiQuotaSourceSummary, BillingRule, Storage, UsageSnapshotQuotaSourceRow,
+    UsageSnapshotRecord,
 };
 use rand::RngCore;
 use serde_json::Value;
@@ -523,9 +522,8 @@ fn read_quota_capacity_config_with_storage(
 ) -> Result<QuotaCapacityConfigResult, String> {
     Ok(QuotaCapacityConfigResult {
         source_assignments: build_source_assignment_results(
-            storage
-                .list_quota_source_model_assignments()
-                .map_err(|err| format!("list quota source assignments failed: {err}"))?,
+            route_assignment_map(storage, None)
+                .map_err(|err| format!("list model catalog V2 routes failed: {err}"))?,
         ),
         templates: capacity_template_results_with_slots(
             storage
@@ -539,18 +537,6 @@ fn read_quota_capacity_config_with_storage(
             .map(override_result)
             .collect(),
     })
-}
-
-pub(crate) fn set_quota_source_models(
-    source_kind: &str,
-    source_id: &str,
-    model_slugs: Vec<String>,
-) -> Result<QuotaCapacityConfigResult, String> {
-    let mut storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
-    storage
-        .set_quota_source_model_assignments(source_kind, source_id, model_slugs.as_slice())
-        .map_err(|err| format!("set quota source model assignments failed: {err}"))?;
-    read_quota_capacity_config_with_storage(&storage)
 }
 
 pub(crate) fn update_account_quota_capacity_template(
@@ -589,10 +575,8 @@ pub(crate) fn read_quota_model_pools() -> Result<QuotaModelPoolsResult, String> 
     let storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
     let price_rules = model_pricing::load_catalog_prices(&storage)?;
     let api_models = api_available_model_slugs(&storage)?;
-    let assignments = assignment_map(
-        list_pool_source_model_assignments(&storage)
-            .map_err(|err| format!("list quota source assignments failed: {err}"))?,
-    );
+    let assignments = route_assignment_map(&storage, None)
+        .map_err(|err| format!("list model catalog V2 routes failed: {err}"))?;
     let capacity_config = load_account_capacity_config(&storage)?;
     let pools = build_model_pool_accumulators(
         &storage,
@@ -646,8 +630,8 @@ pub(crate) fn read_quota_system_pool(
         .map(ToString::to_string)
         .or_else(|| api_models.first().cloned())
         .unwrap_or_else(|| "unknown".to_string());
-    let assignments = target_model_assignment_map(&storage, reference_model.as_str())
-        .map_err(|err| format!("list quota source assignments failed: {err}"))?;
+    let assignments = route_assignment_map(&storage, Some(reference_model.as_str()))
+        .map_err(|err| format!("list model catalog V2 routes failed: {err}"))?;
     let target_models = HashSet::from([reference_model.clone()]);
     let capacity_config = load_account_capacity_config(&storage)?;
     let mut pools = build_model_pool_accumulators_for_models(
@@ -1099,16 +1083,9 @@ fn pool_to_model_item(model: String, pool: PoolAccumulator) -> QuotaModelPoolIte
 }
 
 fn build_source_assignment_results(
-    assignments: Vec<QuotaSourceModelAssignment>,
+    assignments: HashMap<(String, String), Vec<String>>,
 ) -> Vec<QuotaSourceModelAssignmentResult> {
-    let mut grouped = BTreeMap::<(String, String), Vec<String>>::new();
-    for assignment in assignments {
-        grouped
-            .entry((assignment.source_kind, assignment.source_id))
-            .or_default()
-            .push(assignment.model_slug);
-    }
-    grouped
+    let mut items = assignments
         .into_iter()
         .map(|((source_kind, source_id), mut model_slugs)| {
             model_slugs.sort();
@@ -1119,48 +1096,40 @@ fn build_source_assignment_results(
                 model_slugs,
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    items.sort_by(|left, right| {
+        left.source_kind
+            .cmp(&right.source_kind)
+            .then_with(|| left.source_id.cmp(&right.source_id))
+    });
+    items
 }
 
-fn list_pool_source_model_assignments(
+fn route_assignment_map(
     storage: &Storage,
-) -> rusqlite::Result<Vec<QuotaSourceModelAssignment>> {
-    let mut assignments = Vec::new();
-    assignments.extend(storage.list_quota_source_model_assignments_for_kind("aggregate_api")?);
-    assignments.extend(storage.list_quota_source_model_assignments_for_kind("openai_account")?);
-    Ok(assignments)
-}
-
-fn list_pool_source_model_assignments_for_sources(
-    storage: &Storage,
-    aggregate_api_ids: &[String],
-    account_ids: &[String],
-) -> rusqlite::Result<Vec<QuotaSourceModelAssignment>> {
-    let mut assignments = Vec::new();
-    assignments.extend(
-        storage
-            .list_quota_source_model_assignments_for_sources("aggregate_api", aggregate_api_ids)?,
-    );
-    assignments.extend(
-        storage.list_quota_source_model_assignments_for_sources("openai_account", account_ids)?,
-    );
-    Ok(assignments)
-}
-
-fn assignment_map(
-    assignments: Vec<QuotaSourceModelAssignment>,
-) -> HashMap<(String, String), Vec<String>> {
+    target_model: Option<&str>,
+) -> rusqlite::Result<HashMap<(String, String), Vec<String>>> {
     let mut grouped = HashMap::<(String, String), BTreeSet<String>>::new();
-    for assignment in assignments {
-        grouped
-            .entry((assignment.source_kind, assignment.source_id))
-            .or_default()
-            .insert(assignment.model_slug);
+    for model in storage.list_api_models_v2()? {
+        if target_model.is_some_and(|target| !model.slug.eq_ignore_ascii_case(target)) {
+            continue;
+        }
+        for route in model.routes.into_iter().filter(|route| route.enabled) {
+            let source_kind = match route.source_kind.as_str() {
+                "account_pool" => "openai_account",
+                "aggregate_api" => "aggregate_api",
+                _ => continue,
+            };
+            grouped
+                .entry((source_kind.to_string(), route.source_id))
+                .or_default()
+                .insert(model.slug.clone());
+        }
     }
-    grouped
+    Ok(grouped
         .into_iter()
         .map(|(key, values)| (key, values.into_iter().collect()))
-        .collect()
+        .collect())
 }
 
 fn load_account_capacity_config(storage: &Storage) -> Result<AccountCapacityConfig, String> {
@@ -1171,41 +1140,23 @@ fn load_account_capacity_config(storage: &Storage) -> Result<AccountCapacityConf
     })
 }
 
-fn target_model_assignment_map(
-    storage: &Storage,
-    model_slug: &str,
-) -> rusqlite::Result<HashMap<(String, String), Vec<String>>> {
-    let model_slug = model_slug.trim();
-    if model_slug.is_empty() {
-        return Ok(HashMap::new());
-    }
-
-    let mut assignments = assignment_map(vec![]);
-    for source_kind in ["aggregate_api", "openai_account"] {
-        for assignment in
-            storage.list_quota_source_model_assignment_targets_for_model(source_kind, model_slug)?
-        {
-            let models = assignments
-                .entry((assignment.source_kind, assignment.source_id))
-                .or_default();
-            if !assignment.model_slug.trim().is_empty() {
-                models.push(assignment.model_slug);
-            }
-        }
-    }
-    Ok(assignments)
-}
-
 fn source_models(
     source_kind: &str,
     source_id: &str,
     assignments: &HashMap<(String, String), Vec<String>>,
-    api_models: &[String],
+    _api_models: &[String],
 ) -> Vec<String> {
     assignments
         .get(&(source_kind.to_string(), source_id.to_string()))
+        .or_else(|| {
+            if source_kind == "openai_account" {
+                assignments.get(&("openai_account".to_string(), "default".to_string()))
+            } else {
+                None
+            }
+        })
         .cloned()
-        .unwrap_or_else(|| api_models.to_vec())
+        .unwrap_or_default()
 }
 
 fn api_available_model_slugs(
@@ -1382,18 +1333,12 @@ fn read_quota_source_list_with_storage(storage: &Storage) -> Result<QuotaSourceL
     let accounts = storage
         .list_account_quota_source_summaries()
         .map_err(|err| format!("list accounts failed: {err}"))?;
-    let aggregate_api_ids = aggregate_apis
-        .iter()
-        .map(|api| api.id.clone())
-        .collect::<Vec<_>>();
     let account_ids = accounts
         .iter()
         .map(|account| account.id.clone())
         .collect::<Vec<_>>();
-    let assignments = assignment_map(
-        list_pool_source_model_assignments_for_sources(storage, &aggregate_api_ids, &account_ids)
-            .map_err(|err| format!("list quota source assignments failed: {err}"))?,
-    );
+    let assignments = route_assignment_map(storage, None)
+        .map_err(|err| format!("list model catalog V2 routes failed: {err}"))?;
 
     for api in aggregate_apis {
         let balance = parse_quota_source_balance_snapshot(&api);
@@ -1512,107 +1457,6 @@ fn normalize_source_ids(source_ids: Vec<String>) -> Vec<String> {
     source_ids.sort();
     source_ids.dedup();
     source_ids
-}
-
-pub(crate) fn list_model_price_rules() -> Result<ModelPriceRuleListResult, String> {
-    let storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
-    let rules = storage
-        .list_enabled_model_price_rules()
-        .map_err(|err| format!("list model price rules failed: {err}"))?;
-    Ok(ModelPriceRuleListResult {
-        items: rules.into_iter().map(price_rule_entry).collect(),
-    })
-}
-
-pub(crate) fn read_model_price_rule(
-    model_pattern: &str,
-) -> Result<Option<ModelPriceRuleEntry>, String> {
-    let storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
-    storage
-        .find_enabled_custom_exact_model_price_rule(model_pattern)
-        .map_err(|err| format!("read model price rule failed: {err}"))
-        .map(|rule| rule.map(price_rule_entry))
-}
-
-pub(crate) fn upsert_model_price_rule(
-    input: ModelPriceRuleUpsertInput,
-) -> Result<ModelPriceRuleEntry, String> {
-    let storage = open_storage().ok_or_else(|| "open storage failed".to_string())?;
-    let now = now_ts();
-    let model_pattern = input.model_pattern.trim().to_string();
-    if model_pattern.is_empty() {
-        return Err("model_pattern 不能为空".to_string());
-    }
-    let id = input
-        .id
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| format!("user-{}", model_pattern));
-    let rule = ModelPriceRule {
-        id,
-        provider: input.provider.unwrap_or_else(|| {
-            crate::quota::model_pricing::infer_provider(&model_pattern).to_string()
-        }),
-        model_pattern,
-        match_type: input.match_type.unwrap_or_else(|| "exact".to_string()),
-        billing_mode: "standard".to_string(),
-        currency: "USD".to_string(),
-        unit: "per_1m_tokens".to_string(),
-        input_price_per_1m: input.input_price_per_1m,
-        cached_input_price_per_1m: input.cached_input_price_per_1m,
-        output_price_per_1m: input.output_price_per_1m,
-        reasoning_output_price_per_1m: None,
-        cache_write_5m_price_per_1m: None,
-        cache_write_1h_price_per_1m: None,
-        cache_hit_price_per_1m: None,
-        long_context_threshold_tokens: None,
-        long_context_input_price_per_1m: None,
-        long_context_cached_input_price_per_1m: None,
-        long_context_output_price_per_1m: None,
-        source: "custom".to_string(),
-        source_url: None,
-        seed_version: None,
-        enabled: input.enabled.unwrap_or(true),
-        priority: input.priority.unwrap_or(20000),
-        created_at: now,
-        updated_at: now,
-    };
-    if let Some(v) = rule.input_price_per_1m {
-        if !v.is_finite() || v < 0.0 {
-            return Err("input_price_per_1m 必须为非负有效数字".to_string());
-        }
-    }
-    if let Some(v) = rule.cached_input_price_per_1m {
-        if !v.is_finite() || v < 0.0 {
-            return Err("cached_input_price_per_1m 必须为非负有效数字".to_string());
-        }
-    }
-    if let Some(v) = rule.output_price_per_1m {
-        if !v.is_finite() || v < 0.0 {
-            return Err("output_price_per_1m 必须为非负有效数字".to_string());
-        }
-    }
-    storage
-        .upsert_model_price_rule(&rule)
-        .map_err(|err| format!("upsert model price rule failed: {err}"))?;
-    model_pricing::invalidate_price_rule_cache();
-    Ok(price_rule_entry(rule))
-}
-
-fn price_rule_entry(rule: ModelPriceRule) -> ModelPriceRuleEntry {
-    ModelPriceRuleEntry {
-        id: rule.id,
-        provider: rule.provider,
-        model_pattern: rule.model_pattern,
-        match_type: rule.match_type,
-        input_price_per_1m: rule.input_price_per_1m,
-        cached_input_price_per_1m: rule.cached_input_price_per_1m,
-        output_price_per_1m: rule.output_price_per_1m,
-        enabled: rule.enabled,
-        priority: rule.priority,
-        source: rule.source,
-        created_at: rule.created_at,
-        updated_at: rule.updated_at,
-    }
 }
 
 #[cfg(test)]

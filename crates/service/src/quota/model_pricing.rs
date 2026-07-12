@@ -185,10 +185,6 @@ pub(crate) fn estimate_remaining_tokens_from_usd_with_catalog(
     Some(((balance_usd / blended_price_per_1m) * 1_000_000.0).floor() as i64)
 }
 
-// Kept temporarily for callers removed by the one-shot V2 RPC cleanup. V2 prices are
-// read directly on every operation, so there is no runtime price cache to invalidate.
-pub(crate) fn invalidate_price_rule_cache() {}
-
 #[cfg(test)]
 #[path = "model_pricing_tests.rs"]
 mod tests;

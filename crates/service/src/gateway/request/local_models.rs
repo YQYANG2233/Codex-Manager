@@ -88,7 +88,7 @@ fn models_etag_header(models: &ModelsResponse) -> Result<Option<tiny_http::Heade
 fn read_cached_models_response(
     storage: &codexmanager_core::storage::Storage,
 ) -> Result<ModelsResponse, String> {
-    crate::apikey_models::read_model_options_from_storage(storage)
+    crate::models_v2::models_response_with_storage(storage)
 }
 
 /// 函数 `maybe_respond_local_models`

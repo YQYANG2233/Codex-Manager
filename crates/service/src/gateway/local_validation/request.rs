@@ -180,12 +180,12 @@ fn ensure_anthropic_model_is_listed(
         ));
     };
 
-    let models = crate::apikey_models::read_model_options_from_storage(storage).map_err(|err| {
+    let models = crate::models_v2::models_response_with_storage(storage).map_err(|err| {
         LocalValidationError::new(
             500,
             crate::gateway::bilingual_error(
-                "读取模型缓存失败",
-                format!("model options cache read failed: {err}"),
+                "读取模型目录 V2 失败",
+                format!("model catalog V2 read failed: {err}"),
             ),
         )
     })?;

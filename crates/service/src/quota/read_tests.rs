@@ -1,7 +1,7 @@
 use super::*;
 use codexmanager_core::storage::{
-    Account, AggregateApi, ApiKey, AppUser, QuotaSourceModelAssignment, RequestTokenStat, Storage,
-    UsageSnapshotRecord,
+    now_ts, Account, AggregateApi, ApiKey, AppUser, ManagedModelV2Upsert, ModelRouteV2,
+    RequestTokenStat, Storage, UsageSnapshotRecord,
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -293,22 +293,6 @@ fn quota_capacity_updates_return_config_from_same_storage_handle() {
         .insert_account(&account("acc-capacity", "active", now))
         .expect("insert account");
 
-    let assigned = set_quota_source_models(
-        "openai_account",
-        "acc-capacity",
-        vec!["gpt-5".to_string(), "gpt-5-mini".to_string()],
-    )
-    .expect("set source models");
-    let assignment = assigned
-        .source_assignments
-        .iter()
-        .find(|item| item.source_kind == "openai_account" && item.source_id == "acc-capacity")
-        .expect("source assignment returned");
-    assert_eq!(
-        assignment.model_slugs,
-        vec!["gpt-5".to_string(), "gpt-5-mini".to_string()]
-    );
-
     let templated = update_account_quota_capacity_template("pro", Some(10_000), Some(20_000))
         .expect("update capacity template");
     let pro_template = templated
@@ -483,7 +467,7 @@ fn quota_model_usage_preserves_known_zero_aggregate_balance() {
 }
 
 #[test]
-fn quota_source_list_uses_account_source_summaries_with_usage_and_models() {
+fn quota_source_list_uses_account_summaries_and_v2_routes() {
     let mut storage = Storage::open_in_memory().expect("open storage");
     storage.init().expect("init storage");
     let now = now_ts();
@@ -524,7 +508,8 @@ fn quota_source_list_uses_account_source_summaries_with_usage_and_models() {
     assert_eq!(item.metric_kind, "window_percent");
     assert_eq!(item.remaining, Some(58.0));
     assert_eq!(item.used, Some(42.0));
-    assert_eq!(item.models, vec!["gpt-source".to_string()]);
+    assert!(item.models.contains(&"gpt-5.4".to_string()));
+    assert!(!item.models.contains(&"gpt-source".to_string()));
     assert!(!result
         .items
         .iter()
@@ -558,19 +543,15 @@ fn model_pool_accounts_skip_unavailable_sources_before_batch_loading() {
         .upsert_account_quota_capacity_override("acc-unavailable", Some(100), None)
         .expect("insert unavailable capacity");
 
-    let assignments = assignment_map(vec![
-        QuotaSourceModelAssignment {
-            source_kind: "openai_account".to_string(),
-            source_id: "acc-active".to_string(),
-            model_slug: "gpt-test".to_string(),
-            updated_at: now,
-        },
-        QuotaSourceModelAssignment {
-            source_kind: "openai_account".to_string(),
-            source_id: "acc-unavailable".to_string(),
-            model_slug: "gpt-test".to_string(),
-            updated_at: now,
-        },
+    let assignments = HashMap::from([
+        (
+            ("openai_account".to_string(), "acc-active".to_string()),
+            vec!["gpt-test".to_string()],
+        ),
+        (
+            ("openai_account".to_string(), "acc-unavailable".to_string()),
+            vec!["gpt-test".to_string()],
+        ),
     ]);
     let pools = build_model_pool_accumulators_from_storage(
         &storage,
@@ -594,41 +575,40 @@ fn model_pool_accounts_skip_unavailable_sources_before_batch_loading() {
 }
 
 #[test]
-fn pool_source_assignment_loader_limits_to_pool_source_kinds() {
+fn route_assignment_map_reads_only_model_catalog_v2_routes() {
     let mut storage = Storage::open_in_memory().expect("open storage");
     storage.init().expect("init storage");
-
+    let mut model = storage
+        .get_managed_model_v2("gpt-5.4")
+        .expect("read model")
+        .expect("seeded model");
+    model.routes.push(ModelRouteV2 {
+        source_kind: "aggregate_api".to_string(),
+        source_id: "agg-source".to_string(),
+        upstream_model: "provider-gpt-5.4".to_string(),
+        enabled: true,
+        weight: 1,
+        ..Default::default()
+    });
     storage
-        .set_quota_source_model_assignments(
-            "aggregate_api",
-            "agg-source",
-            &["gpt-aggregate".to_string()],
-        )
-        .expect("set aggregate assignment");
-    storage
-        .set_quota_source_model_assignments(
-            "openai_account",
-            "acc-source",
-            &["gpt-account".to_string()],
-        )
-        .expect("set account assignment");
+        .upsert_managed_model_v2(&ManagedModelV2Upsert {
+            model,
+            ..Default::default()
+        })
+        .expect("save aggregate route");
     storage
         .set_quota_source_model_assignments(
             "future_source",
             "future-source",
             &["gpt-future".to_string()],
         )
-        .expect("set future source assignment");
+        .expect("seed ignored legacy assignment");
 
-    let assignment_map = assignment_map(
-        list_pool_source_model_assignments(&storage).expect("list pool assignments"),
-    );
+    let assignments = route_assignment_map(&storage, None).expect("list V2 routes");
 
-    assert!(assignment_map.contains_key(&("aggregate_api".to_string(), "agg-source".to_string())));
-    assert!(assignment_map.contains_key(&("openai_account".to_string(), "acc-source".to_string())));
-    assert!(
-        !assignment_map.contains_key(&("future_source".to_string(), "future-source".to_string()))
-    );
+    assert!(assignments.contains_key(&("aggregate_api".to_string(), "agg-source".to_string())));
+    assert!(assignments.contains_key(&("openai_account".to_string(), "default".to_string())));
+    assert!(!assignments.contains_key(&("future_source".to_string(), "future-source".to_string())));
 }
 
 #[test]
@@ -646,12 +626,10 @@ fn model_pool_builder_can_limit_work_to_reference_model() {
         .upsert_account_quota_capacity_override("acc-reference", Some(100), None)
         .expect("insert capacity");
 
-    let assignments = assignment_map(vec![QuotaSourceModelAssignment {
-        source_kind: "openai_account".to_string(),
-        source_id: "acc-reference".to_string(),
-        model_slug: "gpt-reference".to_string(),
-        updated_at: now,
-    }]);
+    let assignments = HashMap::from([(
+        ("openai_account".to_string(), "acc-reference".to_string()),
+        vec!["gpt-reference".to_string()],
+    )]);
     let target_models = HashSet::from(["gpt-reference".to_string()]);
     let capacity_config = load_account_capacity_config(&storage).expect("load capacity");
     let pools = build_model_pool_accumulators_for_models(
@@ -675,8 +653,8 @@ fn model_pool_builder_can_limit_work_to_reference_model() {
 }
 
 #[test]
-fn target_model_assignment_map_preserves_explicit_and_implicit_source_semantics() {
-    let mut storage = Storage::open_in_memory().expect("open storage");
+fn target_model_assignment_map_expands_v2_default_account_pool_route() {
+    let storage = Storage::open_in_memory().expect("open storage");
     storage.init().expect("init storage");
     let now = now_ts();
 
@@ -695,36 +673,20 @@ fn target_model_assignment_map_preserves_explicit_and_implicit_source_semantics(
             .upsert_account_quota_capacity_override(account_id, Some(100), None)
             .expect("insert capacity");
     }
-    storage
-        .set_quota_source_model_assignments(
-            "openai_account",
-            "acc-target",
-            &["gpt-target".to_string()],
-        )
-        .expect("set target assignment");
-    storage
-        .set_quota_source_model_assignments(
-            "openai_account",
-            "acc-other-model",
-            &["gpt-other".to_string()],
-        )
-        .expect("set other assignment");
-
-    let assignments =
-        target_model_assignment_map(&storage, "gpt-target").expect("build assignment map");
-    let target_models = HashSet::from(["gpt-target".to_string()]);
+    let assignments = route_assignment_map(&storage, Some("gpt-5.4")).expect("build V2 route map");
+    let target_models = HashSet::from(["gpt-5.4".to_string()]);
     let capacity_config = load_account_capacity_config(&storage).expect("load capacity");
     let pools = build_model_pool_accumulators_for_models(
         &storage,
         &[],
-        &["gpt-target".to_string(), "gpt-other".to_string()],
+        &["gpt-5.4".to_string(), "gpt-5.2".to_string()],
         &assignments,
         Some(&target_models),
         &capacity_config,
     )
     .expect("build targeted pools");
 
-    let pool = pools.get("gpt-target").expect("target pool exists");
+    let pool = pools.get("gpt-5.4").expect("target pool exists");
     let source_ids = pool
         .sources
         .iter()
@@ -732,6 +694,9 @@ fn target_model_assignment_map_preserves_explicit_and_implicit_source_semantics(
         .map(|source| source.source_id.as_str())
         .collect::<Vec<_>>();
 
-    assert_eq!(source_ids, vec!["acc-implicit", "acc-target"]);
-    assert_eq!(pool.account_estimated_remaining_tokens, 170);
+    assert_eq!(
+        source_ids,
+        vec!["acc-implicit", "acc-other-model", "acc-target"]
+    );
+    assert_eq!(pool.account_estimated_remaining_tokens, 240);
 }
