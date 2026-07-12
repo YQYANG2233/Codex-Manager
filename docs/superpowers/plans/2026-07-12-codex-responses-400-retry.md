@@ -154,3 +154,27 @@ Replay task `019f47d4-2220-73d2-a72e-f54192d20e7b`. Confirm the request no longe
 - [ ] **Step 5: Commit and update the pull request**
 
 Commit only the focused gateway, tests, and documentation changes. Push the existing branch and update the open CodexManager pull request, or create a new pull request if this fix is intentionally separate.
+
+### Task 6: Prevent hosted image-tool conflicts exposed by the replay
+
+**Files:**
+- Modify: `crates/service/src/gateway/request/official_responses_http.rs`
+- Modify: `crates/service/src/gateway/request/tests/request_rewrite_tests.rs`
+
+- [ ] **Step 1: Reproduce the conflict in a request rewrite test**
+
+Enable `CODEXMANAGER_CODEX_IMAGE_GENERATION_AUTO_INJECT_TOOL`, pass a Responses request with a function named `image_gen.imagegen`, and assert that the rewritten request contains only the local function tool.
+
+- [ ] **Step 2: Skip hosted-tool injection for local image-gen functions**
+
+Before appending `{ "type": "image_generation" }`, scan existing function tools. Skip the append when a normalized name is `image_gen`, starts with `image_gen.`, or starts with `image_gen__`.
+
+- [ ] **Step 3: Verify existing image-tool behavior**
+
+Run:
+
+```bash
+cargo test -p codexmanager-service gateway::request_rewrite::tests -- --nocapture
+```
+
+Expected: the conflict regression test and the existing auto-injection tests all pass.

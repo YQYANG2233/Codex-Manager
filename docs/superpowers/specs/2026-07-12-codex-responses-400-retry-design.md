@@ -31,3 +31,9 @@ This behavior is separate from `strip_session_affinity`, because that flag is al
 - A postprocess integration test sends a 400 followed by a 200 and checks that only the second request omits those headers.
 - A postprocess integration test sends a canonical 400 followed by another failure and checks that the final response stays 400 and the legacy path is not requested.
 - Existing service tests run after the focused tests.
+
+## Live replay follow-up
+
+After the 404 masking fix was installed, replaying the original `gpt-5.5` turn exposed the canonical 400 body: CodexManager had auto-injected the hosted `image_generation` tool while the client already declared the local function `image_gen.imagegen`. The upstream rejects that combination.
+
+When image-generation auto-injection is enabled, CodexManager must keep the client's local `image_gen`, `image_gen.*`, or `image_gen__*` function tool and skip adding the hosted `image_generation` tool. Requests without a local image-gen function keep the existing auto-injection behavior.
