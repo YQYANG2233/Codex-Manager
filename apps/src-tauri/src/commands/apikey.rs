@@ -37,6 +37,62 @@ pub async fn service_apikey_read_secret(
     rpc_call_in_background("apikey/readSecret", addr, Some(params)).await
 }
 
+#[tauri::command]
+pub async fn service_managed_model_list_v2(
+    addr: Option<String>,
+    include_hidden: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let params = serde_json::json!({ "includeHidden": include_hidden.unwrap_or(false) });
+    rpc_call_in_background("apikey/managedModelListV2", addr, Some(params)).await
+}
+
+#[tauri::command]
+pub async fn service_managed_model_get_v2(
+    addr: Option<String>,
+    slug: String,
+) -> Result<serde_json::Value, String> {
+    let params = serde_json::json!({ "slug": slug });
+    rpc_call_in_background("apikey/managedModelGetV2", addr, Some(params)).await
+}
+
+#[tauri::command]
+pub async fn service_managed_model_upsert_v2(
+    addr: Option<String>,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    rpc_call_in_background("apikey/managedModelUpsertV2", addr, Some(payload)).await
+}
+
+#[tauri::command]
+pub async fn service_managed_model_delete_v2(
+    addr: Option<String>,
+    slug: String,
+) -> Result<serde_json::Value, String> {
+    let params = serde_json::json!({ "slug": slug });
+    rpc_call_in_background("apikey/managedModelDeleteV2", addr, Some(params)).await
+}
+
+#[tauri::command]
+pub async fn service_managed_model_import_preview_v2(
+    addr: Option<String>,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    rpc_call_in_background(
+        "apikey/managedModelImportPreviewV2",
+        addr,
+        Some(payload),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn service_managed_model_import_commit_v2(
+    addr: Option<String>,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    rpc_call_in_background("apikey/managedModelImportCommitV2", addr, Some(payload)).await
+}
+
 /// 函数 `service_apikey_create`
 ///
 /// 作者: gaohongshun

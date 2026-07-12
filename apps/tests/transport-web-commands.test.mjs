@@ -194,6 +194,40 @@ test("createWebCommandMap 为管理员用量分析提供 Web RPC 映射", () => 
   });
 });
 
+test("createWebCommandMap 为模型目录 V2 原子命令提供 Web RPC 映射", () => {
+  assert.deepEqual(commandMap.service_managed_model_list_v2, {
+    rpcMethod: "apikey/managedModelListV2",
+  });
+  assert.deepEqual(commandMap.service_managed_model_get_v2, {
+    rpcMethod: "apikey/managedModelGetV2",
+  });
+  assert.deepEqual(commandMap.service_managed_model_delete_v2, {
+    rpcMethod: "apikey/managedModelDeleteV2",
+  });
+
+  const upsert = commandMap.service_managed_model_upsert_v2;
+  assert.equal(upsert.rpcMethod, "apikey/managedModelUpsertV2");
+  assert.ok(upsert.mapParams);
+  assert.deepEqual(
+    upsert.mapParams({ payload: { previousSlug: null, model: { slug: "local-x" } } }),
+    { previousSlug: null, model: { slug: "local-x" } },
+  );
+
+  for (const command of [
+    "service_managed_model_import_preview_v2",
+    "service_managed_model_import_commit_v2",
+  ]) {
+    const descriptor = commandMap[command];
+    assert.ok(descriptor.mapParams);
+    assert.deepEqual(
+      descriptor.mapParams({
+        payload: { jsonContent: "{}", conflictStrategy: "keep_existing" },
+      }),
+      { jsonContent: "{}", conflictStrategy: "keep_existing" },
+    );
+  }
+});
+
 test("createWebCommandMap 为模型来源映射命令提供 Web RPC 映射", () => {
   assert.deepEqual(commandMap.service_model_routing, {
     rpcMethod: "apikey/modelRouting",
