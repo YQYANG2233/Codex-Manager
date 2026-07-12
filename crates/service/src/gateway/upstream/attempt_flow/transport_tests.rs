@@ -1,6 +1,7 @@
 use super::{
-    apply_gemini_codex_compat_header_profile, encode_request_body, is_session_scoped_header,
-    resolve_request_compression, resolve_request_compression_with_flag, send_async_stream_request,
+    apply_final_upstream_header_policy, apply_gemini_codex_compat_header_profile,
+    encode_request_body, is_session_scoped_header, resolve_request_compression,
+    resolve_request_compression_with_flag, send_async_stream_request,
     should_retry_transport_without_compression, should_wrap_upstream_as_stream_response,
     strip_compact_service_tier_for_transport, RequestCompression, CPA_GEMINI_CODEX_USER_AGENT,
 };
@@ -62,6 +63,7 @@ fn explicit_stateless_mode_targets_only_session_scoped_headers() {
         "x-client-request-id",
         "x-codex-window-id",
         "x-codex-turn-state",
+        "session_id",
     ] {
         assert!(
             is_session_scoped_header(name),
@@ -70,6 +72,16 @@ fn explicit_stateless_mode_targets_only_session_scoped_headers() {
     }
     assert!(!is_session_scoped_header("x-codex-parent-thread-id"));
     assert!(!is_session_scoped_header("authorization"));
+}
+
+#[test]
+fn explicit_stateless_mode_removes_session_id_added_by_gemini_profile() {
+    let mut headers = vec![("session-id".to_string(), "incoming-session".to_string())];
+
+    apply_final_upstream_header_policy(&mut headers, true, None, true);
+
+    assert_eq!(header_value(&headers, "session-id"), None);
+    assert_eq!(header_value(&headers, "session_id"), None);
 }
 
 fn spawn_raw_http_response(

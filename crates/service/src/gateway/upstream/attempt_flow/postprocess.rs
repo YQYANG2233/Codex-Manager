@@ -252,6 +252,17 @@ fn retry_chatgpt_challenge_without_compression(
     }
 }
 
+fn should_retry_chatgpt_responses_bad_request(upstream_base: &str, url: &str, status: u16) -> bool {
+    status == 400
+        && super::super::config::is_chatgpt_backend_base(upstream_base)
+        && reqwest::Url::parse(url).ok().is_some_and(|url| {
+            url.path()
+                .trim_end_matches('/')
+                .to_ascii_lowercase()
+                .ends_with("/backend-api/codex/responses")
+        })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn retry_chatgpt_responses_bad_request_without_session_headers(
     client: &reqwest::blocking::Client,
@@ -268,10 +279,7 @@ fn retry_chatgpt_responses_bad_request_without_session_headers(
     debug: bool,
     status: reqwest::StatusCode,
 ) -> Option<GatewayUpstreamResponse> {
-    if status.as_u16() != 400
-        || !super::super::config::is_chatgpt_backend_base(upstream_base)
-        || !request_ctx.request_path.starts_with("/v1/responses")
-    {
+    if !should_retry_chatgpt_responses_bad_request(upstream_base, url, status.as_u16()) {
         return None;
     }
     if debug {

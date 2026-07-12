@@ -94,6 +94,7 @@ fn is_session_scoped_header(name: &str) -> bool {
             | "x-client-request-id"
             | "x-codex-window-id"
             | "x-codex-turn-state"
+            | "session_id"
     )
 }
 
@@ -232,6 +233,20 @@ fn apply_gemini_codex_compat_header_profile(
     remove_header(headers, "thread-id");
     if !has_header(headers, "session_id") {
         headers.push(("Session_id".to_string(), random_cpa_session_id()));
+    }
+}
+
+fn apply_final_upstream_header_policy(
+    headers: &mut Vec<(String, String)>,
+    gemini_codex_compat: bool,
+    incoming_originator: Option<&str>,
+    drop_session_headers: bool,
+) {
+    if gemini_codex_compat {
+        apply_gemini_codex_compat_header_profile(headers, incoming_originator);
+    }
+    if drop_session_headers {
+        headers.retain(|(name, _)| !is_session_scoped_header(name));
     }
 }
 
@@ -919,15 +934,12 @@ fn send_upstream_request_with_compression_override(
         };
         super::super::header_profile::build_codex_upstream_headers(header_input)
     };
-    if drop_session_headers {
-        upstream_headers.retain(|(name, _)| !is_session_scoped_header(name));
-    }
-    if gemini_codex_compat {
-        apply_gemini_codex_compat_header_profile(
-            &mut upstream_headers,
-            incoming_headers.originator(),
-        );
-    }
+    apply_final_upstream_header_policy(
+        &mut upstream_headers,
+        gemini_codex_compat,
+        incoming_headers.originator(),
+        drop_session_headers,
+    );
     if should_force_connection_close(target_url) {
         // 中文注释：本地 loopback mock/代理更容易复用到脏 keep-alive 连接；
         // 对 localhost/127.0.0.1 强制 close，避免请求落到已失效连接。

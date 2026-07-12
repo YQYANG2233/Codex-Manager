@@ -108,6 +108,25 @@ fn anthropic_challenge_uses_extended_cooldown_reason() {
 }
 
 #[test]
+fn bad_request_stateless_retry_requires_actual_responses_target() {
+    assert!(should_retry_chatgpt_responses_bad_request(
+        "https://chatgpt.com/backend-api/codex",
+        "https://chatgpt.com/backend-api/codex/responses",
+        400,
+    ));
+    assert!(!should_retry_chatgpt_responses_bad_request(
+        "https://chatgpt.com/backend-api/codex",
+        "https://chatgpt.com/backend-api/codex/chat/completions",
+        400,
+    ));
+    assert!(!should_retry_chatgpt_responses_bad_request(
+        "https://chatgpt.com/backend-api/codex",
+        "https://chatgpt.com/backend-api/codex/responses",
+        404,
+    ));
+}
+
+#[test]
 fn chatgpt_responses_400_retries_same_path_without_session_headers() {
     let storage = Storage::open_in_memory().expect("open storage");
     storage.init().expect("init storage");
