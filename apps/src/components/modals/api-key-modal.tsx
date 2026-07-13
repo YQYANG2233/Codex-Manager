@@ -24,6 +24,10 @@ import {
 } from "@/components/ui/select";
 import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import { accountClient } from "@/lib/api/account-client";
+import {
+  managedModelsV2Client,
+  managedModelV2ToModelInfo,
+} from "@/lib/api/managed-models-v2";
 import { appClient } from "@/lib/api/app-client";
 import { CODEX_PROFILE_CANDIDATES_QUERY_KEY } from "@/lib/api/codex-profile-client";
 import { useAppStore } from "@/lib/store/useAppStore";
@@ -170,17 +174,10 @@ export function ApiKeyModal({
     : t("当前运行环境暂不支持平台密钥管理。");
 
   const { data: models } = useQuery({
-    queryKey: ["apikey-models"],
+    queryKey: ["managed-models-v2", "selector"],
     queryFn: async () => {
-      const cached = await accountClient.listModels(false);
-      if (cached.models.length > 0) {
-        return cached;
-      }
-      try {
-        return await accountClient.listModels(true);
-      } catch {
-        return cached;
-      }
+      const result = await managedModelsV2Client.list(false);
+      return { models: result.items.map(managedModelV2ToModelInfo) };
     },
     enabled: open && isServiceReady,
   });
@@ -356,7 +353,7 @@ export function ApiKeyModal({
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["apikeys"] }),
-        queryClient.invalidateQueries({ queryKey: ["apikey-models"] }),
+        queryClient.invalidateQueries({ queryKey: ["managed-models-v2"] }),
         queryClient.invalidateQueries({
           queryKey: ["account-manager", "api-key-owners"],
         }),
