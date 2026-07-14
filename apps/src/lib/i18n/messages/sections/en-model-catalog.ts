@@ -3,16 +3,26 @@
 import type { MessageCatalog } from "../types";
 
 export const EN_MODEL_CATALOG_MESSAGES: MessageCatalog = {
+  "模型、价格、路由和指令策略将通过一次 V2 原子保存提交。":
+    "The model, prices, routes, and instructions policy are committed by one atomic V2 save.",
   "模型、价格、路由和 instructions policy 将通过一次 V2 原子保存提交。":
     "The model, prices, routes, and instructions policy are committed by one atomic V2 save.",
   基本信息: "Basic information",
   价格: "Pricing",
   路由: "Routes",
+  指令策略: "Instructions policy",
+  "模型标识（Slug）": "Model identifier (slug)",
   描述: "Description",
+  提供方: "Provider",
+  模型系列: "Model family",
+  模型分类: "Model category",
   排序: "Sort order",
+  默认推理强度: "Default reasoning effort",
   启用模型: "Enable model",
   "可用于 API": "Available through API",
   可见性: "Visibility",
+  列表显示: "Show in list",
+  隐藏: "Hidden",
   "关键能力 JSON": "Capabilities JSON",
   "关键能力 JSON 必须是对象": "Capabilities JSON must be an object",
   "基础价格（USD / 1M tokens）": "Base prices (USD / 1M tokens)",
@@ -38,6 +48,7 @@ export const EN_MODEL_CATALOG_MESSAGES: MessageCatalog = {
     "Prices are converted losslessly from decimal strings to integer micro-USD; all three base prices must be filled or left blank together.",
   "上游模型名始终手填；这里不会访问供应商 `/models`。":
     "Upstream model names are always entered manually; this screen never accesses a supplier `/models` endpoint.",
+  账号池: "Account pool",
   添加账号池路由: "Add account-pool route",
   添加聚合路由: "Add aggregate route",
   "当前模型没有 route，启用后将显示 missing route。":
@@ -53,7 +64,13 @@ export const EN_MODEL_CATALOG_MESSAGES: MessageCatalog = {
   "每条路由都必须填写来源和上游模型":
     "Every route must specify a source and upstream model",
   "启用 route": "Enable route",
+  启用路由: "Enable route",
   删除路由: "Delete route",
+  指令模式: "Instructions mode",
+  指令文本: "Instructions text",
+  透传: "Pass through",
+  兜底: "Fallback",
+  覆盖: "Override",
   "Instructions 模式": "Instructions mode",
   "客户端 instructions 原样传递，模型文本不参与请求。":
     "Client instructions pass through unchanged; model text is not used.",

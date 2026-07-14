@@ -422,7 +422,7 @@ export function ModelCatalogModal({
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>
-              {t("模型、价格、路由和 instructions policy 将通过一次 V2 原子保存提交。")}
+              {t("模型、价格、路由和指令策略将通过一次 V2 原子保存提交。")}
             </DialogDescription>
           </DialogHeader>
 
@@ -431,13 +431,13 @@ export function ModelCatalogModal({
               <TabsTrigger value="basic">{t("基本信息")}</TabsTrigger>
               <TabsTrigger value="price">{t("价格")}</TabsTrigger>
               <TabsTrigger value="routes">{t("路由")}</TabsTrigger>
-              <TabsTrigger value="instructions">Instructions</TabsTrigger>
+              <TabsTrigger value="instructions">{t("指令策略")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="basic" className="mt-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="model-slug">Slug</Label>
+                  <Label htmlFor="model-slug">{t("模型标识（Slug）")}</Label>
                   <Input
                     id="model-slug"
                     value={draft.slug}
@@ -476,9 +476,13 @@ export function ModelCatalogModal({
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-                {(["provider", "family", "category"] as const).map((field) => (
+                {([
+                  ["provider", "提供方"],
+                  ["family", "模型系列"],
+                  ["category", "模型分类"],
+                ] as const).map(([field, label]) => (
                   <div key={field} className="space-y-2">
-                    <Label htmlFor={`model-${field}`}>{field}</Label>
+                    <Label htmlFor={`model-${field}`}>{t(label)}</Label>
                     <Input
                       id={`model-${field}`}
                       value={draft[field]}
@@ -487,7 +491,7 @@ export function ModelCatalogModal({
                   </div>
                 ))}
                 <div className="space-y-2 md:col-span-3">
-                  <Label htmlFor="model-tags">Tags</Label>
+                  <Label htmlFor="model-tags">{t("标签")}</Label>
                   <Input
                     id="model-tags"
                     value={draft.tags}
@@ -508,7 +512,7 @@ export function ModelCatalogModal({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="model-context-window">context window</Label>
+                  <Label htmlFor="model-context-window">{t("上下文窗口")}</Label>
                   <Input
                     id="model-context-window"
                     type="number"
@@ -518,7 +522,7 @@ export function ModelCatalogModal({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="model-max-context-window">max context</Label>
+                  <Label htmlFor="model-max-context-window">{t("最大上下文窗口")}</Label>
                   <Input
                     id="model-max-context-window"
                     type="number"
@@ -530,7 +534,7 @@ export function ModelCatalogModal({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="model-reasoning-effort">default reasoning</Label>
+                  <Label htmlFor="model-reasoning-effort">{t("默认推理强度")}</Label>
                   <Input
                     id="model-reasoning-effort"
                     value={draft.defaultReasoningEffort}
@@ -572,11 +576,15 @@ export function ModelCatalogModal({
                       updateDraft("visibility", (value || "list") as ModelVisibilityV2)
                     }
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {(value) => value === "hide" ? t("隐藏") : t("列表显示")}
+                      </SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="list">list</SelectItem>
-                        <SelectItem value="hide">hide</SelectItem>
+                        <SelectItem value="list">{t("列表显示")}</SelectItem>
+                        <SelectItem value="hide">{t("隐藏")}</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
@@ -676,10 +684,14 @@ export function ModelCatalogModal({
                               updateRoute(index, "sourceId", sourceKind === "account_pool" ? "default" : "");
                             }}
                           >
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger>
+                              <SelectValue>
+                                {(value) => value === "aggregate_api" ? t("聚合 API") : t("账号池")}
+                              </SelectValue>
+                            </SelectTrigger>
                             <SelectContent><SelectGroup>
-                              <SelectItem value="account_pool">account_pool</SelectItem>
-                              <SelectItem value="aggregate_api">aggregate_api</SelectItem>
+                              <SelectItem value="account_pool">{t("账号池")}</SelectItem>
+                              <SelectItem value="aggregate_api">{t("聚合 API")}</SelectItem>
                             </SelectGroup></SelectContent>
                           </Select>
                         </div>
@@ -714,7 +726,7 @@ export function ModelCatalogModal({
                         </div>
                         <div className="flex h-9 items-center gap-2">
                           <Switch checked={route.enabled} onCheckedChange={(checked) => updateRoute(index, "enabled", checked)} />
-                          <span className="text-sm">{t("启用 route")}</span>
+                          <span className="text-sm">{t("启用路由")}</span>
                         </div>
                         <Button type="button" variant="ghost" size="icon" aria-label={t("删除路由")} onClick={() => updateDraft("routes", draft.routes.filter((_, routeIndex) => routeIndex !== index))}>
                           <Trash2 className="h-4 w-4" />
@@ -728,18 +740,22 @@ export function ModelCatalogModal({
 
             <TabsContent value="instructions" className="mt-4 space-y-4">
               <div className="space-y-2">
-                <Label>{t("Instructions 模式")}</Label>
+                <Label>{t("指令模式")}</Label>
                 <Select value={draft.instructionsMode} onValueChange={(value) => updateDraft("instructionsMode", (value || "passthrough") as ModelInstructionsModeV2)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(value) => value === "fallback" ? t("兜底") : value === "override" ? t("覆盖") : t("透传")}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent><SelectGroup>
-                    <SelectItem value="passthrough">passthrough</SelectItem>
-                    <SelectItem value="fallback">fallback</SelectItem>
-                    <SelectItem value="override">override</SelectItem>
+                    <SelectItem value="passthrough">{t("透传")}</SelectItem>
+                    <SelectItem value="fallback">{t("兜底")}</SelectItem>
+                    <SelectItem value="override">{t("覆盖")}</SelectItem>
                   </SelectGroup></SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="model-instructions-text">instructions text</Label>
+                <Label htmlFor="model-instructions-text">{t("指令文本")}</Label>
                 <Textarea id="model-instructions-text" rows={14} value={draft.instructionsText} disabled={draft.instructionsMode === "passthrough"} onChange={(event) => updateDraft("instructionsText", event.target.value)} />
               </div>
               <p className="text-xs text-muted-foreground">

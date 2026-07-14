@@ -398,7 +398,7 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
   expect(state.initializeCalls).toBe(initializeCallsBeforeExport + 1);
 
   await page.getByRole("button", { name: "新增自定义模型" }).click();
-  await page.getByLabel("Slug").fill("my-custom-model");
+  await page.getByLabel("模型标识（Slug）").fill("my-custom-model");
   await page.getByLabel("显示名称").fill("My Custom Model");
   await page.getByLabel("描述").fill("local managed model");
 
@@ -417,9 +417,9 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
   await page.getByRole("option", { name: "Aggregate Test" }).click();
   await page.locator("#route-model-1").fill("upstream-custom-v1");
 
-  await page.getByRole("tab", { name: "Instructions" }).click();
-  await page.getByRole("combobox").filter({ hasText: "passthrough" }).click();
-  await page.getByRole("option", { name: "fallback" }).click();
+  await page.getByRole("tab", { name: "指令策略" }).click();
+  await page.getByRole("combobox").filter({ hasText: "透传" }).click();
+  await page.getByRole("option", { name: "兜底" }).click();
   await page.locator("#model-instructions-text").fill("Use the local policy.");
   await page.getByRole("button", { name: "保存模型" }).click();
 
