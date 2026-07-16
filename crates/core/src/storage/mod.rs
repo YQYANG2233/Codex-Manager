@@ -1861,6 +1861,11 @@ impl Storage {
         self.apply_model_billing_v2_hardening_migration()?;
         self.apply_gpt56_pricing_migration()?;
         self.apply_model_catalog_codex_metadata_migration()?;
+        self.apply_sql_or_compat_migration(
+            "116_request_logs_visibility",
+            include_str!("../../migrations/116_request_logs_visibility.sql"),
+            |s| s.ensure_request_log_visibility_column(),
+        )?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
         self.ensure_aggregate_api_secrets_table()?;
@@ -1874,6 +1879,7 @@ impl Storage {
         self.ensure_request_log_route_strategy_columns()?;
         self.ensure_request_log_first_response_column()?;
         self.ensure_request_log_route_detail_columns()?;
+        self.ensure_request_log_visibility_column()?;
         self.ensure_account_subscriptions_table()?;
         self.ensure_quota_pool_tables()?;
         self.ensure_account_manager_tables()?;
