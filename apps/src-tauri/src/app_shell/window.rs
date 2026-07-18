@@ -1,6 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::webview::{Color, PageLoadEvent};
+// Effect::Popover is a macOS-specific NSVisualEffectView effect; guard the import so the
+// compiler does not warn about unused symbols on Windows where it is not applied.
+#[cfg(not(target_os = "windows"))]
 use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::Manager;
 use tauri::{PhysicalPosition, PhysicalRect, Rect, Url, WebviewUrl, WebviewWindowBuilder};
@@ -10,7 +13,7 @@ use super::state::{APP_EXIT_REQUESTED, KEEP_ALIVE_FOR_LIGHTWEIGHT_CLOSE};
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const TRAY_PREVIEW_WINDOW_LABEL: &str = "tray-preview";
 const TRAY_PREVIEW_WIDTH: f64 = 360.0;
-const TRAY_PREVIEW_HEIGHT: f64 = 390.0;
+const TRAY_PREVIEW_HEIGHT: f64 = 450.0;
 const TRAY_PREVIEW_MARGIN: f64 = 8.0;
 static SHOW_MAIN_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
 static MAIN_WINDOW_CREATED_ONCE: AtomicBool = AtomicBool::new(false);
@@ -270,7 +273,7 @@ fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWi
         return Some(window);
     }
 
-    match WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app,
         TRAY_PREVIEW_WINDOW_LABEL,
         WebviewUrl::App("tray-preview/".into()),
@@ -285,21 +288,25 @@ fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWi
     .decorations(false)
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
-    .effects(
-        EffectsBuilder::new()
-            .effect(Effect::Popover)
-            .state(EffectState::Active)
-            .radius(18.0)
-            .build(),
-    )
     .shadow(false)
     .always_on_top(true)
     .visible_on_all_workspaces(true)
     .skip_taskbar(true)
     .visible(false)
-    .focused(false)
-    .build()
-    {
+    .focused(false);
+    // Effect::Popover is a macOS-specific NSVisualEffectView effect; applying it on Windows
+    // causes DWM to render a rectangular background/border artifact around the transparent
+    // window.  On Windows the rounded appearance is handled purely by CSS border-radius, so
+    // we skip the effects() call there.
+    #[cfg(not(target_os = "windows"))]
+    let builder = builder.effects(
+        EffectsBuilder::new()
+            .effect(Effect::Popover)
+            .state(EffectState::Active)
+            .radius(18.0)
+            .build(),
+    );
+    match builder.build() {
         Ok(window) => Some(window),
         Err(err) => {
             if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
