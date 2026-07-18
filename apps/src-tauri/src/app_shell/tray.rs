@@ -54,6 +54,22 @@ pub(crate) fn setup_tray(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
+            // On Windows the native context menu is triggered by the Down event, so we must
+            // refresh the menu data *before* it becomes visible (on Down).  On other platforms
+            // refreshing on Down can cause the menu to dismiss immediately after appearing, so
+            // we refresh on Up instead.
+            #[cfg(target_os = "windows")]
+            if let TrayIconEvent::Click {
+                button: MouseButton::Right,
+                button_state: MouseButtonState::Down,
+                ..
+            } = event
+            {
+                if let Err(err) = refresh_tray_menu(tray.app_handle()) {
+                    log::warn!("refresh tray menu failed: {}", err);
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
             if let TrayIconEvent::Click {
                 button: MouseButton::Right,
                 button_state: MouseButtonState::Up,
