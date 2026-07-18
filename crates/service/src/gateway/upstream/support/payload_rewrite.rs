@@ -49,18 +49,6 @@ fn strip_encrypted_content_value(value: &mut Value) -> bool {
     match value {
         Value::Object(map) => {
             let mut changed = map.remove("encrypted_content").is_some();
-
-            let keys_to_remove = map
-                .iter()
-                .filter_map(|(key, child)| {
-                    item_requires_encrypted_content(child).then(|| key.clone())
-                })
-                .collect::<Vec<_>>();
-            for key in keys_to_remove {
-                map.remove(&key);
-                changed = true;
-            }
-
             for child in map.values_mut() {
                 if strip_encrypted_content_value(child) {
                     changed = true;
@@ -128,7 +116,13 @@ mod tests {
             "encrypted_content": "legacy-root-secret",
             "metadata": {
                 "encrypted_content": "metadata-secret",
-                "keep": "metadata"
+                "keep": "metadata",
+                "reasoning_envelope": {
+                    "type": "reasoning",
+                    "id": "metadata-reasoning",
+                    "summary": ["keep summary"],
+                    "encrypted_content": "metadata-reasoning-secret"
+                }
             },
             "input": [
                 {
@@ -164,7 +158,18 @@ mod tests {
         let value: Value = serde_json::from_slice(&rewritten).expect("parse rewritten body");
 
         assert!(!contains_encrypted_content(&value));
-        assert_eq!(value["metadata"], json!({ "keep": "metadata" }));
+        assert_eq!(
+            value["metadata"],
+            json!({
+                "keep": "metadata",
+                "reasoning_envelope": {
+                    "type": "reasoning",
+                    "id": "metadata-reasoning",
+                    "summary": ["keep summary"]
+                }
+            }),
+            "ordinary object properties must remain after their encrypted field is removed"
+        );
 
         let input = value["input"].as_array().expect("input array");
         assert_eq!(input.len(), 2, "reasoning item must be removed");
