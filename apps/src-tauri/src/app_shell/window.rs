@@ -13,7 +13,7 @@ use super::state::{APP_EXIT_REQUESTED, KEEP_ALIVE_FOR_LIGHTWEIGHT_CLOSE};
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const TRAY_PREVIEW_WINDOW_LABEL: &str = "tray-preview";
 const TRAY_PREVIEW_WIDTH: f64 = 360.0;
-const TRAY_PREVIEW_HEIGHT: f64 = 430.0;
+const TRAY_PREVIEW_HEIGHT: f64 = 390.0;
 const TRAY_PREVIEW_MARGIN: f64 = 8.0;
 static SHOW_MAIN_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
 static MAIN_WINDOW_CREATED_ONCE: AtomicBool = AtomicBool::new(false);
@@ -270,7 +270,6 @@ fn navigate_window_to_app_url(_window: &tauri::WebviewWindow) -> tauri::Result<(
 
 fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow> {
     if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
-        apply_tray_preview_window_size(&window);
         return Some(window);
     }
 
@@ -306,41 +305,14 @@ fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWi
     );
 
     match builder.build() {
-        Ok(window) => {
-            apply_tray_preview_window_size(&window);
-            Some(window)
-        }
+        Ok(window) => Some(window),
         Err(err) => {
             if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
-                apply_tray_preview_window_size(&window);
                 return Some(window);
             }
             log::warn!("create tray preview window failed: {}", err);
             None
         }
-    }
-}
-
-fn tray_preview_window_size() -> Size {
-    LogicalSize::new(TRAY_PREVIEW_WIDTH, TRAY_PREVIEW_HEIGHT).into()
-}
-
-fn apply_tray_preview_window_size(window: &tauri::WebviewWindow) {
-    let size = tray_preview_window_size();
-    if let Err(err) = window.set_min_size(None::<Size>) {
-        log::warn!("clear tray preview min size failed: {}", err);
-    }
-    if let Err(err) = window.set_max_size(None::<Size>) {
-        log::warn!("clear tray preview max size failed: {}", err);
-    }
-    if let Err(err) = window.set_size(size) {
-        log::warn!("set tray preview size failed: {}", err);
-    }
-    if let Err(err) = window.set_min_size(Some(size)) {
-        log::warn!("set tray preview min size failed: {}", err);
-    }
-    if let Err(err) = window.set_max_size(Some(size)) {
-        log::warn!("set tray preview max size failed: {}", err);
     }
 }
 
