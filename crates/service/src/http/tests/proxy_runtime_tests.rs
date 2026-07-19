@@ -1,10 +1,11 @@
 use super::{
     build_backend_base_url, build_local_backend_client, front_proxy_max_blocking_threads,
-    front_proxy_worker_threads, proxy_handler, ProxyState,
+    front_proxy_worker_threads, normalize_incoming_request_body, proxy_handler, ProxyState,
 };
 use axum::body::{to_bytes, Body};
 use axum::extract::State;
-use axum::http::{Request as HttpRequest, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, Request as HttpRequest, StatusCode};
+use bytes::Bytes;
 use codexmanager_core::storage::{Account, ApiKey, Storage, Token, UsageSnapshotRecord};
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
@@ -140,6 +141,81 @@ fn front_proxy_worker_threads_allow_explicit_override() {
     let _worker_guard = EnvGuard::set("CODEXMANAGER_FRONT_PROXY_WORKER_THREADS", "3");
 
     assert_eq!(front_proxy_worker_threads(), 3);
+}
+
+#[test]
+fn zstd_request_body_is_decoded_and_transport_headers_are_removed() {
+    let plain = br#"{"model":"gpt-5.6-sol","input":"long resume"}"#;
+    let compressed =
+        zstd::stream::encode_all(std::io::Cursor::new(plain), 3).expect("compress request body");
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("zstd"));
+    headers.insert(
+        header::CONTENT_LENGTH,
+        HeaderValue::from_str(compressed.len().to_string().as_str()).expect("content length"),
+    );
+
+    let decoded = normalize_incoming_request_body(
+        &mut headers,
+        Bytes::from(compressed),
+        /*max_body_bytes*/ 0,
+    )
+    .expect("decode zstd request body");
+
+    assert_eq!(decoded.as_ref(), plain);
+    assert!(!headers.contains_key(header::CONTENT_ENCODING));
+    assert!(!headers.contains_key(header::CONTENT_LENGTH));
+}
+
+#[test]
+fn zstd_magic_is_decoded_when_intermediate_proxy_drops_encoding_header() {
+    let plain = br#"{"model":"gpt-5.6-sol","stream":true}"#;
+    let compressed =
+        zstd::stream::encode_all(std::io::Cursor::new(plain), 3).expect("compress request body");
+    let mut headers = HeaderMap::new();
+
+    let decoded = normalize_incoming_request_body(
+        &mut headers,
+        Bytes::from(compressed),
+        /*max_body_bytes*/ 0,
+    )
+    .expect("decode zstd request body from magic");
+
+    assert_eq!(decoded.as_ref(), plain);
+}
+
+#[test]
+fn invalid_zstd_request_body_returns_400() {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("zstd"));
+
+    let err = normalize_incoming_request_body(
+        &mut headers,
+        Bytes::from_static(b"not-zstd"),
+        /*max_body_bytes*/ 0,
+    )
+    .expect_err("invalid zstd should fail locally");
+
+    assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    assert!(err.message.contains("invalid zstd request body"));
+}
+
+#[test]
+fn decompressed_zstd_request_body_respects_front_proxy_limit() {
+    let compressed = zstd::stream::encode_all(std::io::Cursor::new(vec![b'x'; 64]), 3)
+        .expect("compress request body");
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("zstd"));
+
+    let err = normalize_incoming_request_body(
+        &mut headers,
+        Bytes::from(compressed),
+        /*max_body_bytes*/ 32,
+    )
+    .expect_err("decoded body above limit should fail locally");
+
+    assert_eq!(err.status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert!(err.message.contains("after zstd decompression"));
 }
 
 /// 函数 `request_without_content_length_over_limit_returns_413`

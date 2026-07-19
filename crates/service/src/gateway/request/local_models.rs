@@ -4,7 +4,7 @@ use codexmanager_core::rpc::types::{ModelInfo, ModelsResponse};
 struct CompatibleModelsResponse<'a> {
     object: &'static str,
     data: Vec<ApiModelInfo<'a>>,
-    models: &'a [ModelInfo],
+    models: &'static [ModelInfo],
 }
 
 #[derive(serde::Serialize)]
@@ -35,7 +35,10 @@ fn serialize_models_response_body(models: &ModelsResponse) -> String {
     serde_json::to_string(&CompatibleModelsResponse {
         object: "list",
         data,
-        models: &models.models,
+        // Codex's model metadata schema evolves with the bundled CLI. Returning an
+        // empty extension catalog makes Codex use its version-matched embedded
+        // catalog while the stable OpenAI-compatible `data` list remains complete.
+        models: &[],
     })
     .unwrap_or_else(|_| "{\"object\":\"list\",\"data\":[],\"models\":[]}".to_string())
 }

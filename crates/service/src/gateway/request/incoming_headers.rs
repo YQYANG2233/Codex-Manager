@@ -1,5 +1,8 @@
 use tiny_http::Request;
 
+const X_OPENAI_INTERNAL_CODEX_RESPONSES_LITE_HEADER_NAME: &str =
+    "x-openai-internal-codex-responses-lite";
+
 #[derive(Clone, Default)]
 pub(crate) struct IncomingHeaderSnapshot {
     authorization_present: bool,
@@ -711,10 +714,10 @@ impl IncomingHeaderSnapshot {
 }
 
 fn should_capture_passthrough_codex_header(name: &str) -> bool {
-    // 中文注释：Codex 上游只接受源码里明确构造的那组头；未知 x-codex-* 一律不做透传。
-    // 这里保留入口只是为了让调用点语义清晰，但当前实现不允许任何额外透传头。
-    let _ = name;
-    false
+    // Responses Lite changes the request and response wire shape, so the gateway
+    // must preserve this exact protocol-negotiation header. Other unknown headers
+    // remain blocked.
+    name.eq_ignore_ascii_case(X_OPENAI_INTERNAL_CODEX_RESPONSES_LITE_HEADER_NAME)
 }
 
 fn remember_passthrough_header(headers: &mut Vec<(String, String)>, name: &str, value: &str) {

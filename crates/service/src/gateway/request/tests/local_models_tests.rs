@@ -60,29 +60,13 @@ fn serialize_models_response_outputs_codex_and_api_shapes() {
         .get("models")
         .and_then(Value::as_array)
         .expect("models array");
-    assert_eq!(models.len(), 2);
-    assert_eq!(
-        models[0].get("slug").and_then(Value::as_str),
-        Some("gpt-5.3-codex")
-    );
-    assert_eq!(
-        models[1].get("slug").and_then(Value::as_str),
-        Some("gpt-4o")
-    );
-    assert_eq!(
-        models[0].get("display_name").and_then(Value::as_str),
-        Some("GPT-5.3 Codex")
-    );
-    assert_eq!(
-        models[1].get("visibility").and_then(Value::as_str),
-        Some("list")
-    );
+    assert!(models.is_empty());
     assert_eq!(value.as_object().map(|object| object.len()), Some(3));
     assert!(value.get("etag").is_none());
 }
 
 #[test]
-fn serialize_models_response_preserves_description_for_codex_clients() {
+fn serialize_models_response_preserves_description_for_api_clients() {
     let items = ModelsResponse {
         models: vec![ModelInfo {
             slug: "gpt-5.3-codex".to_string(),
@@ -105,11 +89,7 @@ fn serialize_models_response_preserves_description_for_codex_clients() {
         .get("data")
         .and_then(Value::as_array)
         .expect("OpenAI-compatible data array");
-    assert_eq!(models.len(), 1);
-    assert_eq!(
-        models[0].get("description").and_then(Value::as_str),
-        Some("Latest frontier agentic coding model.")
-    );
+    assert!(models.is_empty());
     assert_eq!(
         data[0].get("description").and_then(Value::as_str),
         Some("Latest frontier agentic coding model.")
@@ -117,7 +97,7 @@ fn serialize_models_response_preserves_description_for_codex_clients() {
 }
 
 #[test]
-fn serialize_models_response_preserves_service_tier_capabilities_for_codex_clients() {
+fn serialize_models_response_uses_embedded_codex_catalog_for_version_compatibility() {
     let items = ModelsResponse {
         models: vec![ModelInfo {
             slug: "gpt-5.5-codex".to_string(),
@@ -146,24 +126,7 @@ fn serialize_models_response_preserves_service_tier_capabilities_for_codex_clien
         .and_then(Value::as_array)
         .expect("models array");
 
-    assert_eq!(
-        models[0]["service_tiers"][0]
-            .get("id")
-            .and_then(Value::as_str),
-        Some("flex")
-    );
-    assert_eq!(
-        models[0]
-            .get("default_service_tier")
-            .and_then(Value::as_str),
-        Some("flex")
-    );
-    assert_eq!(
-        models[0]["upgrade_info"]
-            .get("model")
-            .and_then(Value::as_str),
-        Some("gpt-5.5-codex")
-    );
+    assert!(models.is_empty());
 }
 
 #[test]
@@ -186,11 +149,7 @@ fn serialize_models_response_does_not_invent_codex_image_tool_model() {
         .and_then(Value::as_array)
         .expect("models array");
 
-    assert_eq!(models.len(), 1);
-    assert_eq!(
-        models[0].get("slug").and_then(Value::as_str),
-        Some("gpt-5.4-mini")
-    );
+    assert!(models.is_empty());
 }
 
 #[test]

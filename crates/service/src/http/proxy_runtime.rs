@@ -1,10 +1,12 @@
 use axum::body::{to_bytes, Body};
 use axum::extract::State;
-use axum::http::{header, Request as HttpRequest, Response, StatusCode};
+use axum::http::{header, HeaderMap, Request as HttpRequest, Response, StatusCode};
 use axum::routing::{any, get, post};
 use axum::Router;
+use bytes::Bytes;
 use reqwest::Client;
 use std::io;
+use std::io::Read;
 
 use crate::http::proxy_bridge::run_proxy_server;
 use crate::http::proxy_request::{build_target_url, filter_request_headers};
@@ -100,6 +102,79 @@ fn front_proxy_worker_threads() -> usize {
     .max(1)
 }
 
+#[derive(Debug)]
+struct IncomingBodyDecodeError {
+    status: StatusCode,
+    message: String,
+}
+
+fn has_zstd_content_encoding(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::CONTENT_ENCODING)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .any(|value| value.trim().eq_ignore_ascii_case("zstd"))
+}
+
+fn has_zstd_magic(body: &[u8]) -> bool {
+    body.starts_with(&[0x28, 0xB5, 0x2F, 0xFD])
+}
+
+fn decode_zstd_body(
+    body: &[u8],
+    max_body_bytes: usize,
+) -> Result<Vec<u8>, IncomingBodyDecodeError> {
+    let decoder =
+        zstd::stream::read::Decoder::new(body).map_err(|err| IncomingBodyDecodeError {
+            status: StatusCode::BAD_REQUEST,
+            message: crate::gateway::bilingual_error(
+                "zstd 请求体解压失败",
+                format!("invalid zstd request body: {err}"),
+            ),
+        })?;
+    let mut decoded = Vec::new();
+    let read_result = if max_body_bytes == 0 {
+        let mut decoder = decoder;
+        decoder.read_to_end(&mut decoded)
+    } else {
+        let mut limited = decoder.take(max_body_bytes.saturating_add(1) as u64);
+        limited.read_to_end(&mut decoded)
+    };
+    read_result.map_err(|err| IncomingBodyDecodeError {
+        status: StatusCode::BAD_REQUEST,
+        message: crate::gateway::bilingual_error(
+            "zstd 请求体解压失败",
+            format!("invalid zstd request body: {err}"),
+        ),
+    })?;
+    if max_body_bytes > 0 && decoded.len() > max_body_bytes {
+        return Err(IncomingBodyDecodeError {
+            status: StatusCode::PAYLOAD_TOO_LARGE,
+            message: crate::gateway::bilingual_error(
+                "请求体过大",
+                format!("request body too large after zstd decompression: >{max_body_bytes}"),
+            ),
+        });
+    }
+    Ok(decoded)
+}
+
+fn normalize_incoming_request_body(
+    headers: &mut HeaderMap,
+    body: Bytes,
+    max_body_bytes: usize,
+) -> Result<Bytes, IncomingBodyDecodeError> {
+    if body.is_empty() || (!has_zstd_content_encoding(headers) && !has_zstd_magic(body.as_ref())) {
+        return Ok(body);
+    }
+
+    let decoded = decode_zstd_body(body.as_ref(), max_body_bytes)?;
+    headers.remove(header::CONTENT_ENCODING);
+    headers.remove(header::CONTENT_LENGTH);
+    Ok(Bytes::from(decoded))
+}
+
 /// 函数 `proxy_handler`
 ///
 /// 作者: gaohongshun
@@ -144,7 +219,7 @@ async fn proxy_handler(
         }
     }
 
-    let outbound_headers = filter_request_headers(&parts.headers);
+    let mut outbound_headers = filter_request_headers(&parts.headers);
     let read_limit = if max_body_bytes == 0 {
         usize::MAX
     } else {
@@ -172,6 +247,26 @@ async fn proxy_handler(
             );
         }
     };
+    let encoded_body_bytes = body_bytes.len();
+    let body_bytes =
+        match normalize_incoming_request_body(&mut outbound_headers, body_bytes, max_body_bytes) {
+            Ok(body) => body,
+            Err(err) => {
+                log_proxy_error(err.status, target_url.as_str(), err.message.as_str());
+                return text_error_response(
+                    err.status,
+                    crate::gateway::error_message_for_client(prefer_raw_errors, err.message),
+                );
+            }
+        };
+    if body_bytes.len() != encoded_body_bytes {
+        log::info!(
+            "event=front_proxy_request_decompressed path={} algorithm=zstd pre_bytes={} post_bytes={}",
+            parts.uri.path(),
+            encoded_body_bytes,
+            body_bytes.len()
+        );
+    }
 
     let mut builder = state.client.request(parts.method, target_url.as_str());
     builder = builder.headers(outbound_headers);
