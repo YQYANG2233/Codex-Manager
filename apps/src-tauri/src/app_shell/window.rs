@@ -1,9 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::webview::{Color, PageLoadEvent};
-// Effect::Popover is a macOS-specific NSVisualEffectView effect; guard the import so the
-// compiler does not warn about unused symbols on Windows where it is not applied.
-#[cfg(not(target_os = "windows"))]
 use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::Manager;
 use tauri::{
@@ -276,7 +273,7 @@ fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWi
         return Some(window);
     }
 
-    let builder = WebviewWindowBuilder::new(
+    match WebviewWindowBuilder::new(
         app,
         TRAY_PREVIEW_WINDOW_LABEL,
         WebviewUrl::App("tray-preview/".into()),
@@ -291,25 +288,21 @@ fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWi
     .decorations(false)
     .transparent(true)
     .background_color(Color(0, 0, 0, 0))
-    .shadow(false)
-    .always_on_top(true)
-    .visible_on_all_workspaces(true)
-    .skip_taskbar(true)
-    .visible(false)
-    .focused(false);
-    // Effect::Popover is a macOS-specific NSVisualEffectView effect; applying it on Windows
-    // causes DWM to render a rectangular background/border artifact around the transparent
-    // window.  On Windows the rounded appearance is handled purely by CSS border-radius, so
-    // we skip the effects() call there.
-    #[cfg(not(target_os = "windows"))]
-    let builder = builder.effects(
+    .effects(
         EffectsBuilder::new()
             .effect(Effect::Popover)
             .state(EffectState::Active)
             .radius(18.0)
             .build(),
-    );
-    match builder.build() {
+    )
+    .shadow(false)
+    .always_on_top(true)
+    .visible_on_all_workspaces(true)
+    .skip_taskbar(true)
+    .visible(false)
+    .focused(false)
+    .build()
+    {
         Ok(window) => {
             apply_tray_preview_window_size(&window);
             Some(window)
