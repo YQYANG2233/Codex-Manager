@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -96,7 +96,9 @@ export default function TrayPreviewPage() {
     includeAccountDetails: false,
   });
 
-  const openMainWindow = async () => {
+  const openMainWindow = async (event: MouseEvent<HTMLButtonElement>) => {
+    setIsOpenButtonActive(false);
+    event.currentTarget.blur();
     await appClient.showMainWindow();
   };
 
@@ -137,7 +139,7 @@ export default function TrayPreviewPage() {
               onPointerLeave={() => setIsOpenButtonActive(false)}
               onFocus={() => setIsOpenButtonActive(true)}
               onBlur={() => setIsOpenButtonActive(false)}
-              onClick={() => void openMainWindow()}
+              onClick={(event) => void openMainWindow(event)}
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
               {t("打开")}
