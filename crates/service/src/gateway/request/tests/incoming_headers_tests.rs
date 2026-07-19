@@ -90,6 +90,43 @@ fn session_id_is_preferred_for_sticky_key_material() {
     assert_eq!(snapshot.sticky_key_material(), Some("session-thread-1"));
 }
 
+#[test]
+fn current_codex_hyphenated_headers_are_captured() {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        "session-id",
+        axum::http::HeaderValue::from_static("session-current"),
+    );
+    headers.insert(
+        "thread-id",
+        axum::http::HeaderValue::from_static("thread-current"),
+    );
+
+    let snapshot = IncomingHeaderSnapshot::from_http_headers(&headers);
+
+    assert_eq!(snapshot.session_id(), Some("session-current"));
+    assert_eq!(snapshot.conversation_id(), Some("thread-current"));
+    assert_eq!(snapshot.sticky_key_material(), Some("session-current"));
+}
+
+#[test]
+fn current_codex_hyphenated_headers_are_captured_from_tiny_http_requests() {
+    let request: tiny_http::Request = tiny_http::TestRequest::new()
+        .with_header(
+            tiny_http::Header::from_bytes("session-id", "session-current").expect("session header"),
+        )
+        .with_header(
+            tiny_http::Header::from_bytes("thread-id", "thread-current").expect("thread header"),
+        )
+        .into();
+
+    let snapshot = IncomingHeaderSnapshot::from_request(&request);
+
+    assert_eq!(snapshot.session_id(), Some("session-current"));
+    assert_eq!(snapshot.conversation_id(), Some("thread-current"));
+    assert_eq!(snapshot.sticky_key_material(), Some("session-current"));
+}
+
 /// 函数 `codex_headers_are_captured_from_http_headers`
 ///
 /// 作者: gaohongshun

@@ -80,7 +80,10 @@ impl IncomingHeaderSnapshot {
                 }
                 continue;
             }
-            if snapshot.session_id.is_none() && name.eq_ignore_ascii_case("session_id") {
+            if snapshot.session_id.is_none()
+                && (name.eq_ignore_ascii_case("session-id")
+                    || name.eq_ignore_ascii_case("session_id"))
+            {
                 if !value.is_empty() {
                     snapshot.session_id = Some(value.to_string());
                 }
@@ -179,7 +182,10 @@ impl IncomingHeaderSnapshot {
                 remember_passthrough_header(&mut snapshot.passthrough_codex_headers, name, value);
                 continue;
             }
-            if snapshot.conversation_id.is_none() && name.eq_ignore_ascii_case("conversation_id") {
+            if snapshot.conversation_id.is_none()
+                && (name.eq_ignore_ascii_case("thread-id")
+                    || name.eq_ignore_ascii_case("conversation_id"))
+            {
                 if !value.is_empty() {
                     snapshot.conversation_id = Some(value.to_string());
                 }
@@ -239,7 +245,9 @@ impl IncomingHeaderSnapshot {
                 }
                 continue;
             }
-            if snapshot.session_id.is_none() && header.field.equiv("session_id") {
+            if snapshot.session_id.is_none()
+                && (header.field.equiv("session-id") || header.field.equiv("session_id"))
+            {
                 let value = header.value.as_str().trim();
                 if !value.is_empty() {
                     snapshot.session_id = Some(value.to_string());
@@ -349,7 +357,9 @@ impl IncomingHeaderSnapshot {
                 }
                 continue;
             }
-            if snapshot.conversation_id.is_none() && header.field.equiv("conversation_id") {
+            if snapshot.conversation_id.is_none()
+                && (header.field.equiv("thread-id") || header.field.equiv("conversation_id"))
+            {
                 let value = header.value.as_str().trim();
                 if !value.is_empty() {
                     snapshot.conversation_id = Some(value.to_string());

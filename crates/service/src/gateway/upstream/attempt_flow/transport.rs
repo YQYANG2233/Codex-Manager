@@ -86,6 +86,18 @@ fn force_connection_close(headers: &mut Vec<(String, String)>) {
     }
 }
 
+fn is_session_scoped_header(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "session-id"
+            | "thread-id"
+            | "x-client-request-id"
+            | "x-codex-window-id"
+            | "x-codex-turn-state"
+            | "session_id"
+    )
+}
+
 /// 函数 `extract_prompt_cache_key`
 ///
 /// 作者: gaohongshun
@@ -217,8 +229,24 @@ fn apply_gemini_codex_compat_header_profile(
     remove_header(headers, "x-codex-turn-state");
     remove_header(headers, "x-codex-parent-thread-id");
     remove_header(headers, "x-openai-subagent");
+    remove_header(headers, "session-id");
+    remove_header(headers, "thread-id");
     if !has_header(headers, "session_id") {
         headers.push(("Session_id".to_string(), random_cpa_session_id()));
+    }
+}
+
+fn apply_final_upstream_header_policy(
+    headers: &mut Vec<(String, String)>,
+    gemini_codex_compat: bool,
+    incoming_originator: Option<&str>,
+    drop_session_headers: bool,
+) {
+    if gemini_codex_compat {
+        apply_gemini_codex_compat_header_profile(headers, incoming_originator);
+    }
+    if drop_session_headers {
+        headers.retain(|(name, _)| !is_session_scoped_header(name));
     }
 }
 
@@ -656,6 +684,37 @@ pub(in super::super) fn send_upstream_request(
         auth_token,
         account,
         strip_session_affinity,
+        false,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in super::super) fn send_upstream_request_without_session_headers(
+    client: &reqwest::blocking::Client,
+    method: &reqwest::Method,
+    target_url: &str,
+    request_deadline: Option<Instant>,
+    request_ctx: UpstreamRequestContext<'_>,
+    incoming_headers: &super::super::super::IncomingHeaderSnapshot,
+    body: &Bytes,
+    is_stream: bool,
+    auth_token: &str,
+    account: &Account,
+) -> Result<GatewayUpstreamResponse, reqwest::Error> {
+    send_upstream_request_with_compression_override(
+        client,
+        method,
+        target_url,
+        request_deadline,
+        request_ctx,
+        incoming_headers,
+        body,
+        is_stream,
+        auth_token,
+        account,
+        true,
+        true,
         None,
     )
 }
@@ -696,6 +755,7 @@ pub(in super::super) fn send_upstream_request_without_compression(
         auth_token,
         account,
         strip_session_affinity,
+        false,
         Some(RequestCompression::None),
     )
 }
@@ -723,6 +783,7 @@ fn send_upstream_request_with_compression_override(
     auth_token: &str,
     account: &Account,
     strip_session_affinity: bool,
+    drop_session_headers: bool,
     compression_override: Option<RequestCompression>,
 ) -> Result<GatewayUpstreamResponse, String> {
     let attempt_started_at = Instant::now();
@@ -873,12 +934,12 @@ fn send_upstream_request_with_compression_override(
         };
         super::super::header_profile::build_codex_upstream_headers(header_input)
     };
-    if gemini_codex_compat {
-        apply_gemini_codex_compat_header_profile(
-            &mut upstream_headers,
-            incoming_headers.originator(),
-        );
-    }
+    apply_final_upstream_header_policy(
+        &mut upstream_headers,
+        gemini_codex_compat,
+        incoming_headers.originator(),
+        drop_session_headers,
+    );
     if should_force_connection_close(target_url) {
         // 中文注释：本地 loopback mock/代理更容易复用到脏 keep-alive 连接；
         // 对 localhost/127.0.0.1 强制 close，避免请求落到已失效连接。
