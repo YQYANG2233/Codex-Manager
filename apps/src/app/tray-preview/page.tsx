@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -79,6 +80,7 @@ function QuotaLine({ label, value, resetsAt, emptyResetText, tone }: QuotaLinePr
 
 export default function TrayPreviewPage() {
   const { t } = useI18n();
+  const [isOpenButtonActive, setIsOpenButtonActive] = useState(false);
   const {
     stats,
     currentAccount,
@@ -126,7 +128,15 @@ export default function TrayPreviewPage() {
               type="button"
               size="sm"
               variant="ghost"
-              className="h-8 shrink-0 rounded-full px-2.5 text-[12px] text-foreground/80 hover:bg-accent/70"
+              className={cn(
+                "tray-preview-open-button h-8 shrink-0 rounded-full bg-transparent px-2.5 text-[12px] text-foreground/80 shadow-none hover:bg-transparent hover:shadow-none",
+                isOpenButtonActive &&
+                  "tray-preview-open-button-active bg-accent/70 text-foreground",
+              )}
+              onPointerEnter={() => setIsOpenButtonActive(true)}
+              onPointerLeave={() => setIsOpenButtonActive(false)}
+              onFocus={() => setIsOpenButtonActive(true)}
+              onBlur={() => setIsOpenButtonActive(false)}
               onClick={() => void openMainWindow()}
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
