@@ -17,7 +17,7 @@ pub(super) use std::path::PathBuf;
 pub(super) use std::sync::atomic::{AtomicUsize, Ordering};
 pub(super) use std::sync::mpsc::{self, Receiver};
 pub(super) use std::thread;
-pub(super) use std::time::{Duration, Instant};
+pub(super) use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub(super) static TEST_DIR_SEQ: AtomicUsize = AtomicUsize::new(0);
 pub(super) static TEST_PORT_SEQ: AtomicUsize = AtomicUsize::new(41000);
@@ -34,11 +34,20 @@ pub(super) static TEST_PORT_SEQ: AtomicUsize = AtomicUsize::new(41000);
 /// # 返回
 /// 返回函数执行结果
 pub(super) fn new_test_dir(prefix: &str) -> PathBuf {
-    // 中文注释：Windows 进程 ID 可能被复用；增加递增序号避免复用旧目录/旧 db 文件导致用例不稳定。
+    // 中文注释：进程 ID 可能被复用；时间戳与递增序号共同避免复用旧测试数据库。
     let seq = TEST_DIR_SEQ.fetch_add(1, Ordering::Relaxed);
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     let mut dir = std::env::temp_dir();
-    dir.push(format!("{prefix}-{}-{seq}", std::process::id()));
+    dir.push(format!("{prefix}-{}-{timestamp}-{seq}", std::process::id()));
     let _ = fs::create_dir_all(&dir);
+    // 在公开进程级 DB 环境变量前完成迁移，避免残留后台线程同时初始化同一临时库。
+    let db_path = dir.join("codexmanager.db");
+    let storage = Storage::open(&db_path).expect("open gateway test db");
+    storage.init().expect("init gateway test db");
+    drop(storage);
     dir
 }
 

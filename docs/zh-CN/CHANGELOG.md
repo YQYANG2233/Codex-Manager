@@ -5,6 +5,29 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-07-19
+
+### Added
+
+- 新增账号级代理管理（#314）：支持创建可复用的代理配置、为单个账号选择代理，并在账号请求、令牌刷新和用量刷新链路中使用对应代理。
+- 新增代理连通性、延迟、下载及上传测试，统一展示运行状态、出口 IP、国家/地区与测速结果；桌面端和 Web 服务模式均可配置和测试。
+- 模型目录新增多选批量路由分配：可将账号池或聚合 API 路由追加/更新到多个模型，也可选择替换所选模型的全部现有路由；上游模型名会按各模型标识自动填写。
+
+### Changed
+
+- 收紧 Codex 网关识别规则并优先使用当前供应商网关地址，避免将普通 OpenAI 兼容端点误判为 Codex；同时保留 compact、Gemini 及多候选回退行为（#346）。
+- 完善原生 Web Search、Image Generation、`/v1/models` 和 Responses WebSocket 的协议兼容，并支持有界解压 zstd 编码内容（#363）。
+- 发布版本提升到 `0.4.3`，同步更新 workspace、前端包、Tauri 桌面端与锁文件。
+
+### Fixed
+
+- 修复部分 Responses 请求收到 400 后无法继续候选重试的问题；重试时会移除不适用的 session/thread 请求头，并正确保留加密内容容器。
+- 修复 hosted image tool 与 Codex image generation 命名空间冲突，以及旧 Responses 路径抑制范围过宽的问题。
+- 修复 Windows 托盘右键菜单可能立即关闭、点击时刷新引发回归，以及用量更新后菜单文案未及时刷新的问题（#362）。
+- 修复 Windows 玻璃效果下顶栏徽标文字模糊（#360），以及侧栏 Logo 和选中图标出现白色填充的问题（#361）。
+- 补全模型目录简体中文展示，统计项、筛选器、表头、来源、价格/指令/路由状态及内置模型说明不再混用英文。
+- 修复合并功能后的 release 编译、前端 lint/effect、端到端选择器及 Service 并行测试隔离问题，恢复完整发版验证。
+
 ## [0.4.2] - 2026-07-19
 
 ### Changed
@@ -365,7 +388,8 @@
 ### Changed
 - 账号管理页操作区整合为单一“账号操作”下拉菜单，替代右侧多按钮堆叠，界面更简洁。
 
-[Unreleased]: https://github.com/qxcnm/Codex-Manager/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/qxcnm/Codex-Manager/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/qxcnm/Codex-Manager/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/qxcnm/Codex-Manager/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/qxcnm/Codex-Manager/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/qxcnm/Codex-Manager/compare/v0.3.9...v0.4.0
