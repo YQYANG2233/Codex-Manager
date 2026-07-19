@@ -1263,6 +1263,7 @@ fn sync_runtime_settings_from_storage_applies_saved_runtime_values() {
                 .and_then(|value| value.as_str()),
             Some("spark*=gpt-5.4-mini")
         );
+        assert!(!codexmanager_service::current_gateway_request_compression_enabled());
         assert_eq!(
             snapshot
                 .get("gatewayOriginator")

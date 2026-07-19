@@ -114,10 +114,16 @@ fn build_codex_upstream_headers_keeps_final_affinity_shape() {
     let _guard = crate::test_env_guard();
     let _ = set_originator("codex_cli_rs_tests").expect("set originator");
     let _ = set_codex_user_agent_version("0.999.0").expect("set ua version");
-    let passthrough = vec![(
-        "x-codex-other-limit-name".to_string(),
-        "promo_header_a".to_string(),
-    )];
+    let passthrough = vec![
+        (
+            "x-codex-other-limit-name".to_string(),
+            "promo_header_a".to_string(),
+        ),
+        (
+            "x-openai-internal-codex-responses-lite".to_string(),
+            "true".to_string(),
+        ),
+    ];
 
     let headers = build_codex_upstream_headers(CodexUpstreamHeaderInput {
         auth_token: "token-123",
@@ -204,6 +210,10 @@ fn build_codex_upstream_headers_keeps_final_affinity_shape() {
         Some("thread-parent-a")
     );
     assert_eq!(header_value(&headers, "x-codex-other-limit-name"), None);
+    assert_eq!(
+        header_value(&headers, "x-openai-internal-codex-responses-lite"),
+        Some("true")
+    );
 }
 
 /// 函数 `build_codex_upstream_headers_clears_turn_state_when_affinity_diverges`

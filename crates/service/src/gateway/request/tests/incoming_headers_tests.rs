@@ -133,6 +133,10 @@ fn codex_headers_are_captured_from_http_headers() {
         axum::http::HeaderValue::from_static("promo_header"),
     );
     headers.insert(
+        "x-openai-internal-codex-responses-lite",
+        axum::http::HeaderValue::from_static("true"),
+    );
+    headers.insert(
         "x-responsesapi-include-timing-metrics",
         axum::http::HeaderValue::from_static("true"),
     );
@@ -155,7 +159,13 @@ fn codex_headers_are_captured_from_http_headers() {
     assert_eq!(snapshot.responsesapi_include_timing_metrics(), Some("true"));
     assert_eq!(snapshot.codex_inference_call_id(), Some("call_123"));
     assert_eq!(snapshot.oai_attestation(), Some("attest_123"));
-    assert!(snapshot.passthrough_codex_headers().is_empty());
+    assert_eq!(
+        snapshot.passthrough_codex_headers(),
+        &[(
+            "x-openai-internal-codex-responses-lite".to_string(),
+            "true".to_string()
+        )]
+    );
 }
 
 #[test]

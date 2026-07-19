@@ -5,6 +5,8 @@ const X_RESPONSESAPI_INCLUDE_TIMING_METRICS_HEADER_NAME: &str =
     "x-responsesapi-include-timing-metrics";
 const X_CODEX_INFERENCE_CALL_ID_HEADER_NAME: &str = "x-codex-inference-call-id";
 const X_OAI_ATTESTATION_HEADER_NAME: &str = "x-oai-attestation";
+const X_OPENAI_INTERNAL_CODEX_RESPONSES_LITE_HEADER_NAME: &str =
+    "x-openai-internal-codex-responses-lite";
 
 fn anchor_fingerprint_or_dash(value: Option<&str>) -> String {
     value
@@ -420,13 +422,18 @@ fn resolve_window_id(
 fn append_passthrough_codex_headers(
     headers: &mut Vec<(String, String)>,
     passthrough_headers: &[(String, String)],
-    enabled: bool,
+    _enabled: bool,
 ) {
-    // 中文注释：Codex wire shape 不接受额外透传头；这里保留参数只为兼容调用签名，
-    // 但实际行为是完全丢弃。
-    let _ = headers;
-    let _ = passthrough_headers;
-    let _ = enabled;
+    for (name, value) in passthrough_headers {
+        if !name.eq_ignore_ascii_case(X_OPENAI_INTERNAL_CODEX_RESPONSES_LITE_HEADER_NAME)
+            || headers
+                .iter()
+                .any(|(existing, _)| existing.eq_ignore_ascii_case(name))
+        {
+            continue;
+        }
+        headers.push((name.clone(), value.clone()));
+    }
 }
 
 /// 函数 `resolve_client_request_id`
