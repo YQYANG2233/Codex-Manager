@@ -52,9 +52,11 @@ pub(crate) fn get(slug: &str) -> Result<ManagedModelV2, String> {
 pub(crate) fn upsert(input: ManagedModelV2Upsert) -> Result<ManagedModelV2, String> {
     let storage =
         crate::storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
-    storage
+    let model = storage
         .upsert_managed_model_v2(&input)
-        .map_err(|err| format!("save managed model V2 failed: {err}"))
+        .map_err(|err| format!("save managed model V2 failed: {err}"))?;
+    sync_active_gateway_catalog_best_effort(&storage);
+    Ok(model)
 }
 
 pub(crate) fn delete(slug: &str) -> Result<(), String> {
@@ -62,7 +64,18 @@ pub(crate) fn delete(slug: &str) -> Result<(), String> {
         crate::storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
     storage
         .delete_managed_model_v2(slug)
-        .map_err(|err| format!("delete managed model V2 failed: {err}"))
+        .map_err(|err| format!("delete managed model V2 failed: {err}"))?;
+    sync_active_gateway_catalog_best_effort(&storage);
+    Ok(())
+}
+
+pub(super) fn sync_active_gateway_catalog_best_effort(
+    storage: &codexmanager_core::storage::Storage,
+) {
+    if let Err(err) = crate::codex_profile::sync_active_gateway_model_catalog_from_storage(storage)
+    {
+        log::warn!("event=sync_active_gateway_model_catalog_failed error={err}");
+    }
 }
 
 fn capability<'a>(model: &'a ManagedModelV2, keys: &[&str]) -> Option<&'a Value> {
