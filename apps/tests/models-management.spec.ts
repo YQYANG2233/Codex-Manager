@@ -449,11 +449,12 @@ test("长路由来源不会覆盖相邻的模型和批量路由字段", async ({
   await modelDialog.getByRole("tab", { name: "路由" }).click();
   await modelDialog.getByRole("button", { name: "添加聚合路由" }).click();
   await modelDialog.locator("#route-source-1").click();
-  await page.getByRole("option", { name: LONG_AGGREGATE_NAME }).click();
+  await page.getByRole("option", { name: `聚合 API：${LONG_AGGREGATE_NAME}` }).click();
 
   const routeSource = modelDialog.locator("#route-source-1");
   const upstreamModel = modelDialog.locator("#route-model-1");
   const routeCard = routeSource.locator('xpath=ancestor::div[@data-slot="card"][1]');
+  await expect(routeSource).toContainText(`聚合 API：${LONG_AGGREGATE_NAME}`);
   const [routeSourceBox, upstreamModelBox, routeCardBox] = await Promise.all([
     routeSource.boundingBox(),
     upstreamModel.boundingBox(),
@@ -476,11 +477,12 @@ test("长路由来源不会覆盖相邻的模型和批量路由字段", async ({
   const batchDialog = page.getByRole("dialog", { name: "批量分配模型路由" });
   await batchDialog.getByRole("button", { name: "添加聚合路由" }).click();
   await batchDialog.locator("#batch-route-source-1").click();
-  await page.getByRole("option", { name: LONG_AGGREGATE_NAME }).click();
+  await page.getByRole("option", { name: `聚合 API：${LONG_AGGREGATE_NAME}` }).click();
 
   const batchSource = batchDialog.locator("#batch-route-source-1");
   const batchPriority = batchDialog.locator("#batch-route-priority-1");
   const batchCard = batchSource.locator('xpath=ancestor::div[@data-slot="card"][1]');
+  await expect(batchSource).toContainText(`聚合 API：${LONG_AGGREGATE_NAME}`);
   const [compactDialogBox, batchSourceBox, batchPriorityBox, batchCardBox] =
     await Promise.all([
       batchDialog.boundingBox(),
@@ -607,7 +609,7 @@ test("模型目录支持中文展示并为多个模型批量分配路由", async
   await expect(dialog.getByText("gpt-5.6-terra", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "添加聚合路由" }).click();
   await dialog.locator("#batch-route-source-1").click();
-  await page.getByRole("option", { name: "Aggregate Test" }).click();
+  await page.getByRole("option", { name: "聚合 API：Aggregate Test" }).click();
   await dialog.getByRole("button", { name: "应用到 2 个模型" }).click();
 
   await expect(dialog).toHaveCount(0);
@@ -686,7 +688,7 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
   await expect(page.getByRole("combobox", { name: "来源类型" })).toHaveCount(2);
   await expect(page.getByRole("switch", { name: "启用路由" })).toHaveCount(2);
   await page.locator("#route-source-1").click();
-  await page.getByRole("option", { name: "Aggregate Test" }).click();
+  await page.getByRole("option", { name: "聚合 API：Aggregate Test" }).click();
   await page.locator("#route-model-1").fill("upstream-custom-v1");
 
   await page.getByRole("tab", { name: "指令策略" }).click();
@@ -770,7 +772,7 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
   await expect(importDialog.getByText("base_instructions", { exact: true })).toBeVisible();
 
   await importDialog.getByRole("combobox").click();
-  await page.getByRole("option", { name: "replace_custom" }).click();
+  await page.getByRole("option", { name: "替换自定义模型" }).click();
   await importDialog.getByRole("button", { name: "预览导入" }).click();
   await importDialog.getByRole("button", { name: "提交导入" }).click();
   await expect(page.locator("tr", { hasText: "imported-local" })).toBeVisible();

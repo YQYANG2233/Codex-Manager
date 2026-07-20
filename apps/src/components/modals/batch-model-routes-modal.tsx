@@ -74,6 +74,26 @@ function integer(value: string, minimum?: number): number | null {
   return parsed;
 }
 
+function aggregateApiDisplayName(
+  api: AggregateApi | undefined,
+  t: (message: string) => string,
+): string {
+  return api?.supplierName?.trim() || t("未命名聚合 API");
+}
+
+function aggregateRouteSourceLabel(
+  sourceId: string,
+  aggregateApis: AggregateApi[],
+  t: (message: string) => string,
+): string {
+  const normalizedId = sourceId.trim();
+  if (!normalizedId) return t("选择聚合 API");
+  const api = aggregateApis.find((item) => item.id === normalizedId);
+  return `${t("聚合 API")}：${
+    api ? aggregateApiDisplayName(api, t) : t("未知聚合 API")
+  }`;
+}
+
 export function BatchModelRoutesModal({
   open,
   onOpenChange,
@@ -308,13 +328,21 @@ export function BatchModelRoutesModal({
                             className="w-full min-w-0"
                             aria-label={t("来源")}
                           >
-                            <SelectValue placeholder={t("选择聚合 API")} />
+                            <SelectValue placeholder={t("选择聚合 API")}>
+                              {(value) =>
+                                aggregateRouteSourceLabel(
+                                  String(value || ""),
+                                  aggregateApis,
+                                  t,
+                                )
+                              }
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
                               {aggregateApis.map((api) => (
                                 <SelectItem key={api.id} value={api.id}>
-                                  {api.supplierName || api.id}
+                                  {t("聚合 API")}：{aggregateApiDisplayName(api, t)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -323,7 +351,11 @@ export function BatchModelRoutesModal({
                       ) : (
                         <Input
                           id={`batch-route-source-${index}`}
-                          value={route.sourceId}
+                          value={
+                            route.sourceKind === "account_pool"
+                              ? t("默认账号池")
+                              : route.sourceId
+                          }
                           disabled={route.sourceKind === "account_pool"}
                           placeholder={t("聚合 API ID")}
                           onChange={(event) =>

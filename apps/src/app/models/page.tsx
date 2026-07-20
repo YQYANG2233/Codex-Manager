@@ -70,6 +70,23 @@ type ModelFilter =
   | "route_missing"
   | "hidden";
 
+const MODEL_FILTER_LABELS: Record<ModelFilter, string> = {
+  all: "全部模型",
+  enabled: "已启用",
+  builtin: "内置模型",
+  custom: "自定义模型",
+  price_missing: "价格缺失",
+  route_missing: "路由缺失",
+  hidden: "已隐藏",
+};
+
+function modelFilterLabel(
+  filter: ModelFilter,
+  t: (message: string) => string,
+): string {
+  return t(MODEL_FILTER_LABELS[filter] || MODEL_FILTER_LABELS.all);
+}
+
 function enabledRouteCount(model: ManagedModelV2): number {
   return model.routes.filter((route) => route.enabled).length;
 }
@@ -355,16 +372,23 @@ export default function ModelsPage() {
                     className="h-9 pl-9"
                   />
                 </div>
-                <Select value={filter} onValueChange={(value) => setFilter((value || "all") as ModelFilter)}>
-                  <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+                <Select
+                  value={filter}
+                  onValueChange={(value) => setFilter((value || "all") as ModelFilter)}
+                >
+                  <SelectTrigger className="h-9 w-[160px]">
+                    <SelectValue>
+                      {(value) =>
+                        modelFilterLabel((value || "all") as ModelFilter, t)
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent><SelectGroup>
-                    <SelectItem value="all">{t("全部模型")}</SelectItem>
-                    <SelectItem value="enabled">{t("已启用")}</SelectItem>
-                    <SelectItem value="builtin">{t("内置模型")}</SelectItem>
-                    <SelectItem value="custom">{t("自定义模型")}</SelectItem>
-                    <SelectItem value="price_missing">{t("价格缺失")}</SelectItem>
-                    <SelectItem value="route_missing">{t("路由缺失")}</SelectItem>
-                    <SelectItem value="hidden">{t("已隐藏")}</SelectItem>
+                    {(Object.keys(MODEL_FILTER_LABELS) as ModelFilter[]).map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {modelFilterLabel(option, t)}
+                      </SelectItem>
+                    ))}
                   </SelectGroup></SelectContent>
                 </Select>
                 {isAdminMode ? (

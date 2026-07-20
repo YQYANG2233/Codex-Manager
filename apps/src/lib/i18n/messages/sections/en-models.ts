@@ -116,6 +116,8 @@ export const EN_MODELS_MESSAGES: MessageCatalog = {
     "Supports model catalog exports and Codex catalog JSON; every imported item becomes a custom model.",
   "本地 JSON 文件": "Local JSON file",
   冲突策略: "Conflict strategy",
+  保留现有模型: "Keep existing models",
+  替换自定义模型: "Replace custom models",
   预览导入: "Preview import",
   "处理中...": "Processing...",
   新增: "Added",

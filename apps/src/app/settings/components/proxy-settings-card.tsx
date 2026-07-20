@@ -105,6 +105,31 @@ type CloudflareDownloadPreset = "all" | "100kb" | "1mb" | "10mb" | "25mb";
 type CloudflareUploadPreset = CloudflareDownloadPreset | "50mb";
 
 const JOB_POLL_INTERVAL_MS = 750;
+const CF_DOWNLOAD_PRESET_LABELS: Record<CloudflareDownloadPreset, string> = {
+  all: "默认（所有大小）",
+  "100kb": "100 kB（很小）",
+  "1mb": "1 MB（快速）",
+  "10mb": "10 MB（标准）",
+  "25mb": "25 MB（完整）",
+};
+const CF_UPLOAD_PRESET_LABELS: Record<CloudflareUploadPreset, string> = {
+  ...CF_DOWNLOAD_PRESET_LABELS,
+  "50mb": "50 MB（完整）",
+};
+
+function cfDownloadPresetLabel(
+  preset: CloudflareDownloadPreset,
+  t: (message: string) => string,
+): string {
+  return t(CF_DOWNLOAD_PRESET_LABELS[preset] || CF_DOWNLOAD_PRESET_LABELS.all);
+}
+
+function cfUploadPresetLabel(
+  preset: CloudflareUploadPreset,
+  t: (message: string) => string,
+): string {
+  return t(CF_UPLOAD_PRESET_LABELS[preset] || CF_UPLOAD_PRESET_LABELS.all);
+}
 
 function isTerminalJobStatus(status: ProxyTestJobState["status"]): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
@@ -685,15 +710,26 @@ export function ProxySettingsCard({
                             }
                           >
                             <SelectTrigger id="cf-download-preset" className="w-full">
-                              <SelectValue placeholder={t("Select preset...")} />
+                              <SelectValue placeholder={t("选择预设")}>
+                                {(value) =>
+                                  cfDownloadPresetLabel(
+                                    (value || "all") as CloudflareDownloadPreset,
+                                    t,
+                                  )
+                                }
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectGroup>
-                                <SelectItem value="all">{t("默认（所有大小）")}</SelectItem>
-                                <SelectItem value="100kb">100 kB</SelectItem>
-                                <SelectItem value="1mb">1 MB</SelectItem>
-                                <SelectItem value="10mb">10 MB</SelectItem>
-                                <SelectItem value="25mb">25 MB</SelectItem>
+                                {(
+                                  Object.keys(
+                                    CF_DOWNLOAD_PRESET_LABELS,
+                                  ) as CloudflareDownloadPreset[]
+                                ).map((preset) => (
+                                  <SelectItem key={preset} value={preset}>
+                                    {cfDownloadPresetLabel(preset, t)}
+                                  </SelectItem>
+                                ))}
                               </SelectGroup>
                             </SelectContent>
                           </Select>
@@ -725,16 +761,26 @@ export function ProxySettingsCard({
                             }
                           >
                             <SelectTrigger id="cf-upload-preset" className="w-full">
-                              <SelectValue placeholder={t("Select preset...")} />
+                              <SelectValue placeholder={t("选择预设")}>
+                                {(value) =>
+                                  cfUploadPresetLabel(
+                                    (value || "all") as CloudflareUploadPreset,
+                                    t,
+                                  )
+                                }
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectGroup>
-                                <SelectItem value="all">{t("默认（所有大小）")}</SelectItem>
-                                <SelectItem value="100kb">100 kB</SelectItem>
-                                <SelectItem value="1mb">1 MB</SelectItem>
-                                <SelectItem value="10mb">10 MB</SelectItem>
-                                <SelectItem value="25mb">25 MB</SelectItem>
-                                <SelectItem value="50mb">50 MB</SelectItem>
+                                {(
+                                  Object.keys(
+                                    CF_UPLOAD_PRESET_LABELS,
+                                  ) as CloudflareUploadPreset[]
+                                ).map((preset) => (
+                                  <SelectItem key={preset} value={preset}>
+                                    {cfUploadPresetLabel(preset, t)}
+                                  </SelectItem>
+                                ))}
                               </SelectGroup>
                             </SelectContent>
                           </Select>

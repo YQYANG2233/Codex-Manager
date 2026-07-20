@@ -99,6 +99,26 @@ const DEFAULT_CAPABILITIES = {
   supportsParallelToolCalls: true,
 };
 
+function aggregateApiDisplayName(
+  api: AggregateApi | undefined,
+  t: (message: string) => string,
+): string {
+  return api?.supplierName?.trim() || t("未命名聚合 API");
+}
+
+function aggregateRouteSourceLabel(
+  sourceId: string,
+  aggregateApis: AggregateApi[],
+  t: (message: string) => string,
+): string {
+  const normalizedId = sourceId.trim();
+  if (!normalizedId) return t("选择聚合 API");
+  const api = aggregateApis.find((item) => item.id === normalizedId);
+  return `${t("聚合 API")}：${
+    api ? aggregateApiDisplayName(api, t) : t("未知聚合 API")
+  }`;
+}
+
 function routeDraft(route: ModelRouteV2, index: number): RouteDraft {
   return {
     key: route.id || `route-${index}-${route.sourceKind}-${route.sourceId}`,
@@ -687,18 +707,52 @@ export function ModelCatalogModal({
                           </Select>
                         </div>
                         <div className="min-w-0 space-y-2">
-                          <Label className="leading-5" htmlFor={`route-source-${index}`}>{t("来源 ID")}</Label>
+                          <Label className="leading-5" htmlFor={`route-source-${index}`}>
+                            {t("来源")}
+                          </Label>
                           {route.sourceKind === "aggregate_api" && aggregateApis.length > 0 ? (
-                            <Select value={route.sourceId} onValueChange={(value) => updateRoute(index, "sourceId", value || "")}>
-                              <SelectTrigger id={`route-source-${index}`} className="w-full min-w-0" aria-label={t("来源 ID")}><SelectValue placeholder={t("选择聚合 API")} /></SelectTrigger>
+                            <Select
+                              value={route.sourceId}
+                              onValueChange={(value) =>
+                                updateRoute(index, "sourceId", value || "")
+                              }
+                            >
+                              <SelectTrigger
+                                id={`route-source-${index}`}
+                                className="w-full min-w-0"
+                                aria-label={t("来源")}
+                              >
+                                <SelectValue placeholder={t("选择聚合 API")}>
+                                  {(value) =>
+                                    aggregateRouteSourceLabel(
+                                      String(value || ""),
+                                      aggregateApis,
+                                      t,
+                                    )
+                                  }
+                                </SelectValue>
+                              </SelectTrigger>
                               <SelectContent><SelectGroup>
                                 {aggregateApis.map((api) => (
-                                  <SelectItem key={api.id} value={api.id}>{api.supplierName || api.id}</SelectItem>
+                                  <SelectItem key={api.id} value={api.id}>
+                                    {t("聚合 API")}：{aggregateApiDisplayName(api, t)}
+                                  </SelectItem>
                                 ))}
                               </SelectGroup></SelectContent>
                             </Select>
                           ) : (
-                            <Input id={`route-source-${index}`} value={route.sourceId} disabled={route.sourceKind === "account_pool"} onChange={(event) => updateRoute(index, "sourceId", event.target.value)} />
+                            <Input
+                              id={`route-source-${index}`}
+                              value={
+                                route.sourceKind === "account_pool"
+                                  ? t("默认账号池")
+                                  : route.sourceId
+                              }
+                              disabled={route.sourceKind === "account_pool"}
+                              onChange={(event) =>
+                                updateRoute(index, "sourceId", event.target.value)
+                              }
+                            />
                           )}
                         </div>
                         <div className="min-w-0 space-y-2">
