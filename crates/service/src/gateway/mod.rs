@@ -809,14 +809,6 @@ pub(crate) fn upstream_client_for_aggregate_url(url: &str) -> reqwest::blocking:
     runtime_config::upstream_client_for_aggregate_url(url)
 }
 
-pub(crate) fn apply_blocking_upstream_proxy(
-    builder: reqwest::blocking::ClientBuilder,
-    proxy_url: Option<&str>,
-    invalid_event: &str,
-) -> reqwest::blocking::ClientBuilder {
-    runtime_config::apply_blocking_upstream_proxy(builder, proxy_url, invalid_event)
-}
-
 pub(crate) fn apply_async_upstream_proxy(
     builder: reqwest::ClientBuilder,
     proxy_url: Option<&str>,

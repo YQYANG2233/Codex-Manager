@@ -535,24 +535,6 @@ fn build_direct_upstream_client() -> Client {
         })
 }
 
-pub(crate) fn apply_blocking_upstream_proxy(
-    mut builder: reqwest::blocking::ClientBuilder,
-    proxy_url: Option<&str>,
-    invalid_event: &str,
-) -> reqwest::blocking::ClientBuilder {
-    if let Some(proxy_url) = proxy_url.map(str::trim).filter(|value| !value.is_empty()) {
-        match Proxy::all(proxy_url) {
-            Ok(proxy) => {
-                builder = builder.proxy(proxy);
-            }
-            Err(err) => {
-                log::warn!("event={} proxy={} err={}", invalid_event, proxy_url, err);
-            }
-        }
-    }
-    builder
-}
-
 pub(crate) fn apply_async_upstream_proxy(
     mut builder: reqwest::ClientBuilder,
     proxy_url: Option<&str>,

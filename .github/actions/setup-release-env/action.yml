@@ -1,5 +1,5 @@
 name: setup-release-env
-description: Setup pnpm, Node.js, Rust toolchain, and Rust cache for release jobs.
+description: Setup pnpm, Node.js, and the Rust toolchain for release jobs.
 
 inputs:
   node-version:
@@ -13,9 +13,7 @@ inputs:
   pnpm-lock-path:
     description: Lockfile path used for pnpm cache.
     required: false
-    default: |
-      apps/pnpm-lock.yaml
-      .github/workflows/release-all.yml
+    default: apps/pnpm-lock.yaml
   enable-pnpm-cache:
     description: Enable pnpm store cache through actions/cache.
     required: false
@@ -32,15 +30,6 @@ inputs:
     description: Install Rust and configure Cargo-related caches.
     required: false
     default: "true"
-  rust-cache-shared-key:
-    description: Shared rust-cache key.
-    required: false
-    default: release-all-platforms-rust-stable-v1
-  enable-rust-cache:
-    description: Enable rust-cache for Cargo registry and related caches.
-    required: false
-    default: "true"
-
 runs:
   using: composite
   steps:
@@ -120,10 +109,3 @@ runs:
       with:
         toolchain: ${{ inputs.rust-toolchain }}
         targets: ${{ inputs.rust-target }}
-
-    - name: Cache Rust dependencies
-      if: ${{ inputs.enable-rust == 'true' && inputs.enable-rust-cache == 'true' }}
-      uses: Swatinem/rust-cache@v2
-      with:
-        shared-key: ${{ inputs.rust-cache-shared-key }}
-        cache-targets: false
