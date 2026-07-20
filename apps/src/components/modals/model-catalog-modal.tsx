@@ -664,9 +664,9 @@ export function ModelCatalogModal({
                 draft.routes.map((route, index) => (
                   <Card key={route.key} size="sm">
                     <CardContent className="space-y-3">
-                      <div className="grid gap-3 md:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)]">
-                        <div className="space-y-2">
-                          <Label htmlFor={`route-kind-${index}`}>{t("来源类型")}</Label>
+                      <div className="grid gap-3 md:grid-cols-[minmax(150px,0.8fr)_minmax(180px,1fr)_minmax(180px,1fr)]">
+                        <div className="min-w-0 space-y-2">
+                          <Label className="leading-5" htmlFor={`route-kind-${index}`}>{t("来源类型")}</Label>
                           <Select
                             value={route.sourceKind}
                             onValueChange={(value) => {
@@ -675,7 +675,7 @@ export function ModelCatalogModal({
                               updateRoute(index, "sourceId", sourceKind === "account_pool" ? "default" : "");
                             }}
                           >
-                            <SelectTrigger id={`route-kind-${index}`} aria-label={t("来源类型")}>
+                            <SelectTrigger id={`route-kind-${index}`} className="w-full min-w-0" aria-label={t("来源类型")}>
                               <SelectValue>
                                 {(value) => value === "aggregate_api" ? t("聚合 API") : t("账号池")}
                               </SelectValue>
@@ -686,11 +686,11 @@ export function ModelCatalogModal({
                             </SelectGroup></SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`route-source-${index}`}>{t("来源 ID")}</Label>
+                        <div className="min-w-0 space-y-2">
+                          <Label className="leading-5" htmlFor={`route-source-${index}`}>{t("来源 ID")}</Label>
                           {route.sourceKind === "aggregate_api" && aggregateApis.length > 0 ? (
                             <Select value={route.sourceId} onValueChange={(value) => updateRoute(index, "sourceId", value || "")}>
-                              <SelectTrigger id={`route-source-${index}`} aria-label={t("来源 ID")}><SelectValue placeholder={t("选择聚合 API")} /></SelectTrigger>
+                              <SelectTrigger id={`route-source-${index}`} className="w-full min-w-0" aria-label={t("来源 ID")}><SelectValue placeholder={t("选择聚合 API")} /></SelectTrigger>
                               <SelectContent><SelectGroup>
                                 {aggregateApis.map((api) => (
                                   <SelectItem key={api.id} value={api.id}>{api.supplierName || api.id}</SelectItem>
@@ -701,8 +701,8 @@ export function ModelCatalogModal({
                             <Input id={`route-source-${index}`} value={route.sourceId} disabled={route.sourceKind === "account_pool"} onChange={(event) => updateRoute(index, "sourceId", event.target.value)} />
                           )}
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={`route-model-${index}`}>{t("上游模型")}</Label>
+                        <div className="min-w-0 space-y-2">
+                          <Label className="leading-5" htmlFor={`route-model-${index}`}>{t("上游模型")}</Label>
                           <Input id={`route-model-${index}`} value={route.upstreamModel} onChange={(event) => updateRoute(index, "upstreamModel", event.target.value)} />
                         </div>
                       </div>

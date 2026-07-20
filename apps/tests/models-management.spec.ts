@@ -52,6 +52,11 @@ const SETTINGS_SNAPSHOT = {
   appearancePreset: "classic",
 };
 
+const LONG_AGGREGATE_ID =
+  "aggregate-provider-with-an-exceptionally-long-identifier-for-layout-testing";
+const LONG_AGGREGATE_NAME =
+  "Aggregate Provider With An Exceptionally Long Display Name For Layout Testing";
+
 type JsonObject = Record<string, unknown>;
 
 type MockState = {
@@ -286,6 +291,13 @@ async function installMockRuntime(page: Page): Promise<MockState> {
             baseUrl: "https://aggregate.invalid/v1",
             status: "enabled",
           },
+          {
+            id: LONG_AGGREGATE_ID,
+            supplierName: LONG_AGGREGATE_NAME,
+            providerType: "openai_compat",
+            baseUrl: "https://long-aggregate.invalid/v1",
+            status: "enabled",
+          },
         ],
       });
       return;
@@ -406,6 +418,86 @@ test("编辑器不依赖后续动画帧即可载入目标模型", async ({ page 
   );
   await expect(page.getByLabel("默认推理强度")).toHaveValue("medium");
   await expect(page.getByRole("combobox", { name: "可见性" })).toBeVisible();
+});
+
+test("长路由来源不会覆盖相邻的模型和批量路由字段", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await installMockRuntime(page);
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "新增自定义模型" }).click();
+  const modelDialog = page.getByRole("dialog");
+  await modelDialog.getByRole("tab", { name: "路由" }).click();
+  await modelDialog.getByRole("button", { name: "添加聚合路由" }).click();
+  await modelDialog.locator("#route-source-1").click();
+  await page.getByRole("option", { name: LONG_AGGREGATE_NAME }).click();
+
+  const routeSource = modelDialog.locator("#route-source-1");
+  const upstreamModel = modelDialog.locator("#route-model-1");
+  const routeCard = routeSource.locator('xpath=ancestor::div[@data-slot="card"][1]');
+  const [routeSourceBox, upstreamModelBox, routeCardBox] = await Promise.all([
+    routeSource.boundingBox(),
+    upstreamModel.boundingBox(),
+    routeCard.boundingBox(),
+  ]);
+  expect(routeSourceBox).not.toBeNull();
+  expect(upstreamModelBox).not.toBeNull();
+  expect(routeCardBox).not.toBeNull();
+  expect(routeSourceBox!.x + routeSourceBox!.width).toBeLessThanOrEqual(
+    upstreamModelBox!.x + 1,
+  );
+  expect(routeSourceBox!.x + routeSourceBox!.width).toBeLessThanOrEqual(
+    routeCardBox!.x + routeCardBox!.width + 1,
+  );
+
+  await modelDialog.getByRole("button", { name: "取消" }).click();
+  await page.getByLabel("选择模型 gpt-5.6-sol").click();
+  await page.getByRole("button", { name: "批量分配路由 (1)" }).click();
+
+  const batchDialog = page.getByRole("dialog", { name: "批量分配模型路由" });
+  await batchDialog.getByRole("button", { name: "添加聚合路由" }).click();
+  await batchDialog.locator("#batch-route-source-1").click();
+  await page.getByRole("option", { name: LONG_AGGREGATE_NAME }).click();
+
+  const batchSource = batchDialog.locator("#batch-route-source-1");
+  const batchPriority = batchDialog.locator("#batch-route-priority-1");
+  const batchCard = batchSource.locator('xpath=ancestor::div[@data-slot="card"][1]');
+  const [compactDialogBox, batchSourceBox, batchPriorityBox, batchCardBox] =
+    await Promise.all([
+      batchDialog.boundingBox(),
+      batchSource.boundingBox(),
+      batchPriority.boundingBox(),
+      batchCard.boundingBox(),
+    ]);
+  expect(compactDialogBox).not.toBeNull();
+  expect(compactDialogBox!.width).toBeGreaterThanOrEqual(866);
+  expect(batchSourceBox).not.toBeNull();
+  expect(batchPriorityBox).not.toBeNull();
+  expect(batchCardBox).not.toBeNull();
+  expect(batchSourceBox!.y + batchSourceBox!.height).toBeLessThanOrEqual(
+    batchPriorityBox!.y,
+  );
+  expect(batchSourceBox!.x + batchSourceBox!.width).toBeLessThanOrEqual(
+    batchCardBox!.x + batchCardBox!.width + 1,
+  );
+
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const [wideDialogBox, wideSourceBox, widePriorityBox] = await Promise.all([
+    batchDialog.boundingBox(),
+    batchSource.boundingBox(),
+    batchPriority.boundingBox(),
+  ]);
+  expect(wideDialogBox).not.toBeNull();
+  expect(wideSourceBox).not.toBeNull();
+  expect(widePriorityBox).not.toBeNull();
+  expect(wideDialogBox!.width).toBeGreaterThanOrEqual(1228);
+  expect(Math.abs(wideSourceBox!.y - widePriorityBox!.y)).toBeLessThanOrEqual(10);
+  expect(wideSourceBox!.x + wideSourceBox!.width).toBeLessThanOrEqual(
+    widePriorityBox!.x + 1,
+  );
 });
 
 test("模型目录支持中文展示并为多个模型批量分配路由", async ({ page }) => {
