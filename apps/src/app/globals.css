@@ -643,6 +643,12 @@
   box-shadow: inset 0 0 0 1px rgb(var(--primary-rgb) / 0.12), 0 10px 22px -20px rgb(var(--primary-rgb) / 0.36);
 }
 
+.codex-guide-step-button,
+.codex-guide-step-button * {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 [data-slot="badge"] {
   border-color: rgb(var(--primary-rgb) / 0.2);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);

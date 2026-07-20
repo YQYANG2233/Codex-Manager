@@ -276,7 +276,7 @@ export function CodexCliOnboardingDialog({
                         variant="outline"
                         onClick={() => setCurrentStep(index)}
                         className={cn(
-                          "h-auto min-w-0 flex-col items-start justify-start gap-0 overflow-hidden rounded-md px-3 py-2.5 text-left whitespace-normal transition-colors",
+                          "codex-guide-step-button h-auto min-w-0 flex-col items-start justify-start gap-0 overflow-hidden rounded-md px-3 py-2.5 text-left whitespace-normal transition-colors",
                           index === currentStep
                             ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
                             : "border-border/60 bg-background/70 text-muted-foreground hover:bg-accent/50",
