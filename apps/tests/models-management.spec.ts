@@ -75,9 +75,9 @@ type MockState = {
 };
 
 const PRICED_MODELS: Record<string, [number, number, number]> = {
-  "gpt-5.6-sol": [5_000_000, 5_000_000, 30_000_000],
-  "gpt-5.6-terra": [2_500_000, 2_500_000, 15_000_000],
-  "gpt-5.6-luna": [1_000_000, 1_000_000, 6_000_000],
+  "gpt-5.6-sol": [5_000_000, 500_000, 30_000_000],
+  "gpt-5.6-terra": [2_500_000, 250_000, 15_000_000],
+  "gpt-5.6-luna": [1_000_000, 100_000, 6_000_000],
   "gpt-5.5": [5_000_000, 500_000, 30_000_000],
   "gpt-5.4": [2_500_000, 250_000, 15_000_000],
   "gpt-5.4-mini": [750_000, 75_000, 4_500_000],
@@ -92,9 +92,9 @@ function builtinModel(
   const rates = PRICED_MODELS[slug] ?? null;
   const price = rates
     ? {
-        priceStatus: slug.startsWith("gpt-5.6") ? "estimated" : "official",
+        priceStatus: "official",
         priceSource: slug.startsWith("gpt-5.6")
-          ? "user_provided_openai_gpt-5.6_2026-07-14_cached_at_input_rate"
+          ? "https://developers.openai.com/api/docs/models/compare"
           : "seed-2026-05-11",
         inputMicrousdPer1m: rates[0],
         cachedInputMicrousdPer1m: rates[1],
@@ -131,7 +131,7 @@ function builtinModel(
     },
     instructionsMode: "passthrough",
     instructionsText: null,
-    builtinRevision: 2,
+    builtinRevision: slug.startsWith("gpt-5.6") ? 4 : 2,
     userEdited: false,
     price,
     priceTiers: rates
@@ -142,6 +142,16 @@ function builtinModel(
             cachedInputMicrousdPer1m: rates[1],
             outputMicrousdPer1m: rates[2],
           },
+          ...(slug.startsWith("gpt-5.6")
+            ? [
+                {
+                  minInputTokens: 272_000,
+                  inputMicrousdPer1m: rates[0] * 2,
+                  cachedInputMicrousdPer1m: rates[1] * 2,
+                  outputMicrousdPer1m: (rates[2] * 3) / 2,
+                },
+              ]
+            : []),
         ]
       : [],
     routes: [
@@ -646,9 +656,9 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
 
   const rows = page.getByRole("main").locator("tbody tr");
   await expect(rows).toHaveCount(7);
-  await expect(page.locator("tr", { hasText: "gpt-5.6-sol" })).toContainText(
-    "5 / 5 / 30",
-  );
+  const solRow = page.locator("tr", { hasText: "gpt-5.6-sol" });
+  await expect(solRow).toContainText("官方价格");
+  await expect(solRow).toContainText("5 / 0.5 / 30");
   await expect(page.getByText("codex-auto-review", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "远端并入" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "清理远端旧模型" })).toHaveCount(0);
