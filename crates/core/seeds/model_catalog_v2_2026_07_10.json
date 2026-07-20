@@ -1,5 +1,5 @@
 {
-  "revision": 4,
+  "revision": 5,
   "source_sha256": "4914710f243f67c3b32895bfc91e51798cddd2f4020f4c82230fef2798eb0076",
   "models": [
     {
@@ -117,6 +117,22 @@
       "price_source": "verified_seed_2026-05-11",
       "price_tiers": [
         {"min_input_tokens":0,"input_microusd_per_1m":1750000,"cached_input_microusd_per_1m":175000,"output_microusd_per_1m":14000000}
+      ]
+    },
+    {
+      "slug": "gpt-image-2",
+      "display_name": "GPT Image 2",
+      "description": "State-of-the-art image generation and editing model.",
+      "visibility": "list",
+      "priority": 44,
+      "default_reasoning_effort": null,
+      "context_window": null,
+      "max_context_window": null,
+      "capabilities": {"reasoning_efforts":[],"service_tiers":[],"additional_speed_tiers":[],"input_modalities":["text","image"],"output_modalities":["image"],"supported_endpoints":["/v1/images/generations","/v1/images/edits"],"snapshot":"gpt-image-2-2026-04-21","supports_text_generation":false,"supports_image_generation":true,"supports_image_editing":true,"supports_transparent_background":false,"include_skills_usage_instructions":false},
+      "price_status": "official",
+      "price_source": "https://developers.openai.com/api/docs/pricing#image-generation",
+      "price_tiers": [
+        {"min_input_tokens":0,"input_microusd_per_1m":8000000,"cached_input_microusd_per_1m":2000000,"output_microusd_per_1m":30000000}
       ]
     },
     {

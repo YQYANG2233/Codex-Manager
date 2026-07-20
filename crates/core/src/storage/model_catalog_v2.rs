@@ -12,7 +12,11 @@ const GPT56_PRICING_MIGRATION_VERSION: &str = "114_model_catalog_gpt56_prices";
 const CODEX_METADATA_MIGRATION_VERSION: &str = "115_model_catalog_codex_metadata";
 const GPT56_OFFICIAL_PRICING_MIGRATION_VERSION: &str = "121_model_catalog_gpt56_official_prices";
 const GPT56_OFFICIAL_PRICE_SOURCE: &str = "https://developers.openai.com/api/docs/models/compare";
+#[cfg(test)]
+const GPT_IMAGE_2_PRICE_SOURCE: &str =
+    "https://developers.openai.com/api/docs/pricing#image-generation";
 const DEFAULT_MODEL_GROUP_ID: &str = "mg_default";
+const TOLERATED_CUSTOM_SEED_COLLISIONS: &[&str] = &["gpt-image-2"];
 
 #[derive(Debug, Clone, Deserialize)]
 struct BuiltinCatalogFixture {
@@ -28,9 +32,9 @@ struct BuiltinModelSeed {
     description: String,
     visibility: String,
     priority: i64,
-    default_reasoning_effort: String,
-    context_window: i64,
-    max_context_window: i64,
+    default_reasoning_effort: Option<String>,
+    context_window: Option<i64>,
+    max_context_window: Option<i64>,
     capabilities: Value,
     price_status: String,
     price_source: Option<String>,
@@ -426,6 +430,13 @@ fn insert_seed(
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     )?;
     if origin != "builtin" {
+        if origin == "custom"
+            && TOLERATED_CUSTOM_SEED_COLLISIONS
+                .iter()
+                .any(|slug| seed.slug.eq_ignore_ascii_case(slug))
+        {
+            return Ok(());
+        }
         return Err(rusqlite::Error::InvalidParameterName(format!(
             "builtin seed slug {} is owned by a custom model",
             seed.slug
@@ -786,18 +797,36 @@ fn migrate_legacy_groups(conn: &Connection) -> Result<()> {
 }
 
 fn migration_smoke(conn: &Connection) -> Result<()> {
+    let fixture = fixture();
+    let expected_seed_count = fixture.models.len() as i64;
     let model_count: i64 = conn.query_row("SELECT COUNT(*) FROM models", [], |row| row.get(0))?;
-    let builtin_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM models WHERE origin='builtin'",
-        [],
-        |row| row.get(0),
-    )?;
+    let mut covered_seed_count = 0_i64;
+    for seed in &fixture.models {
+        let origin = conn
+            .query_row(
+                "SELECT origin FROM models WHERE slug=?1 COLLATE NOCASE",
+                [&seed.slug],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let covered = origin.as_deref() == Some("builtin")
+            || (origin.as_deref() == Some("custom")
+                && TOLERATED_CUSTOM_SEED_COLLISIONS
+                    .iter()
+                    .any(|slug| seed.slug.eq_ignore_ascii_case(slug)));
+        if covered {
+            covered_seed_count += 1;
+        }
+    }
     let orphan_count: i64 = conn.query_row(
         "SELECT (SELECT COUNT(*) FROM model_prices p LEFT JOIN models m ON m.id=p.model_id WHERE m.id IS NULL)
           +(SELECT COUNT(*) FROM model_price_tiers p LEFT JOIN models m ON m.id=p.model_id WHERE m.id IS NULL)
           +(SELECT COUNT(*) FROM model_routes r LEFT JOIN models m ON m.id=r.model_id WHERE m.id IS NULL)",
         [], |row| row.get(0))?;
-    if model_count < 8 || builtin_count != 8 || orphan_count != 0 {
+    if model_count < expected_seed_count
+        || covered_seed_count != expected_seed_count
+        || orphan_count != 0
+    {
         return Err(rusqlite::Error::SqliteFailure(
             (),
             Some("model catalog V2 smoke check failed".to_string()),
@@ -1482,8 +1511,8 @@ mod tests {
     fn fixture_contains_no_prompt_fields() {
         let raw = include_str!("../../seeds/model_catalog_v2_2026_07_10.json");
         let value: Value = serde_json::from_str(raw).expect("parse fixture");
-        assert_eq!(value["models"].as_array().map(Vec::len), Some(8));
-        assert_eq!(value["revision"].as_i64(), Some(4));
+        assert_eq!(value["models"].as_array().map(Vec::len), Some(9));
+        assert_eq!(value["revision"].as_i64(), Some(5));
         assert!(!raw.contains("base_instructions"));
         assert!(!raw.contains("instructions_template"));
         assert!(!raw.contains("instructions_text"));
@@ -1495,6 +1524,20 @@ mod tests {
                     .and_then(Value::as_bool),
                 Some(false)
             );
+            if model["slug"] == "gpt-image-2" {
+                assert!(model["context_window"].is_null());
+                assert!(model["max_context_window"].is_null());
+                assert!(model["default_reasoning_effort"].is_null());
+                assert_eq!(capabilities["snapshot"], "gpt-image-2-2026-04-21");
+                assert_eq!(capabilities["supports_text_generation"], false);
+                assert_eq!(capabilities["supports_image_generation"], true);
+                assert_eq!(capabilities["supports_image_editing"], true);
+                assert_eq!(
+                    capabilities["supported_endpoints"],
+                    serde_json::json!(["/v1/images/generations", "/v1/images/edits"])
+                );
+                continue;
+            }
             for key in [
                 "additional_speed_tiers",
                 "default_verbosity",
@@ -1532,8 +1575,8 @@ mod tests {
         let storage = storage();
         let all = storage.list_managed_models_v2(true).expect("list all");
         let visible = storage.list_api_models_v2().expect("list visible");
-        assert_eq!(all.len(), 8);
-        assert_eq!(visible.len(), 7);
+        assert_eq!(all.len(), 9);
+        assert_eq!(visible.len(), 8);
         assert_eq!(
             all.iter()
                 .filter(|model| model.price.price_status == "missing")
@@ -1594,11 +1637,36 @@ mod tests {
             .iter()
             .find(|model| model.slug == "gpt-5.6-sol")
             .unwrap();
-        assert_eq!(sol.builtin_revision, Some(4));
+        assert_eq!(sol.builtin_revision, Some(5));
         assert_eq!(sol.capabilities["multi_agent_version"], "v2");
         assert_eq!(sol.capabilities["tool_mode"], "code_mode_only");
         assert_eq!(sol.capabilities["use_responses_lite"], true);
         assert_eq!(sol.capabilities["comp_hash"], "3000");
+        let image = all
+            .iter()
+            .find(|model| model.slug == "gpt-image-2")
+            .unwrap();
+        assert_eq!(image.display_name, "GPT Image 2");
+        assert_eq!(image.builtin_revision, Some(5));
+        assert_eq!(image.context_window, None);
+        assert_eq!(image.max_context_window, None);
+        assert_eq!(image.default_reasoning_effort, None);
+        assert_eq!(image.price.price_status, "official");
+        assert_eq!(
+            image.price.price_source.as_deref(),
+            Some(GPT_IMAGE_2_PRICE_SOURCE)
+        );
+        assert_eq!(image.price.input_microusd_per_1m, Some(8_000_000));
+        assert_eq!(image.price.cached_input_microusd_per_1m, Some(2_000_000));
+        assert_eq!(image.price.output_microusd_per_1m, Some(30_000_000));
+        assert_eq!(image.price_tiers.len(), 1);
+        assert_eq!(image.capabilities["supports_text_generation"], false);
+        assert_eq!(
+            image.capabilities["output_modalities"],
+            serde_json::json!(["image"])
+        );
+        assert_eq!(image.routes.len(), 1);
+        assert_eq!(image.routes[0].upstream_model, "gpt-image-2");
         assert!(all
             .iter()
             .all(|model| model.instructions_mode == "passthrough"
@@ -1613,6 +1681,115 @@ mod tests {
         let model = storage.get_managed_model_v2("gpt-5.4").unwrap().unwrap();
         assert_eq!(model.display_name, "Edited");
         assert!(!model.enabled);
+    }
+
+    #[test]
+    fn revision_five_seeds_image_model_into_an_existing_revision_four_catalog() {
+        let storage = storage();
+        storage
+            .conn
+            .execute("DELETE FROM models WHERE slug='gpt-image-2'", [])
+            .unwrap();
+        storage
+            .conn
+            .execute(
+                "UPDATE models SET builtin_revision=4 WHERE origin='builtin'",
+                [],
+            )
+            .unwrap();
+        storage
+            .conn
+            .execute(
+                "UPDATE model_catalog_v2_meta SET value='4' WHERE key='builtin_revision'",
+                [],
+            )
+            .unwrap();
+
+        storage.seed_missing_builtin_models_v2().unwrap();
+        storage.smoke_check_model_catalog_v2().unwrap();
+
+        let image = storage
+            .get_managed_model_v2("gpt-image-2")
+            .unwrap()
+            .unwrap();
+        assert_eq!(image.origin, "builtin");
+        assert_eq!(image.builtin_revision, Some(5));
+        assert_eq!(image.routes.len(), 1);
+        assert_eq!(image.routes[0].upstream_model, "gpt-image-2");
+        let sol = storage
+            .get_managed_model_v2("gpt-5.6-sol")
+            .unwrap()
+            .unwrap();
+        assert_eq!(sol.builtin_revision, Some(4));
+        let revision: String = storage
+            .conn
+            .query_row(
+                "SELECT value FROM model_catalog_v2_meta WHERE key='builtin_revision'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(revision, "5");
+    }
+
+    #[test]
+    fn image_seed_preserves_an_existing_custom_slug_collision() {
+        let storage = storage();
+        let mut custom = storage
+            .get_managed_model_v2("gpt-image-2")
+            .unwrap()
+            .unwrap();
+        storage
+            .conn
+            .execute("DELETE FROM models WHERE slug='gpt-image-2'", [])
+            .unwrap();
+        custom.id.clear();
+        custom.display_name = "My Existing Image Route".to_string();
+        custom.origin = "custom".to_string();
+        custom.builtin_revision = None;
+        custom.user_edited = true;
+        custom.price.price_status = "custom".to_string();
+        custom.price.price_source = Some("existing-user-config".to_string());
+        custom.routes[0].id.clear();
+        custom.routes[0].upstream_model = "my-image-upstream".to_string();
+        let saved = storage
+            .upsert_managed_model_v2(&ManagedModelV2Upsert {
+                model: custom,
+                ..Default::default()
+            })
+            .unwrap();
+
+        storage.seed_missing_builtin_models_v2().unwrap();
+        storage.smoke_check_model_catalog_v2().unwrap();
+
+        let preserved = storage
+            .get_managed_model_v2("gpt-image-2")
+            .unwrap()
+            .unwrap();
+        assert_eq!(preserved.id, saved.id);
+        assert_eq!(preserved.origin, "custom");
+        assert_eq!(preserved.builtin_revision, None);
+        assert_eq!(preserved.display_name, "My Existing Image Route");
+        assert_eq!(
+            preserved.price.price_source.as_deref(),
+            Some("existing-user-config")
+        );
+        assert_eq!(preserved.routes.len(), 1);
+        assert_eq!(preserved.routes[0].upstream_model, "my-image-upstream");
+
+        storage
+            .delete_managed_model_v2("gpt-image-2")
+            .expect("delete preserved custom model");
+        storage
+            .seed_missing_builtin_models_v2()
+            .expect("seed builtin after custom model is removed");
+        let restored = storage
+            .get_managed_model_v2("gpt-image-2")
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.origin, "builtin");
+        assert_eq!(restored.builtin_revision, Some(5));
+        assert_eq!(restored.routes[0].upstream_model, "gpt-image-2");
     }
 
     #[test]
@@ -1667,7 +1844,7 @@ mod tests {
         assert_eq!(sol.price.cached_input_microusd_per_1m, Some(5_000_000));
         assert_eq!(sol.price.output_microusd_per_1m, Some(30_000_000));
         assert_eq!(sol.price_tiers.len(), 1);
-        assert_eq!(sol.builtin_revision, Some(4));
+        assert_eq!(sol.builtin_revision, Some(5));
 
         let terra = storage
             .get_managed_model_v2("gpt-5.6-terra")
@@ -1863,7 +2040,7 @@ mod tests {
             .get_managed_model_v2("gpt-5.6-sol")
             .unwrap()
             .unwrap();
-        assert_eq!(sol.builtin_revision, Some(4));
+        assert_eq!(sol.builtin_revision, Some(5));
         assert_eq!(sol.capabilities["multi_agent_version"], "v2");
         assert_eq!(sol.capabilities["use_responses_lite"], true);
 
@@ -2028,7 +2205,7 @@ mod tests {
                 .list_managed_models_v2(true)
                 .expect("list migrated models")
                 .len(),
-            8
+            9
         );
     }
 }

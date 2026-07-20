@@ -409,6 +409,73 @@ fn setup_dashboard_test_db(name: &str) -> String {
     db_path
 }
 
+#[test]
+fn api_key_text_model_binding_rejects_image_model_without_partial_update() {
+    let _guard = test_env_guard();
+    let db_path = setup_dashboard_test_db("codexmanager-api-key-image-model");
+
+    let create_error = apikey_create::create_api_key(
+        Some("image key".to_string()),
+        Some("gpt-image-2".to_string()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect_err("image model must not be bound as a text primary model");
+    assert!(create_error.contains("image-only model"));
+
+    let created = apikey_create::create_api_key(
+        Some("external key".to_string()),
+        Some("external-model".to_string()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect("unknown external model remains supported");
+    let update_error = apikey_update_model::update_api_key_model(
+        &created.id,
+        Some("must not persist".to_string()),
+        true,
+        Some("gpt-image-2".to_string()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        None,
+    )
+    .expect_err("image model update must be rejected");
+    assert!(update_error.contains("image-only model"));
+
+    let stored = storage_helpers::open_storage()
+        .expect("open storage")
+        .find_api_key_by_id(&created.id)
+        .expect("read api key")
+        .expect("api key");
+    assert_eq!(stored.name.as_deref(), Some("external key"));
+    assert_eq!(stored.model_slug.as_deref(), Some("external-model"));
+
+    let _ = std::fs::remove_file(db_path);
+}
+
 fn rpc_request(method: &str, params: serde_json::Value) -> JsonRpcRequest {
     JsonRpcRequest {
         id: 31.into(),

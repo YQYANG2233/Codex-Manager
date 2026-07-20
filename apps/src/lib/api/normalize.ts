@@ -663,6 +663,16 @@ function normalizeModelInfo(payload: unknown): ModelInfo | null {
       source.experimental_supported_tools ?? source.experimentalSupportedTools,
     ).map((item) => asString(item)),
     inputModalities: asArray(rawInputModalities).map((item) => asString(item)),
+    outputModalities: asArray(
+      source.output_modalities ?? source.outputModalities,
+    ).map((item) => asString(item)),
+    supportedEndpoints: asArray(
+      source.supported_endpoints ?? source.supportedEndpoints,
+    ).map((item) => asString(item)),
+    supportsTextGeneration: asBoolean(
+      source.supports_text_generation ?? source.supportsTextGeneration,
+      true,
+    ),
     minimalClientVersion:
       source.minimal_client_version ?? source.minimalClientVersion ?? null,
     supportsSearchTool: toNullableBoolean(

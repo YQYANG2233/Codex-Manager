@@ -5,6 +5,10 @@ It follows Keep a Changelog with a lightweight adaptation for this repository.
 
 ## [Unreleased]
 
+### Added
+
+- Added `gpt-image-2` (snapshot `gpt-image-2-2026-04-21`) as the ninth builtin and eighth normally visible catalog model. The entry is limited to `/v1/images/generations` and `/v1/images/edits`, is not exposed as a text, Chat Completions, or direct Responses main model, and stores the official $8 / $2 / $30 per-1M image input / cached input / output token rates as catalog metadata.
+
 ### Fixed
 
 - Corrected GPT-5.6 Sol, Terra, and Luna billing to match official OpenAI API pricing: cached input now receives the 90% discount, and requests switch at the 272K input threshold to 2x input and 1.5x output long-context rates. Legacy automatic estimates migrate to official pricing while custom prices stay unchanged.

@@ -19,7 +19,7 @@ fn prices() -> (Storage, Vec<CatalogModelPrice>) {
 #[test]
 fn catalog_prices_are_exact_and_missing_prices_do_not_fallback() {
     let (_storage, prices) = prices();
-    assert_eq!(prices.len(), 8);
+    assert_eq!(prices.len(), 9);
     let mini = resolve_model_price_from_catalog(&prices, "gpt-5.4-mini", 0).expect("mini");
     assert_eq!(mini.provider, "openai");
     assert_close(mini.input_price_per_1m, 0.75);
@@ -38,6 +38,10 @@ fn catalog_prices_are_exact_and_missing_prices_do_not_fallback() {
     assert_close(luna.input_price_per_1m, 1.0);
     assert_close(luna.cached_input_price_per_1m, 0.1);
     assert_close(luna.output_price_per_1m, 6.0);
+    let image = resolve_model_price_from_catalog(&prices, "gpt-image-2", 0).expect("image");
+    assert_close(image.input_price_per_1m, 8.0);
+    assert_close(image.cached_input_price_per_1m, 2.0);
+    assert_close(image.output_price_per_1m, 30.0);
     assert!(resolve_model_price_from_catalog(&prices, "codex-auto-review", 0).is_none());
     assert!(resolve_model_price_from_catalog(&prices, "unknown-provider-model", 0).is_none());
 }

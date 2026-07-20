@@ -50,8 +50,14 @@ fn resolve_warmup_model_slug_uses_first_supported_model_from_catalog_order() {
     disable_seed_models(&storage);
     let mut hidden = make_model("gpt-hidden", 0, true);
     hidden.model.visibility = "hide".to_string();
+    let mut image = make_model("gpt-image-only", 0, true);
+    image.model.capabilities = serde_json::json!({
+        "supports_text_generation": false,
+        "output_modalities": ["image"]
+    });
     for model in [
         hidden,
+        image,
         make_model("gpt-unsupported", 1, false),
         make_model("gpt-latest", 1, true),
         make_model("gpt-older", 2, true),

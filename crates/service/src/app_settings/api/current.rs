@@ -445,21 +445,27 @@ pub(super) fn current_author_content_value() -> Result<Value, String> {
 /// # 返回
 /// 返回函数执行结果
 fn load_free_account_max_model_options(current: &str) -> Vec<String> {
-    let cached = crate::storage_helpers::open_storage()
-        .and_then(|storage| {
-            storage
-                .list_api_models_v2()
-                .map(|models| {
-                    models
-                        .into_iter()
-                        .map(|model| model.slug)
-                        .filter(|slug| slug.starts_with("gpt-"))
-                        .collect::<Vec<_>>()
-                })
-                .ok()
-        })
+    let catalog = crate::storage_helpers::open_storage()
+        .and_then(|storage| storage.list_api_models_v2().ok())
         .unwrap_or_default();
-    collect_free_account_max_model_options(current, &cached)
+    let known_current_is_non_text = catalog.iter().any(|model| {
+        model.slug.eq_ignore_ascii_case(current.trim())
+            && !crate::models_v2::supports_text_generation(model)
+    });
+    let cached = catalog
+        .into_iter()
+        .filter(crate::models_v2::supports_text_generation)
+        .map(|model| model.slug)
+        .filter(|slug| slug.starts_with("gpt-"))
+        .collect::<Vec<_>>();
+    collect_free_account_max_model_options(
+        if known_current_is_non_text {
+            "auto"
+        } else {
+            current
+        },
+        &cached,
+    )
 }
 
 /// 函数 `collect_free_account_max_model_options`

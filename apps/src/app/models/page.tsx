@@ -110,6 +110,7 @@ const BUILTIN_MODEL_DESCRIPTION_KEYS: Record<string, string> = {
   "gpt-5.4": "适合日常编程的强大模型。",
   "gpt-5.4-mini": "适合简单编程任务的小型、快速且高性价比模型。",
   "gpt-5.2": "针对专业工作和长时间运行智能体优化的模型。",
+  "gpt-image-2": "先进的图像生成和编辑模型。",
   "codex-auto-review": "用于 Codex 自动审批审查的模型。",
 };
 

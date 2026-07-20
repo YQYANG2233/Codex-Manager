@@ -8,7 +8,7 @@ pub(crate) fn write_gateway_model_catalog(
     storage: &Storage,
     catalog_path: &Path,
 ) -> Result<usize, String> {
-    let catalog = crate::models_v2::models_response_with_storage(storage)?;
+    let catalog = crate::models_v2::text_generation_models_response_with_storage(storage)?;
     let content = serialize_gateway_model_catalog(&catalog)?;
     write_atomic(catalog_path, &content)?;
     Ok(catalog.models.len())

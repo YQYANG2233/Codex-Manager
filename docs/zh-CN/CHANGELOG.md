@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- 新增 `gpt-image-2`（快照 `gpt-image-2-2026-04-21`），作为第 9 个 builtin、普通列表中的第 8 个模型。该目录项仅用于 `/v1/images/generations` 与 `/v1/images/edits`，不会作为文本生成、Chat Completions 或直接 Responses 主模型；目录价格元数据记录官方每 1M image input / cached input / output tokens 8 / 2 / 30 USD。
+
 ### Fixed
 
 - 按 OpenAI 官方 API 价格修正 GPT-5.6 Sol、Terra、Luna 计费：缓存输入恢复 90% 折扣，并在 272K 输入阈值切换到 2 倍输入、1.5 倍输出的长上下文费率；旧版自动估算价格会迁移为官方价格，自定义价格保持不变。

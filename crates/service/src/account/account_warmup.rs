@@ -277,7 +277,12 @@ fn resolve_warmup_model_slug(storage: &Storage) -> String {
     storage
         .list_api_models_v2()
         .ok()
-        .and_then(|models| models.into_iter().next().map(|model| model.slug))
+        .and_then(|models| {
+            models
+                .into_iter()
+                .find(crate::models_v2::supports_text_generation)
+                .map(|model| model.slug)
+        })
         .filter(|slug| !slug.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_WARMUP_MODEL.to_string())
 }

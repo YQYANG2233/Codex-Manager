@@ -106,6 +106,8 @@ export const EN_MODELS_MESSAGES: MessageCatalog = {
     "Small, fast, and cost-efficient model for simpler coding tasks.",
   "针对专业工作和长时间运行智能体优化的模型。":
     "Optimized for professional work and long-running agents.",
+  "先进的图像生成和编辑模型。":
+    "State-of-the-art image generation and editing model.",
   "用于 Codex 自动审批审查的模型。":
     "Automatic approval review model for Codex.",
   "已删除 {count} 个模型": "Deleted {count} models",

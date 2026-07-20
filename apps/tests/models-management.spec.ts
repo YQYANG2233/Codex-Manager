@@ -82,6 +82,7 @@ const PRICED_MODELS: Record<string, [number, number, number]> = {
   "gpt-5.4": [2_500_000, 250_000, 15_000_000],
   "gpt-5.4-mini": [750_000, 75_000, 4_500_000],
   "gpt-5.2": [1_750_000, 175_000, 14_000_000],
+  "gpt-image-2": [8_000_000, 2_000_000, 30_000_000],
 };
 
 function builtinModel(
@@ -90,12 +91,15 @@ function builtinModel(
   visibility: "list" | "hide" = "list",
 ): JsonObject {
   const rates = PRICED_MODELS[slug] ?? null;
+  const isImageModel = slug === "gpt-image-2";
   const price = rates
     ? {
         priceStatus: "official",
-        priceSource: slug.startsWith("gpt-5.6")
-          ? "https://developers.openai.com/api/docs/models/compare"
-          : "seed-2026-05-11",
+        priceSource: isImageModel
+          ? "https://developers.openai.com/api/docs/pricing#image-generation"
+          : slug.startsWith("gpt-5.6")
+            ? "https://developers.openai.com/api/docs/models/compare"
+            : "seed-2026-05-11",
         inputMicrousdPer1m: rates[0],
         cachedInputMicrousdPer1m: rates[1],
         outputMicrousdPer1m: rates[2],
@@ -110,28 +114,55 @@ function builtinModel(
   return {
     id: `builtin:${slug}`,
     slug,
-    displayName: slug.toUpperCase(),
-    description: `${slug} builtin`,
+    displayName: isImageModel ? "GPT Image 2" : slug.toUpperCase(),
+    description: isImageModel
+      ? "State-of-the-art image generation and editing model."
+      : `${slug} builtin`,
     provider: "openai",
-    family: "gpt-5",
-    category: "reasoning",
-    tags: ["coding"],
+    family: isImageModel ? "gpt-image" : "gpt-5",
+    category: isImageModel ? "image" : "reasoning",
+    tags: isImageModel ? ["image-generation", "image-editing"] : ["coding"],
     origin: "builtin",
     enabled: true,
     supportedInApi: true,
     visibility,
     sortOrder,
-    contextWindow: slug.startsWith("gpt-5.6") ? 372_000 : 272_000,
-    maxContextWindow: slug === "gpt-5.4" ? 1_000_000 : 272_000,
-    defaultReasoningEffort: "medium",
-    capabilities: {
-      reasoningEfforts: ["low", "medium", "high", "xhigh"],
-      inputModalities: ["text", "image"],
-      supportsParallelToolCalls: true,
-    },
+    contextWindow: isImageModel
+      ? null
+      : slug.startsWith("gpt-5.6")
+        ? 372_000
+        : 272_000,
+    maxContextWindow: isImageModel
+      ? null
+      : slug === "gpt-5.4"
+        ? 1_000_000
+        : 272_000,
+    defaultReasoningEffort: isImageModel ? null : "medium",
+    capabilities: isImageModel
+      ? {
+          reasoningEfforts: [],
+          serviceTiers: [],
+          additionalSpeedTiers: [],
+          inputModalities: ["text", "image"],
+          outputModalities: ["image"],
+          supportedEndpoints: [
+            "/v1/images/generations",
+            "/v1/images/edits",
+          ],
+          snapshot: "gpt-image-2-2026-04-21",
+          supportsTextGeneration: false,
+          supportsImageGeneration: true,
+          supportsImageEditing: true,
+          supportsTransparentBackground: false,
+        }
+      : {
+          reasoningEfforts: ["low", "medium", "high", "xhigh"],
+          inputModalities: ["text", "image"],
+          supportsParallelToolCalls: true,
+        },
     instructionsMode: "passthrough",
     instructionsText: null,
-    builtinRevision: slug.startsWith("gpt-5.6") ? 4 : 2,
+    builtinRevision: isImageModel ? 5 : slug.startsWith("gpt-5.6") ? 4 : 2,
     userEdited: false,
     price,
     priceTiers: rates
@@ -180,6 +211,7 @@ function freshModels(): JsonObject[] {
     builtinModel("gpt-5.4", 16),
     builtinModel("gpt-5.4-mini", 23),
     builtinModel("gpt-5.2", 29),
+    builtinModel("gpt-image-2", 44),
     builtinModel("codex-auto-review", 43, "hide"),
   ];
 }
@@ -539,7 +571,7 @@ test("批量路由弹窗在小窗口内保留底部操作并允许正文滚动",
       .getByRole("checkbox", { name: `选择模型 ${slug}`, exact: true })
       .click();
   }
-  await page.getByRole("button", { name: "批量分配路由 (7)" }).click();
+  await page.getByRole("button", { name: "批量分配路由 (8)" }).click();
 
   const dialog = page.getByRole("dialog", { name: "批量分配模型路由" });
   await expect(dialog).toBeVisible();
@@ -548,7 +580,7 @@ test("批量路由弹窗在小窗口内保留底部操作并允许正文滚动",
   await dialog.getByRole("button", { name: "添加聚合路由" }).click();
 
   const body = dialog.getByTestId("batch-route-dialog-body");
-  const applyButton = dialog.getByRole("button", { name: "应用到 7 个模型" });
+  const applyButton = dialog.getByRole("button", { name: "应用到 8 个模型" });
   const [dialogBox, applyButtonBox, bodyMetrics] = await Promise.all([
     dialog.boundingBox(),
     applyButton.boundingBox(),
@@ -655,10 +687,14 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
   ).toBeVisible();
 
   const rows = page.getByRole("main").locator("tbody tr");
-  await expect(rows).toHaveCount(7);
+  await expect(rows).toHaveCount(8);
   const solRow = page.locator("tr", { hasText: "gpt-5.6-sol" });
   await expect(solRow).toContainText("官方价格");
   await expect(solRow).toContainText("5 / 0.5 / 30");
+  const imageRow = page.locator("tr", { hasText: "gpt-image-2" });
+  await expect(imageRow).toContainText("先进的图像生成和编辑模型。");
+  await expect(imageRow).toContainText("官方价格");
+  await expect(imageRow).toContainText("8 / 2 / 30");
   await expect(page.getByText("codex-auto-review", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "远端并入" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "清理远端旧模型" })).toHaveCount(0);
@@ -672,6 +708,9 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
   expect(downloadPath).not.toBeNull();
   const cache = JSON.parse(await readFile(downloadPath!, "utf8"));
   expect(cache.models).toHaveLength(7);
+  expect(
+    cache.models.some((model: JsonObject) => model.slug === "gpt-image-2"),
+  ).toBe(false);
   expect(
     cache.models.every(
       (model: JsonObject) => model.base_instructions === "",
