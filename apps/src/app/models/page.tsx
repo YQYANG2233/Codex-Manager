@@ -505,7 +505,7 @@ export default function ModelsPage() {
                             {routeCount > 0 ? (
                               <div className="space-y-1">
                                 <Badge variant="secondary">{t("{count} 条路由", { count: routeCount })}</Badge>
-                                <div className="max-w-[220px] truncate font-mono text-[10px] text-muted-foreground">
+                                <div className="max-w-[220px] truncate text-xs text-muted-foreground">
                                   {model.routes.filter((route) => route.enabled).map((route) => routeSourceLabel(route.sourceKind, route.sourceId, t)).join("，")}
                                 </div>
                               </div>
