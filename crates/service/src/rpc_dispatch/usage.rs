@@ -43,6 +43,24 @@ pub(super) fn try_handle(req: &JsonRpcRequest) -> Option<JsonRpcResponse> {
             };
             super::value_or_error(result)
         }
+        "account/usage/resetCredits" => {
+            let account_id =
+                super::str_param(req, "accountId").or_else(|| super::str_param(req, "account_id"));
+            super::value_or_error(
+                account_id
+                    .ok_or_else(|| "accountId is required".to_string())
+                    .and_then(crate::usage_reset_credits::read_reset_credits),
+            )
+        }
+        "account/usage/resetCredit/consume" => {
+            let account_id =
+                super::str_param(req, "accountId").or_else(|| super::str_param(req, "account_id"));
+            super::value_or_error(
+                account_id
+                    .ok_or_else(|| "accountId is required".to_string())
+                    .and_then(crate::usage_reset_credits::consume_reset_credit),
+            )
+        }
         _ => return None,
     };
 

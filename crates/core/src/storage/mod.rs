@@ -845,6 +845,14 @@ pub struct DailyTokenUsageRollup {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct ModelTokenUsageRollup {
+    pub bucket_start_ts: i64,
+    pub bucket_end_ts: i64,
+    pub model: String,
+    pub usage: TokenUsageRollup,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct UserTokenUsageRollup {
     pub user_id: String,
     pub usage: TokenUsageRollup,
@@ -2137,6 +2145,7 @@ impl Storage {
             include_str!("../../migrations/120_proxy_history.sql"),
             |s| s.ensure_proxy_history_tables(),
         )?;
+        self.apply_gpt56_official_pricing_migration()?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
         self.ensure_aggregate_api_secrets_table()?;

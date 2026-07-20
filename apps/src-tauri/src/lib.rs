@@ -142,6 +142,14 @@ pub fn run() {
                 log::warn!("tray setup unavailable, continue without tray: {}", err);
             }
             codexmanager_service::sync_runtime_settings_from_storage();
+            if let Err(err) =
+                commands::settings::ui::sync_auto_start_runtime_state_from_settings(app.handle())
+            {
+                log::warn!(
+                    "sync autostart state from persisted settings failed: {}",
+                    err
+                );
+            }
             sync_startup_window_state();
             schedule_startup_main_window(app.handle());
             Ok(())

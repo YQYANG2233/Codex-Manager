@@ -5,6 +5,10 @@ It follows Keep a Changelog with a lightweight adaptation for this repository.
 
 ## [Unreleased]
 
+### Fixed
+
+- Corrected GPT-5.6 Sol, Terra, and Luna billing to match official OpenAI API pricing: cached input now receives the 90% discount, and requests switch at the 272K input threshold to 2x input and 1.5x output long-context rates. Legacy automatic estimates migrate to official pricing while custom prices stay unchanged.
+
 ## [0.4.4] - 2026-07-20
 
 ### Changed

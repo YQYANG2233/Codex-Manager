@@ -1,7 +1,10 @@
 use chrono::DateTime;
-use codexmanager_core::usage::{accounts_check_endpoint, usage_endpoint};
+use codexmanager_core::usage::{
+    accounts_check_endpoint, parse_reset_credits_snapshot, reset_credits_consume_endpoint,
+    reset_credits_endpoint, usage_endpoint, ResetCreditsSnapshot,
+};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE};
-use reqwest::{Client, Proxy};
+use reqwest::{Client, Proxy, Url};
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{OnceLock, RwLock};
@@ -37,6 +40,24 @@ const REQUEST_ID_HEADER: &str = "x-request-id";
 const OAI_REQUEST_ID_HEADER: &str = "x-oai-request-id";
 const CF_RAY_HEADER: &str = "cf-ray";
 const AUTH_ERROR_HEADER: &str = "x-openai-authorization-error";
+
+#[derive(Debug, Clone)]
+pub(crate) struct UsageActionHttpError {
+    pub(crate) status: Option<u16>,
+    pub(crate) message: String,
+}
+
+impl UsageActionHttpError {
+    pub(crate) fn is_unauthorized(&self) -> bool {
+        self.status == Some(reqwest::StatusCode::UNAUTHORIZED.as_u16())
+    }
+}
+
+impl std::fmt::Display for UsageActionHttpError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RefreshTokenAuthErrorReason {
@@ -1024,6 +1045,244 @@ pub(crate) fn fetch_usage_snapshot_with_explicit_proxy(
         workspace_id,
         Some(proxy_url.as_str()),
     ))
+}
+
+pub(crate) fn fetch_reset_credits_snapshot(
+    base_url: &str,
+    bearer: &str,
+    workspace_id: Option<&str>,
+) -> Result<ResetCreditsSnapshot, UsageActionHttpError> {
+    run_usage_future(fetch_reset_credits_snapshot_async(
+        base_url,
+        bearer,
+        workspace_id,
+        None,
+    ))
+}
+
+pub(crate) fn fetch_reset_credits_snapshot_with_explicit_proxy(
+    base_url: &str,
+    bearer: &str,
+    workspace_id: Option<&str>,
+    proxy_url: &str,
+) -> Result<ResetCreditsSnapshot, UsageActionHttpError> {
+    let proxy_url =
+        normalize_explicit_proxy_url(proxy_url).map_err(|message| UsageActionHttpError {
+            status: None,
+            message,
+        })?;
+    run_usage_future(fetch_reset_credits_snapshot_async(
+        base_url,
+        bearer,
+        workspace_id,
+        Some(proxy_url.as_str()),
+    ))
+}
+
+pub(crate) fn consume_reset_credit_request(
+    base_url: &str,
+    bearer: &str,
+    workspace_id: Option<&str>,
+    redeem_request_id: &str,
+) -> Result<(), UsageActionHttpError> {
+    run_usage_future(consume_reset_credit_request_async(
+        base_url,
+        bearer,
+        workspace_id,
+        redeem_request_id,
+        None,
+    ))
+}
+
+pub(crate) fn consume_reset_credit_request_with_explicit_proxy(
+    base_url: &str,
+    bearer: &str,
+    workspace_id: Option<&str>,
+    redeem_request_id: &str,
+    proxy_url: &str,
+) -> Result<(), UsageActionHttpError> {
+    let proxy_url =
+        normalize_explicit_proxy_url(proxy_url).map_err(|message| UsageActionHttpError {
+            status: None,
+            message,
+        })?;
+    run_usage_future(consume_reset_credit_request_async(
+        base_url,
+        bearer,
+        workspace_id,
+        redeem_request_id,
+        Some(proxy_url.as_str()),
+    ))
+}
+
+fn reset_credit_request_headers(
+    base_url: &str,
+    workspace_id: Option<&str>,
+) -> Result<HeaderMap, UsageActionHttpError> {
+    let endpoint = reset_credits_endpoint(base_url);
+    let url = Url::parse(&endpoint).map_err(|error| UsageActionHttpError {
+        status: None,
+        message: format!("invalid reset credit base URL: {error}"),
+    })?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(UsageActionHttpError {
+            status: None,
+            message: format!("unsupported reset credit URL scheme: {}", url.scheme()),
+        });
+    }
+    let origin = url.origin().ascii_serialization();
+    let referer = format!("{origin}/");
+    let mut headers = build_usage_request_headers(workspace_id);
+    headers.insert(
+        reqwest::header::ACCEPT,
+        HeaderValue::from_static("application/json"),
+    );
+    headers.insert(
+        reqwest::header::ORIGIN,
+        HeaderValue::from_str(&origin).map_err(|error| UsageActionHttpError {
+            status: None,
+            message: format!("invalid reset credit origin header: {error}"),
+        })?,
+    );
+    headers.insert(
+        reqwest::header::REFERER,
+        HeaderValue::from_str(&referer).map_err(|error| UsageActionHttpError {
+            status: None,
+            message: format!("invalid reset credit referer header: {error}"),
+        })?,
+    );
+    headers.insert(
+        HeaderName::from_static("openai-beta"),
+        HeaderValue::from_static("codex-1"),
+    );
+    Ok(headers)
+}
+
+async fn fetch_reset_credits_snapshot_async(
+    base_url: &str,
+    bearer: &str,
+    workspace_id: Option<&str>,
+    explicit_proxy_url: Option<&str>,
+) -> Result<ResetCreditsSnapshot, UsageActionHttpError> {
+    let url = reset_credits_endpoint(base_url);
+    let request_headers = reset_credit_request_headers(base_url, workspace_id)?;
+    let build_request = |client: Client| {
+        client
+            .get(&url)
+            .header("Authorization", format!("Bearer {bearer}"))
+            .headers(request_headers.clone())
+    };
+    let client = usage_http_client_for_proxy(explicit_proxy_url).map_err(|message| {
+        UsageActionHttpError {
+            status: None,
+            message,
+        }
+    })?;
+    let response = match build_request(client).send().await {
+        Ok(response) => response,
+        Err(first_error) => {
+            let retry_client =
+                refresh_usage_http_client_for_proxy(explicit_proxy_url).map_err(|message| {
+                    UsageActionHttpError {
+                        status: None,
+                        message,
+                    }
+                })?;
+            build_request(retry_client).send().await.map_err(|second_error| {
+                UsageActionHttpError {
+                    status: None,
+                    message: format!(
+                        "request reset credits failed: {first_error}; retry_after_client_rebuild: {second_error}"
+                    ),
+                }
+            })?
+        }
+    };
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = read_response_text(response, USAGE_HTTP_TOTAL_TIMEOUT)
+        .await
+        .map_err(|message| UsageActionHttpError {
+            status: Some(status.as_u16()),
+            message,
+        })?;
+    if !status.is_success() {
+        return Err(UsageActionHttpError {
+            status: Some(status.as_u16()),
+            message: summarize_usage_error_response(status, &headers, &body, false),
+        });
+    }
+    let value =
+        serde_json::from_str::<serde_json::Value>(&body).map_err(|error| UsageActionHttpError {
+            status: Some(status.as_u16()),
+            message: format!("read reset credits json failed: {error}"),
+        })?;
+    Ok(parse_reset_credits_snapshot(&value))
+}
+
+async fn consume_reset_credit_request_async(
+    base_url: &str,
+    bearer: &str,
+    workspace_id: Option<&str>,
+    redeem_request_id: &str,
+    explicit_proxy_url: Option<&str>,
+) -> Result<(), UsageActionHttpError> {
+    let url = reset_credits_consume_endpoint(base_url);
+    let request_headers = reset_credit_request_headers(base_url, workspace_id)?;
+    let build_request = |client: Client| {
+        client
+            .post(&url)
+            .header("Authorization", format!("Bearer {bearer}"))
+            .headers(request_headers.clone())
+            .json(&serde_json::json!({ "redeem_request_id": redeem_request_id }))
+    };
+    let client = usage_http_client_for_proxy(explicit_proxy_url).map_err(|message| {
+        UsageActionHttpError {
+            status: None,
+            message,
+        }
+    })?;
+    let response = match build_request(client).send().await {
+        Ok(response) => response,
+        Err(first_error) => {
+            let retry_client =
+                refresh_usage_http_client_for_proxy(explicit_proxy_url).map_err(|message| {
+                    UsageActionHttpError {
+                        status: None,
+                        message,
+                    }
+                })?;
+            build_request(retry_client).send().await.map_err(|second_error| {
+                UsageActionHttpError {
+                    status: None,
+                    message: format!(
+                        "request reset credit consume failed: {first_error}; retry_after_client_rebuild: {second_error}"
+                    ),
+                }
+            })?
+        }
+    };
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = read_response_text(response, USAGE_HTTP_TOTAL_TIMEOUT).await;
+    if status.is_success() {
+        if let Err(error) = body {
+            log::warn!(
+                "event=reset_credit_consume_response_drain_failed status={} error={}",
+                status,
+                error
+            );
+        }
+        return Ok(());
+    }
+    let body = body.map_err(|message| UsageActionHttpError {
+        status: Some(status.as_u16()),
+        message,
+    })?;
+    Err(UsageActionHttpError {
+        status: Some(status.as_u16()),
+        message: summarize_usage_error_response(status, &headers, &body, false),
+    })
 }
 
 /// 函数 `fetch_account_subscription`

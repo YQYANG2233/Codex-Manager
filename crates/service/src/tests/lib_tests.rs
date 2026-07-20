@@ -1612,7 +1612,9 @@ fn admin_usage_summary_can_skip_breakdowns_for_light_dashboard() {
             serde_json::json!({
                 "startTs": day_start,
                 "endTs": day_end,
-                "includeBreakdowns": false
+                "includeBreakdowns": false,
+                "includeSeries": true,
+                "seriesBucketSeconds": 3_600
             }),
         ),
         RpcActor::system_admin(),
@@ -1626,6 +1628,21 @@ fn admin_usage_summary_can_skip_breakdowns_for_light_dashboard() {
     assert_eq!(
         admin_resp.result["dailyUsage"][0]["usage"]["totalTokens"],
         30
+    );
+    assert_eq!(admin_resp.result["seriesBucketSeconds"], 3_600);
+    assert_eq!(
+        admin_resp.result["seriesUsage"].as_array().unwrap().len(),
+        24
+    );
+    assert_eq!(
+        admin_resp.result["seriesUsage"][0]["usage"]["totalTokens"],
+        30
+    );
+    assert_eq!(admin_resp.result["modelUsage"].as_array().unwrap().len(), 1);
+    assert_eq!(admin_resp.result["modelUsage"][0]["model"], "gpt-5-mini");
+    assert_eq!(
+        admin_resp.result["modelUsage"][0]["points"][0]["usage"]["requestCount"],
+        1
     );
     assert_eq!(admin_resp.result["users"].as_array().unwrap().len(), 0);
     assert_eq!(

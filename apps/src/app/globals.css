@@ -655,6 +655,15 @@ html.tray-preview-mode [data-slot="button"].tray-preview-open-button:not(.tray-p
 
 html.tray-preview-mode [data-slot="button"].tray-preview-open-button.tray-preview-open-button-active {
   background: rgb(var(--primary-rgb) / 0.07) !important;
+[data-slot="button"][data-variant="outline"].shadow-none:hover,
+[data-slot="button"][data-variant="ghost"].shadow-none:hover {
+  box-shadow: none;
+}
+
+.codex-guide-step-button,
+.codex-guide-step-button * {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 [data-slot="badge"] {
