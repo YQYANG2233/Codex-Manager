@@ -1,7 +1,9 @@
 import type {
+  ManagedModelBatchStateV2Update,
   ManagedModelImportPreviewV2Result,
   ManagedModelImportV2Params,
   ManagedModelListV2Result,
+  ManagedModelStateV2Update,
   ManagedModelV2,
   ManagedModelV2Upsert,
 } from "@/types/model-v2";
@@ -31,6 +33,22 @@ export const managedModelsV2Client = {
   upsert(input: ManagedModelV2Upsert): Promise<ManagedModelV2> {
     return invoke<ManagedModelV2>(
       "service_managed_model_upsert_v2",
+      withAddr({ payload: input }),
+    );
+  },
+
+  updateState(input: ManagedModelStateV2Update): Promise<ManagedModelV2> {
+    return invoke<ManagedModelV2>(
+      "service_managed_model_update_state_v2",
+      withAddr({ payload: input }),
+    );
+  },
+
+  updateStates(
+    input: ManagedModelBatchStateV2Update,
+  ): Promise<ManagedModelV2[]> {
+    return invoke<ManagedModelV2[]>(
+      "service_managed_model_batch_update_state_v2",
       withAddr({ payload: input }),
     );
   },

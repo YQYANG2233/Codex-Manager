@@ -128,6 +128,22 @@ pub struct ManagedModelV2Upsert {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct ManagedModelStateV2Update {
+    pub slug: String,
+    pub enabled: bool,
+    pub visibility: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedModelBatchStateV2Update {
+    pub slugs: Vec<String>,
+    pub enabled: bool,
+    pub visibility: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelCatalogV2Stats {
     pub total: i64,
     pub enabled: i64,
@@ -393,6 +409,13 @@ fn list_permission_groups(conn: &Connection, model_id: &str) -> Result<Vec<Strin
          WHERE model_id=?1 AND enabled=1 ORDER BY group_id ASC",
     )?;
     stmt.query_map([model_id], |row| row.get(0))?.collect()
+}
+
+fn get_managed_model_v2_with_conn(conn: &Connection, slug: &str) -> Result<Option<ManagedModelV2>> {
+    let sql = format!("{MODEL_SELECT} WHERE m.slug=?1 COLLATE NOCASE");
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([slug.trim()])?;
+    rows.next()?.map(|row| map_model(conn, row)).transpose()
 }
 
 fn insert_seed(
@@ -1239,12 +1262,7 @@ impl Storage {
     }
 
     pub fn get_managed_model_v2(&self, slug: &str) -> Result<Option<ManagedModelV2>> {
-        let sql = format!("{MODEL_SELECT} WHERE m.slug=?1 COLLATE NOCASE");
-        let mut stmt = self.conn.prepare(&sql)?;
-        let mut rows = stmt.query([slug.trim()])?;
-        rows.next()?
-            .map(|row| map_model(&self.conn, row))
-            .transpose()
+        get_managed_model_v2_with_conn(&self.conn, slug)
     }
 
     pub fn get_enabled_model_v2(&self, slug: &str) -> Result<Option<ManagedModelV2>> {
@@ -1298,6 +1316,84 @@ impl Storage {
             .collect()
     }
 
+    pub fn update_managed_model_state_v2(
+        &self,
+        input: &ManagedModelStateV2Update,
+    ) -> Result<ManagedModelV2> {
+        let visibility = input.visibility.trim();
+        if !matches!(visibility, "list" | "hide") {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "invalid model visibility".to_string(),
+            ));
+        }
+        let updated = self.conn.execute(
+            "UPDATE models
+             SET enabled=?2,visibility=?3,user_edited=1,updated_at=?4
+             WHERE slug=?1 COLLATE NOCASE",
+            params![input.slug.trim(), input.enabled, visibility, now_ts()],
+        )?;
+        if updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+        self.get_managed_model_v2(&input.slug)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn update_managed_models_state_v2(
+        &self,
+        input: &ManagedModelBatchStateV2Update,
+    ) -> Result<Vec<ManagedModelV2>> {
+        let visibility = input.visibility.trim();
+        if !matches!(visibility, "list" | "hide") {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "invalid model visibility".to_string(),
+            ));
+        }
+        let mut seen = HashSet::new();
+        let slugs = input
+            .slugs
+            .iter()
+            .filter_map(|slug| {
+                let slug = slug.trim();
+                if slug.is_empty() || !seen.insert(slug.to_ascii_lowercase()) {
+                    None
+                } else {
+                    Some(slug.to_string())
+                }
+            })
+            .collect::<Vec<_>>();
+        if slugs.is_empty() {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "managed model slugs must not be empty".to_string(),
+            ));
+        }
+
+        let tx = self.conn.unchecked_transaction()?;
+        let updated_at = now_ts();
+        for slug in &slugs {
+            let updated = tx.execute(
+                "UPDATE models
+                 SET enabled=?2,visibility=?3,user_edited=1,updated_at=?4
+                 WHERE slug=?1 COLLATE NOCASE",
+                params![slug, input.enabled, visibility, updated_at],
+            )?;
+            if updated == 0 {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "managed model not found: {slug}"
+                )));
+            }
+        }
+        let models = slugs
+            .iter()
+            .map(|slug| {
+                self.get_managed_model_v2(slug)?
+                    .ok_or(rusqlite::Error::QueryReturnedNoRows)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        tx.commit()?;
+        Ok(models)
+    }
+
     pub fn delete_managed_model_v2(&self, slug: &str) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
         let origin = tx
@@ -1309,7 +1405,12 @@ impl Storage {
             .optional()?;
         match origin.as_deref() {
             Some("builtin") => {
-                tx.execute("UPDATE models SET enabled=0,user_edited=1,updated_at=?2 WHERE slug=?1 COLLATE NOCASE",params![slug.trim(),now_ts()])?;
+                tx.execute(
+                    "UPDATE models
+                     SET enabled=0,visibility='hide',user_edited=1,updated_at=?2
+                     WHERE slug=?1 COLLATE NOCASE",
+                    params![slug.trim(), now_ts()],
+                )?;
             }
             Some("custom") => {
                 tx.execute(
@@ -2116,16 +2217,18 @@ mod tests {
     }
 
     #[test]
-    fn builtin_delete_disables_and_custom_delete_removes() {
+    fn builtin_delete_hides_and_disables_while_custom_delete_removes() {
         let storage = storage();
         storage.delete_managed_model_v2("gpt-5.4").unwrap();
-        assert!(
-            !storage
-                .get_managed_model_v2("gpt-5.4")
-                .unwrap()
-                .unwrap()
-                .enabled
-        );
+        let deleted_builtin = storage.get_managed_model_v2("gpt-5.4").unwrap().unwrap();
+        assert!(!deleted_builtin.enabled);
+        assert_eq!(deleted_builtin.visibility, "hide");
+        assert!(deleted_builtin.user_edited);
+        assert!(!storage
+            .list_managed_models_v2(false)
+            .unwrap()
+            .iter()
+            .any(|model| model.slug == "gpt-5.4"));
         let mut custom = storage
             .get_managed_model_v2("gpt-5.4-mini")
             .unwrap()
@@ -2149,6 +2252,122 @@ mod tests {
             .get_managed_model_v2("local-model")
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn state_update_changes_only_enabled_visibility_and_edit_metadata() {
+        let storage = storage();
+        let baseline = storage.get_managed_model_v2("gpt-5.4").unwrap().unwrap();
+        for (enabled, visibility) in [
+            (false, "list"),
+            (true, "hide"),
+            (false, "hide"),
+            (true, "list"),
+        ] {
+            let updated = storage
+                .update_managed_model_state_v2(&ManagedModelStateV2Update {
+                    slug: baseline.slug.clone(),
+                    enabled,
+                    visibility: visibility.to_string(),
+                })
+                .unwrap();
+            assert_eq!(updated.enabled, enabled);
+            assert_eq!(updated.visibility, visibility);
+            assert!(updated.user_edited);
+            assert_eq!(updated.price, baseline.price);
+            assert_eq!(updated.price_tiers, baseline.price_tiers);
+            assert_eq!(updated.routes, baseline.routes);
+            assert_eq!(updated.permission_group_ids, baseline.permission_group_ids);
+        }
+        assert!(matches!(
+            storage.update_managed_model_state_v2(&ManagedModelStateV2Update {
+                slug: baseline.slug.clone(),
+                enabled: true,
+                visibility: "hidden".to_string(),
+            }),
+            Err(rusqlite::Error::InvalidParameterName(_))
+        ));
+        assert!(matches!(
+            storage.update_managed_model_state_v2(&ManagedModelStateV2Update {
+                slug: "missing-model".to_string(),
+                enabled: true,
+                visibility: "list".to_string(),
+            }),
+            Err(rusqlite::Error::QueryReturnedNoRows)
+        ));
+    }
+
+    #[test]
+    fn batch_state_update_is_atomic_deduplicated_and_preserves_model_details() {
+        let storage = storage();
+        let first = storage.get_managed_model_v2("gpt-5.4").unwrap().unwrap();
+        let second = storage
+            .get_managed_model_v2("gpt-5.4-mini")
+            .unwrap()
+            .unwrap();
+
+        let updated = storage
+            .update_managed_models_state_v2(&ManagedModelBatchStateV2Update {
+                slugs: vec![
+                    " gpt-5.4 ".to_string(),
+                    "GPT-5.4".to_string(),
+                    "gpt-5.4-mini".to_string(),
+                ],
+                enabled: false,
+                visibility: "hide".to_string(),
+            })
+            .unwrap();
+        assert_eq!(updated.len(), 2);
+        assert!(updated
+            .iter()
+            .all(|model| !model.enabled && model.visibility == "hide"));
+        assert!(updated.iter().all(|model| model.user_edited));
+        assert_eq!(updated[0].updated_at, updated[1].updated_at);
+        assert_eq!(updated[0].price, first.price);
+        assert_eq!(updated[0].routes, first.routes);
+        assert_eq!(updated[1].price, second.price);
+        assert_eq!(updated[1].routes, second.routes);
+
+        storage
+            .update_managed_models_state_v2(&ManagedModelBatchStateV2Update {
+                slugs: vec!["gpt-5.4".to_string(), "gpt-5.4-mini".to_string()],
+                enabled: true,
+                visibility: "list".to_string(),
+            })
+            .unwrap();
+        let before_failed_batch = storage.get_managed_model_v2("gpt-5.4").unwrap().unwrap();
+        assert!(storage
+            .update_managed_models_state_v2(&ManagedModelBatchStateV2Update {
+                slugs: vec!["gpt-5.4".to_string(), "missing-model".to_string()],
+                enabled: false,
+                visibility: "hide".to_string(),
+            })
+            .is_err());
+        let after_failed_batch = storage.get_managed_model_v2("gpt-5.4").unwrap().unwrap();
+        assert_eq!(after_failed_batch.enabled, before_failed_batch.enabled);
+        assert_eq!(
+            after_failed_batch.visibility,
+            before_failed_batch.visibility
+        );
+        assert_eq!(
+            after_failed_batch.updated_at,
+            before_failed_batch.updated_at
+        );
+
+        assert!(storage
+            .update_managed_models_state_v2(&ManagedModelBatchStateV2Update {
+                slugs: vec!["  ".to_string()],
+                enabled: true,
+                visibility: "list".to_string(),
+            })
+            .is_err());
+        assert!(storage
+            .update_managed_models_state_v2(&ManagedModelBatchStateV2Update {
+                slugs: vec!["gpt-5.4".to_string()],
+                enabled: true,
+                visibility: "hidden".to_string(),
+            })
+            .is_err());
     }
 
     #[test]

@@ -69,9 +69,21 @@ type Rect = {
 type MockState = {
   models: JsonObject[];
   upserts: JsonObject[];
+  stateUpdates: JsonObject[];
+  stateUpdateError: string | null;
+  batchStateUpdates: JsonObject[];
+  batchStateUpdateError: string | null;
+  batchStateUpdateDelayMs: number;
   deletes: string[];
   importCalls: Array<{ method: string; params: JsonObject }>;
   initializeCalls: number;
+  listCalls: number;
+  listError: string | null;
+  listDelayMs: number;
+  listErrorAfterDelete: string | null;
+  listDelayAfterDeleteMs: number;
+  deleteDelayMs: number;
+  deleteErrors: Record<string, string>;
 };
 
 const PRICED_MODELS: Record<string, [number, number, number]> = {
@@ -259,9 +271,21 @@ async function installMockRuntime(page: Page): Promise<MockState> {
   const state: MockState = {
     models: freshModels(),
     upserts: [],
+    stateUpdates: [],
+    stateUpdateError: null,
+    batchStateUpdates: [],
+    batchStateUpdateError: null,
+    batchStateUpdateDelayMs: 0,
     deletes: [],
     importCalls: [],
     initializeCalls: 0,
+    listCalls: 0,
+    listError: null,
+    listDelayMs: 0,
+    listErrorAfterDelete: null,
+    listDelayAfterDeleteMs: 0,
+    deleteDelayMs: 0,
+    deleteErrors: {},
   };
 
   await page.route("**/api/runtime*", async (route) => {
@@ -352,6 +376,21 @@ async function installMockRuntime(page: Page): Promise<MockState> {
       return;
     }
     if (method === "apikey/managedModelListV2") {
+      state.listCalls += 1;
+      if (state.listDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, state.listDelayMs));
+      }
+      if (state.listError) {
+        await route.fulfill({
+          contentType: "application/json; charset=utf-8",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32000, message: state.listError },
+          }),
+        });
+        return;
+      }
       await ok(catalogResult(state.models));
       return;
     }
@@ -381,16 +420,116 @@ async function installMockRuntime(page: Page): Promise<MockState> {
       await ok(saved);
       return;
     }
+    if (method === "apikey/managedModelUpdateStateV2") {
+      state.stateUpdates.push(structuredClone(params));
+      if (state.stateUpdateError) {
+        await route.fulfill({
+          contentType: "application/json; charset=utf-8",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32000, message: state.stateUpdateError },
+          }),
+        });
+        return;
+      }
+      const slug = String(params.slug ?? "");
+      const model = state.models.find((item) => item.slug === slug);
+      if (!model) {
+        await route.fulfill({
+          contentType: "application/json; charset=utf-8",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32000, message: "model_not_found" },
+          }),
+        });
+        return;
+      }
+      model.enabled = params.enabled === true;
+      model.visibility = params.visibility === "hide" ? "hide" : "list";
+      model.userEdited = true;
+      model.updatedAt = 1_770_000_150;
+      await ok(structuredClone(model));
+      return;
+    }
+    if (method === "apikey/managedModelBatchUpdateStateV2") {
+      state.batchStateUpdates.push(structuredClone(params));
+      if (state.batchStateUpdateDelayMs > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, state.batchStateUpdateDelayMs),
+        );
+      }
+      if (state.batchStateUpdateError) {
+        await route.fulfill({
+          contentType: "application/json; charset=utf-8",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32000, message: state.batchStateUpdateError },
+          }),
+        });
+        return;
+      }
+      const slugs = Array.isArray(params.slugs)
+        ? params.slugs.map((slug) => String(slug))
+        : [];
+      const models = slugs.map((slug) =>
+        state.models.find((item) => item.slug === slug),
+      );
+      if (models.some((model) => !model)) {
+        await route.fulfill({
+          contentType: "application/json; charset=utf-8",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32000, message: "model_not_found" },
+          }),
+        });
+        return;
+      }
+      for (const model of models) {
+        if (!model) continue;
+        model.enabled = params.enabled === true;
+        model.visibility = params.visibility === "hide" ? "hide" : "list";
+        model.userEdited = true;
+        model.updatedAt = 1_770_000_175;
+      }
+      await ok(structuredClone(models));
+      return;
+    }
     if (method === "apikey/managedModelDeleteV2") {
       const slug = String(params.slug ?? "");
       state.deletes.push(slug);
+      if (state.deleteDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, state.deleteDelayMs));
+      }
+      const deleteError = state.deleteErrors[slug];
+      if (deleteError) {
+        await route.fulfill({
+          contentType: "application/json; charset=utf-8",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32000, message: deleteError },
+          }),
+        });
+        return;
+      }
       const model = state.models.find((item) => item.slug === slug);
       if (model?.origin === "builtin") {
         model.enabled = false;
+        model.visibility = "hide";
         model.userEdited = true;
         model.updatedAt = 1_770_000_200;
       } else {
         state.models = state.models.filter((item) => item.slug !== slug);
+      }
+      if (state.listErrorAfterDelete) {
+        state.listError = state.listErrorAfterDelete;
+      }
+      if (state.listDelayAfterDeleteMs > 0) {
+        state.listDelayMs = state.listDelayAfterDeleteMs;
       }
       await ok(null);
       return;
@@ -438,6 +577,404 @@ function rectanglesOverlap(first: Rect, second: Rect): boolean {
     first.y + first.height > second.y
   );
 }
+
+test("重新读取会更新目录并明确反馈成功与失败", async ({ page }) => {
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  const state = await installMockRuntime(page);
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+  await expect(page.getByText("gpt-5.6-sol", { exact: true })).toBeVisible();
+
+  const callsBeforeReload = state.listCalls;
+  state.models.push(importedModel());
+  await page.getByRole("button", { name: "重新读取" }).click();
+  await expect(page.getByText("imported-local", { exact: true })).toBeVisible();
+  await expect(page.getByText("模型目录已重新读取", { exact: true })).toBeVisible();
+  expect(state.listCalls).toBeGreaterThan(callsBeforeReload);
+
+  state.listError = "catalog reload failed";
+  await page.getByRole("button", { name: "重新读取" }).click();
+  await expect(
+    page.getByText(/\u8bfb取模型失败.*catalog reload failed/),
+  ).toBeVisible();
+  await expect(page.getByText("imported-local", { exact: true })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("模型状态下拉支持四态切换并直接恢复隐藏模型", async ({ page }) => {
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  const state = await installMockRuntime(page);
+  const slug = "gpt-5.4";
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+
+  const row = page.locator("tr", {
+    has: page.getByText(slug, { exact: true }),
+  });
+  const stateButton = () =>
+    row.getByRole("button", {
+      name: `模型状态操作 ${slug}`,
+      exact: true,
+    });
+  const chooseState = async (label: string) => {
+    await stateButton().click();
+    await page
+      .getByRole("menuitemradio", { name: label, exact: true })
+      .click();
+  };
+  const expectLastStateUpdate = async (
+    count: number,
+    enabled: boolean,
+    visibility: "list" | "hide",
+  ) => {
+    await expect.poll(() => state.stateUpdates.length).toBe(count);
+    expect(state.stateUpdates[count - 1]).toEqual({
+      slug,
+      enabled,
+      visibility,
+    });
+  };
+
+  await expect(stateButton()).toContainText("已启用");
+  await chooseState("显示但禁用");
+  await expectLastStateUpdate(1, false, "list");
+  await expect(stateButton()).toContainText("已禁用");
+
+  await chooseState("显示并启用");
+  await expectLastStateUpdate(2, true, "list");
+  await expect(stateButton()).toContainText("已启用");
+
+  await chooseState("隐藏但启用");
+  await expectLastStateUpdate(3, true, "hide");
+  await expect(row).toHaveCount(0);
+
+  const filter = page.getByRole("main").getByRole("combobox");
+  await filter.click();
+  await page.getByRole("option", { name: "已隐藏" }).click();
+  await expect(row).toBeVisible();
+  await expect(stateButton()).toContainText("隐藏且启用");
+
+  await chooseState("隐藏并禁用");
+  await expectLastStateUpdate(4, false, "hide");
+  await expect(stateButton()).toContainText("隐藏且禁用");
+
+  await chooseState("恢复显示但保持禁用");
+  await expectLastStateUpdate(5, false, "list");
+  await expect(row).toHaveCount(0);
+
+  await filter.click();
+  await page.getByRole("option", { name: "全部模型" }).click();
+  await expect(row).toBeVisible();
+  await expect(stateButton()).toContainText("已禁用");
+
+  await chooseState("隐藏并禁用");
+  await expectLastStateUpdate(6, false, "hide");
+  await expect(row).toHaveCount(0);
+
+  await filter.click();
+  await page.getByRole("option", { name: "已隐藏" }).click();
+  await expect(row).toBeVisible();
+  await chooseState("恢复并启用");
+  await expectLastStateUpdate(7, true, "list");
+  await expect(row).toHaveCount(0);
+
+  await filter.click();
+  await page.getByRole("option", { name: "全部模型" }).click();
+  await expect(row).toBeVisible();
+  await expect(stateButton()).toContainText("已启用");
+  expect(state.upserts).toHaveLength(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test("模型状态更新失败时保留原状态", async ({ page }) => {
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  const state = await installMockRuntime(page);
+  state.stateUpdateError = "state update failed";
+  const slug = "gpt-5.4";
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+
+  const row = page.locator("tr", {
+    has: page.getByText(slug, { exact: true }),
+  });
+  const stateButton = row.getByRole("button", {
+    name: `模型状态操作 ${slug}`,
+    exact: true,
+  });
+  await expect(stateButton).toContainText("已启用");
+  await stateButton.click();
+  await page
+    .getByRole("menuitemradio", { name: "显示但禁用", exact: true })
+    .click();
+
+  await expect.poll(() => state.stateUpdates.length).toBe(1);
+  await expect(
+    page.getByText(/更新模型状态失败.*state update failed/),
+  ).toBeVisible();
+  await expect(row).toBeVisible();
+  await expect(stateButton).toContainText("已启用");
+  expect(state.models.find((model) => model.slug === slug)).toMatchObject({
+    enabled: true,
+    visibility: "list",
+  });
+  expect(pageErrors).toEqual([]);
+});
+
+test("批量状态下拉一次更新多个模型并保持原子失败", async ({
+  page,
+}) => {
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+  const state = await installMockRuntime(page);
+  const slugs = ["gpt-5.6-sol", "gpt-5.6-terra"];
+  const row = (slug: string) =>
+    page.locator("tr", {
+      has: page.getByText(slug, { exact: true }),
+    });
+  const checkbox = (slug: string) =>
+    page.getByRole("checkbox", {
+      name: `选择模型 ${slug}`,
+      exact: true,
+    });
+  const batchStateButton = (count: number) =>
+    page.getByRole("button", {
+      name: `批量修改模型状态 (${count})`,
+      exact: true,
+    });
+  const chooseBatchState = async (label: string, count: number) => {
+    await batchStateButton(count).click();
+    await page.getByRole("menuitem", { name: label, exact: true }).click();
+  };
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+  await expect(batchStateButton(0)).toBeDisabled();
+
+  for (const slug of slugs) await checkbox(slug).click();
+  await chooseBatchState("隐藏并禁用", 2);
+  await expect.poll(() => state.batchStateUpdates.length).toBe(1);
+  expect(state.batchStateUpdates[0]).toEqual({
+    slugs,
+    enabled: false,
+    visibility: "hide",
+  });
+  for (const slug of slugs) await expect(row(slug)).toHaveCount(0);
+  await expect(
+    page.getByText("已更新 2 个模型的状态", { exact: true }),
+  ).toBeVisible();
+  await expect(batchStateButton(0)).toBeDisabled();
+
+  const filter = page.getByRole("combobox", { name: "筛选模型" });
+  await filter.click();
+  await page.getByRole("option", { name: "已隐藏" }).click();
+  for (const slug of slugs) {
+    await expect(row(slug)).toBeVisible();
+    await checkbox(slug).click();
+  }
+  await chooseBatchState("显示并启用", 2);
+  await expect.poll(() => state.batchStateUpdates.length).toBe(2);
+  expect(state.batchStateUpdates[1]).toEqual({
+    slugs,
+    enabled: true,
+    visibility: "list",
+  });
+  for (const slug of slugs) await expect(row(slug)).toHaveCount(0);
+
+  await filter.click();
+  await page.getByRole("option", { name: "全部模型" }).click();
+  for (const slug of slugs) {
+    await expect(row(slug)).toBeVisible();
+    await expect(
+      row(slug).getByRole("button", {
+        name: `模型状态操作 ${slug}`,
+        exact: true,
+      }),
+    ).toContainText("已启用");
+    await checkbox(slug).click();
+  }
+
+  state.batchStateUpdateError = "atomic batch update failed";
+  state.batchStateUpdateDelayMs = 1_000;
+  await chooseBatchState("隐藏但启用", 2);
+  await expect.poll(() => state.batchStateUpdates.length).toBe(3);
+  await expect(batchStateButton(2)).toBeDisabled();
+  await expect(page.getByRole("button", { name: "重新读取" })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "批量分配路由 (2)" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "批量删除模型 (2)" }),
+  ).toBeDisabled();
+  for (const slug of slugs) await expect(checkbox(slug)).toBeDisabled();
+  await expect(
+    page.getByText(
+      /批量更新模型状态失败.*atomic batch update failed/,
+    ),
+  ).toBeVisible();
+  for (const slug of slugs) {
+    await expect(row(slug)).toBeVisible();
+    await expect(checkbox(slug)).toBeChecked();
+    expect(state.models.find((model) => model.slug === slug)).toMatchObject({
+      enabled: true,
+      visibility: "list",
+    });
+  }
+  await expect(batchStateButton(2)).toBeEnabled();
+  for (const slug of slugs) await expect(checkbox(slug)).toBeEnabled();
+  expect(state.upserts).toHaveLength(0);
+  expect(state.stateUpdates).toHaveLength(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test("批量删除会隐藏内置模型并删除自定义模型", async ({ page }) => {
+  const state = await installMockRuntime(page);
+  state.models.push(importedModel());
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+
+  const emptyBatchDelete = page.getByRole("button", {
+    name: "批量删除模型 (0)",
+  });
+  await expect(emptyBatchDelete).toBeVisible();
+  await expect(emptyBatchDelete).toBeDisabled();
+
+  await page.getByLabel("选择模型 gpt-5.6-sol").click();
+  await page.getByLabel("选择模型 imported-local").click();
+  await page.getByRole("button", { name: "批量删除模型 (2)" }).click();
+
+  const confirmDialog = page.getByRole("dialog", { name: "批量删除模型" });
+  await expect(confirmDialog).toContainText(
+    "1 个内置模型会被隐藏并禁用，其余自定义模型会被删除",
+  );
+  await confirmDialog.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(confirmDialog).toHaveCount(0);
+
+  expect(state.deletes).toEqual(["gpt-5.6-sol", "imported-local"]);
+  await expect(page.locator("tr", { hasText: "gpt-5.6-sol" })).toHaveCount(0);
+  await expect(page.locator("tr", { hasText: "imported-local" })).toHaveCount(0);
+  await expect(
+    page.getByText("已隐藏 1 个内置模型，并删除 1 个自定义模型", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(emptyBatchDelete).toBeVisible();
+  await expect(emptyBatchDelete).toBeDisabled();
+
+  await page.getByRole("main").getByRole("combobox").click();
+  await page.getByRole("option", { name: "已隐藏" }).click();
+  const hiddenBuiltinRow = page.locator("tr", { hasText: "gpt-5.6-sol" });
+  await expect(hiddenBuiltinRow).toBeVisible();
+  await expect(hiddenBuiltinRow).toContainText("隐藏且禁用");
+  await expect(hiddenBuiltinRow).toContainText("隐藏");
+});
+
+test("删除提交成功后刷新失败仍关闭确认框并保留成功结果", async ({
+  page,
+}) => {
+  const state = await installMockRuntime(page);
+  state.deleteDelayMs = 500;
+  state.listErrorAfterDelete = "post-delete catalog reload failed";
+  state.listDelayAfterDeleteMs = 1_500;
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "隐藏模型 gpt-5.4", exact: true })
+    .click();
+
+  const confirmDialog = page.getByRole("dialog", { name: "删除模型" });
+  await confirmDialog.getByRole("button", { name: "删除", exact: true }).click();
+  await expect.poll(() => state.deletes).toEqual(["gpt-5.4"]);
+
+  await page.keyboard.press("Escape");
+  await page.mouse.click(2, 2);
+  await expect(confirmDialog).toBeVisible();
+  await expect(
+    confirmDialog.getByRole("button", { name: "处理中...", exact: true }),
+  ).toBeDisabled();
+
+  await expect(confirmDialog).toHaveCount(0, { timeout: 1_000 });
+  await expect(
+    page.getByRole("button", { name: "新增自定义模型" }),
+  ).toBeDisabled();
+  await expect(
+    page.locator("tr", {
+      has: page.getByText("gpt-5.4", { exact: true }),
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("已隐藏内置模型 gpt-5.4", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/读取模型失败.*post-delete catalog reload failed/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "新增自定义模型" }),
+  ).toBeEnabled();
+  expect(state.models.find((model) => model.slug === "gpt-5.4")).toMatchObject({
+    enabled: false,
+    visibility: "hide",
+    userEdited: true,
+  });
+});
+
+test("批量删除部分失败时只保留失败模型并允许重试", async ({ page }) => {
+  const state = await installMockRuntime(page);
+  state.models.push(importedModel());
+  state.deleteErrors["imported-local"] = "custom delete failed";
+
+  await page.goto("/models/");
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "模型管理" }),
+  ).toBeVisible();
+  await page.getByLabel("选择模型 gpt-5.6-sol").click();
+  await page.getByLabel("选择模型 imported-local").click();
+  await page.getByRole("button", { name: "批量删除模型 (2)" }).click();
+  await page
+    .getByRole("dialog", { name: "批量删除模型" })
+    .getByRole("button", { name: "删除", exact: true })
+    .click();
+
+  const retryDialog = page.getByRole("dialog", { name: "删除模型" });
+  await expect(retryDialog).toBeVisible();
+  await expect(
+    page.getByText("批量处理完成：隐藏1个，删除0个，失败1个", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator("tr", { hasText: "gpt-5.6-sol" })).toHaveCount(0);
+  await expect(page.locator("tr", { hasText: "imported-local" })).toBeVisible();
+  await expect(page.getByLabel("选择模型 imported-local")).toBeChecked();
+
+  delete state.deleteErrors["imported-local"];
+  await retryDialog.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(retryDialog).toHaveCount(0);
+  await expect(page.locator("tr", { hasText: "imported-local" })).toHaveCount(0);
+  expect(state.deletes).toEqual([
+    "gpt-5.6-sol",
+    "imported-local",
+    "imported-local",
+  ]);
+});
 
 test("编辑器不依赖后续动画帧即可载入目标模型", async ({ page }) => {
   await installMockRuntime(page);
@@ -790,11 +1327,18 @@ test("模型目录 V2 完成本地管理、原子保存、导入和主动导出"
     ]),
   );
 
-  await page.getByRole("button", { name: "禁用模型 gpt-5.6-sol" }).click();
+  await page.getByRole("button", { name: "隐藏模型 gpt-5.6-sol" }).click();
   await page.getByRole("button", { name: "删除", exact: true }).click();
   const builtinRow = page.locator("tr", { hasText: "gpt-5.6-sol" });
+  await expect(builtinRow).toHaveCount(0);
+
+  await page.getByRole("main").getByRole("combobox").click();
+  await page.getByRole("option", { name: "已隐藏" }).click();
   await expect(builtinRow).toBeVisible();
-  await expect(builtinRow).toContainText("已禁用");
+  await expect(builtinRow).toContainText("隐藏且禁用");
+
+  await page.getByRole("main").getByRole("combobox").click();
+  await page.getByRole("option", { name: "全部模型" }).click();
 
   await page
     .getByRole("button", { name: "删除模型 my-custom-model" })

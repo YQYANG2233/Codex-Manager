@@ -120,6 +120,8 @@ fn member_actor_cannot_call_admin_only_rpc() {
         "accountManager/users/list",
         "codexProfile/repairHistory",
         "codexProfile/pruneHistoryBackups",
+        "apikey/managedModelUpdateStateV2",
+        "apikey/managedModelBatchUpdateStateV2",
     ] {
         let req = JsonRpcRequest {
             id: 21.into(),
@@ -139,6 +141,92 @@ fn member_actor_cannot_call_admin_only_rpc() {
             .unwrap_or("");
         assert!(err.contains("permission_denied"), "{method}: {err}");
     }
+}
+
+#[test]
+fn admin_actor_can_update_managed_model_state_v2() {
+    let _guard = test_env_guard();
+    let db_path = setup_dashboard_test_db("codexmanager-managed-model-state-rpc");
+
+    let resp = response_result(handle_request_with_actor(
+        rpc_request(
+            "apikey/managedModelUpdateStateV2",
+            serde_json::json!({
+                "slug": "gpt-5.4",
+                "enabled": false,
+                "visibility": "hide",
+            }),
+        ),
+        RpcActor::system_admin(),
+    ));
+    assert_eq!(
+        resp.result.get("slug").and_then(|value| value.as_str()),
+        Some("gpt-5.4")
+    );
+    assert_eq!(
+        resp.result.get("enabled").and_then(|value| value.as_bool()),
+        Some(false)
+    );
+    assert_eq!(
+        resp.result
+            .get("visibility")
+            .and_then(|value| value.as_str()),
+        Some("hide")
+    );
+    assert_eq!(
+        resp.result
+            .get("userEdited")
+            .and_then(|value| value.as_bool()),
+        Some(true)
+    );
+
+    let stored = storage_helpers::open_storage()
+        .expect("open storage")
+        .get_managed_model_v2("gpt-5.4")
+        .expect("read managed model")
+        .expect("managed model");
+    assert!(!stored.enabled);
+    assert_eq!(stored.visibility, "hide");
+
+    let _ = std::fs::remove_file(db_path);
+}
+
+#[test]
+fn admin_actor_can_batch_update_managed_model_state_v2() {
+    let _guard = test_env_guard();
+    let db_path = setup_dashboard_test_db("codexmanager-managed-model-batch-state-rpc");
+
+    let resp = response_result(handle_request_with_actor(
+        rpc_request(
+            "apikey/managedModelBatchUpdateStateV2",
+            serde_json::json!({
+                "slugs": ["gpt-5.4", "gpt-5.4-mini"],
+                "enabled": false,
+                "visibility": "hide",
+            }),
+        ),
+        RpcActor::system_admin(),
+    ));
+    let updated = resp.result.as_array().expect("updated models");
+    assert_eq!(updated.len(), 2);
+    assert!(updated.iter().all(|model| {
+        model.get("enabled").and_then(|value| value.as_bool()) == Some(false)
+            && model.get("visibility").and_then(|value| value.as_str()) == Some("hide")
+            && model.get("userEdited").and_then(|value| value.as_bool()) == Some(true)
+    }));
+
+    let storage = storage_helpers::open_storage().expect("open storage");
+    for slug in ["gpt-5.4", "gpt-5.4-mini"] {
+        let stored = storage
+            .get_managed_model_v2(slug)
+            .expect("read managed model")
+            .expect("managed model");
+        assert!(!stored.enabled);
+        assert_eq!(stored.visibility, "hide");
+    }
+    drop(storage);
+
+    let _ = std::fs::remove_file(db_path);
 }
 
 #[test]

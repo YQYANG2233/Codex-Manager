@@ -296,6 +296,38 @@ test("createWebCommandMap 为模型目录 V2 原子命令提供 Web RPC 映射",
     { previousSlug: null, model: { slug: "local-x" } },
   );
 
+  const updateState = commandMap.service_managed_model_update_state_v2;
+  assert.equal(updateState.rpcMethod, "apikey/managedModelUpdateStateV2");
+  assert.ok(updateState.mapParams);
+  assert.deepEqual(
+    updateState.mapParams({
+      payload: { slug: "gpt-5.4", enabled: false, visibility: "hide" },
+    }),
+    { slug: "gpt-5.4", enabled: false, visibility: "hide" },
+  );
+
+  const batchUpdateState =
+    commandMap.service_managed_model_batch_update_state_v2;
+  assert.equal(
+    batchUpdateState.rpcMethod,
+    "apikey/managedModelBatchUpdateStateV2",
+  );
+  assert.ok(batchUpdateState.mapParams);
+  assert.deepEqual(
+    batchUpdateState.mapParams({
+      payload: {
+        slugs: ["gpt-5.4", "gpt-5.4-mini"],
+        enabled: true,
+        visibility: "list",
+      },
+    }),
+    {
+      slugs: ["gpt-5.4", "gpt-5.4-mini"],
+      enabled: true,
+      visibility: "list",
+    },
+  );
+
   for (const command of [
     "service_managed_model_import_preview_v2",
     "service_managed_model_import_commit_v2",

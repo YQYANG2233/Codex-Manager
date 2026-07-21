@@ -4,7 +4,10 @@ pub(crate) mod instructions;
 use codexmanager_core::rpc::types::{
     ModelInfo, ModelReasoningLevel, ModelServiceTier, ModelTruncationPolicy, ModelsResponse,
 };
-use codexmanager_core::storage::{ManagedModelV2, ManagedModelV2Upsert, ModelCatalogV2Stats};
+use codexmanager_core::storage::{
+    ManagedModelBatchStateV2Update, ManagedModelStateV2Update, ManagedModelV2,
+    ManagedModelV2Upsert, ModelCatalogV2Stats,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -57,6 +60,28 @@ pub(crate) fn upsert(input: ManagedModelV2Upsert) -> Result<ManagedModelV2, Stri
         .map_err(|err| format!("save managed model V2 failed: {err}"))?;
     sync_active_gateway_catalog_best_effort(&storage);
     Ok(model)
+}
+
+pub(crate) fn update_state(input: ManagedModelStateV2Update) -> Result<ManagedModelV2, String> {
+    let storage =
+        crate::storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
+    let model = storage
+        .update_managed_model_state_v2(&input)
+        .map_err(|err| format!("update managed model V2 state failed: {err}"))?;
+    sync_active_gateway_catalog_best_effort(&storage);
+    Ok(model)
+}
+
+pub(crate) fn batch_update_state(
+    input: ManagedModelBatchStateV2Update,
+) -> Result<Vec<ManagedModelV2>, String> {
+    let storage =
+        crate::storage_helpers::open_storage().ok_or_else(|| "storage unavailable".to_string())?;
+    let models = storage
+        .update_managed_models_state_v2(&input)
+        .map_err(|err| format!("batch update managed model V2 state failed: {err}"))?;
+    sync_active_gateway_catalog_best_effort(&storage);
+    Ok(models)
 }
 
 pub(crate) fn delete(slug: &str) -> Result<(), String> {
