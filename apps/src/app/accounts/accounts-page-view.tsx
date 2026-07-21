@@ -914,7 +914,7 @@ export function AccountsPageView(props: AccountsPageViewProps) {
                         <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                           {account.quotaCapacityPrimaryWindowTokens ||
                           account.quotaCapacitySecondaryWindowTokens ? (
-                            <span className="max-w-full rounded-full border border-border/50 bg-background/40 px-2 py-0.5 break-words [overflow-wrap:anywhere]">
+                            <span className="inline-flex min-h-5 max-w-full items-center rounded-full border border-border/50 bg-background/40 px-2 py-0.5 leading-none break-words [overflow-wrap:anywhere]">
                               {t("容量覆盖")}:{" "}
                               {account.quotaCapacityPrimaryWindowTokens
                                 ? `5h ${formatCompactNumber(
@@ -935,7 +935,7 @@ export function AccountsPageView(props: AccountsPageViewProps) {
                                 : "7d --"}
                             </span>
                           ) : (
-                            <span className="max-w-full rounded-full border border-border/50 bg-background/40 px-2 py-0.5 break-words [overflow-wrap:anywhere]">
+                            <span className="inline-flex min-h-5 max-w-full items-center rounded-full border border-border/50 bg-background/40 px-2 py-0.5 leading-none break-words [overflow-wrap:anywhere]">
                               {t("未设置账号容量覆盖")}
                             </span>
                           )}
