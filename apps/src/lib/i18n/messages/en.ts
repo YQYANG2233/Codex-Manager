@@ -166,6 +166,11 @@ export const EN_MESSAGES: MessageCatalog = {
   "接入配置 · 请求观测": "Access Config · Request Observability",
   收起侧边栏: "Collapse Sidebar",
   展开侧边栏: "Expand Sidebar",
+  "关于 CodexManager": "About CodexManager",
+  "查看软件名称、功能简介和当前版本信息":
+    "View the app name, feature summary, and current version.",
+  "CodexManager 用于统一管理 Codex CLI 账号、本地网关、平台密钥、请求日志和用量统计，让 Codex 接入与运维更集中可控。":
+    "CodexManager centralizes Codex CLI accounts, the local gateway, platform keys, request logs, and usage analytics, making Codex access and operations easier to manage.",
   基础设置: "Basic settings",
   控制应用启动和窗口行为: "Control startup and window behavior.",
   自动检查更新: "Check updates automatically",
