@@ -17,7 +17,9 @@ use crate::usage_account_meta::{
 };
 use crate::usage_http::{
     fetch_account_subscription, fetch_account_subscription_with_explicit_proxy,
-    fetch_usage_snapshot, fetch_usage_snapshot_with_explicit_proxy, log_account_data_route,
+    fetch_usage_snapshot, fetch_usage_snapshot_with_auth_context,
+    fetch_usage_snapshot_with_auth_context_and_explicit_proxy,
+    fetch_usage_snapshot_with_explicit_proxy, log_account_data_route,
 };
 use crate::usage_keepalive::{is_keepalive_error_ignorable, run_gateway_keepalive_once};
 use crate::usage_scheduler::{
@@ -590,6 +592,14 @@ fn refresh_usage_for_token(
 
     let mut current = token.clone();
     let mut resolved_workspace_id = workspace_id.map(|v| v.to_string());
+    let agent_identity = storage
+        .find_account_agent_identity(&current.account_id)
+        .map_err(|err| format!("load agent identity failed: {err}"))?;
+    if resolved_workspace_id.is_none() {
+        resolved_workspace_id = agent_identity
+            .as_ref()
+            .and_then(|identity| identity.workspace_id.clone());
+    }
     let (derived_chatgpt_id, derived_workspace_id) = derive_account_meta(&current);
 
     if resolved_workspace_id.is_none() {
@@ -618,6 +628,27 @@ fn refresh_usage_for_token(
     let resolved_workspace_id = clean_header_value(resolved_workspace_id);
     let resolved_subscription_account_id =
         clean_header_value(derived_chatgpt_id.or_else(|| resolved_workspace_id.clone()));
+
+    if let Some(identity) = agent_identity.as_ref() {
+        let authorization =
+            crate::agent_identity::authorization_header_for_agent_identity(identity)?;
+        return match refresh_account_snapshot(
+            storage,
+            &current.account_id,
+            &base_url,
+            &authorization,
+            resolved_workspace_id.as_deref(),
+            None,
+            identity.chatgpt_account_is_fedramp,
+        ) {
+            Ok(status) => Ok(UsageRefreshResult { _status: status }),
+            Err(err) => {
+                mark_usage_unreachable_if_needed(storage, &current.account_id, &err);
+                Err(err)
+            }
+        };
+    }
+
     let bearer = current.access_token.clone();
 
     match refresh_account_snapshot(
@@ -627,6 +658,7 @@ fn refresh_usage_for_token(
         &bearer,
         resolved_workspace_id.as_deref(),
         resolved_subscription_account_id.as_deref(),
+        false,
     ) {
         Ok(status) => Ok(UsageRefreshResult { _status: status }),
         Err(err) if should_retry_usage_refresh_with_token(&current, &err) => {
@@ -669,6 +701,7 @@ fn refresh_usage_for_token(
                 &bearer,
                 refreshed_workspace_id.as_deref(),
                 refreshed_subscription_account_id.as_deref(),
+                false,
             ) {
                 Ok(status) => Ok(UsageRefreshResult { _status: status }),
                 Err(err) => {
@@ -691,6 +724,7 @@ fn refresh_account_snapshot(
     bearer: &str,
     workspace_id: Option<&str>,
     subscription_account_id: Option<&str>,
+    is_fedramp: bool,
 ) -> Result<UsageAvailabilityStatus, String> {
     let proxy_mode = crate::account_proxy::resolve_account_proxy_mode(account_id);
     if let Some(subscription_account_id) = subscription_account_id {
@@ -732,8 +766,20 @@ fn refresh_account_snapshot(
 
     log_account_data_route("usage", account_id, &proxy_mode, "usage", true);
     let value = match &proxy_mode {
+        crate::account_proxy::AccountProxyMode::Disabled if is_fedramp => {
+            fetch_usage_snapshot_with_auth_context(base_url, bearer, workspace_id, is_fedramp)?
+        }
         crate::account_proxy::AccountProxyMode::Disabled => {
             fetch_usage_snapshot(base_url, bearer, workspace_id)?
+        }
+        crate::account_proxy::AccountProxyMode::Explicit { proxy_url, .. } if is_fedramp => {
+            fetch_usage_snapshot_with_auth_context_and_explicit_proxy(
+                base_url,
+                bearer,
+                workspace_id,
+                is_fedramp,
+                proxy_url,
+            )?
         }
         crate::account_proxy::AccountProxyMode::Explicit { proxy_url, .. } => {
             fetch_usage_snapshot_with_explicit_proxy(base_url, bearer, workspace_id, proxy_url)?

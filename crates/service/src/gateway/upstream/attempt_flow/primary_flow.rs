@@ -41,6 +41,23 @@ fn resolve_chatgpt_primary_bearer(token: &Token) -> Option<String> {
     }
 }
 
+fn resolve_chatgpt_primary_authorization(
+    storage: &Storage,
+    account: &Account,
+    token: &Token,
+) -> Result<(String, &'static str, bool), String> {
+    if let Some(identity) = storage
+        .find_account_agent_identity(&account.id)
+        .map_err(|err| format!("load agent identity failed: {err}"))?
+    {
+        return crate::agent_identity::authorization_header_for_agent_identity(&identity)
+            .map(|header| (header, "agent_identity", true));
+    }
+    resolve_chatgpt_primary_bearer(token)
+        .map(|access_token| (access_token, "access_token", false))
+        .ok_or_else(|| "missing chatgpt access token".to_string())
+}
+
 /// 函数 `run_primary_upstream_flow`
 ///
 /// 作者: gaohongshun
@@ -77,16 +94,16 @@ pub(in crate::gateway::upstream) fn run_primary_upstream_flow<F>(
 where
     F: FnMut(Option<&str>, u16, Option<&str>),
 {
-    let (auth_token, token_source) =
-        if let Some(access_token) = resolve_chatgpt_primary_bearer(token) {
-            (access_token, "access_token")
-        } else {
-            let err = "missing chatgpt access token";
-            log_gateway_result(Some(primary_url), 401, Some(err));
-            return PrimaryFlowDecision::Terminal {
-                status_code: 401,
-                message: err.to_string(),
-            };
+    let (auth_token, token_source, uses_agent_identity) =
+        match resolve_chatgpt_primary_authorization(storage, account, token) {
+            Ok(resolved) => resolved,
+            Err(err) => {
+                log_gateway_result(Some(primary_url), 401, Some(err.as_str()));
+                return PrimaryFlowDecision::Terminal {
+                    status_code: 401,
+                    message: err,
+                };
+            }
         };
     if debug {
         log::debug!(
@@ -141,7 +158,7 @@ where
         token,
         strip_session_affinity,
         debug,
-        allow_openai_fallback,
+        allow_openai_fallback && !uses_agent_identity,
         status,
         upstream.headers().get(CONTENT_TYPE),
         has_more_candidates,

@@ -15,6 +15,7 @@ const DEFAULT_WARMUP_MESSAGE: &str = "hi";
 const FALLBACK_WARMUP_MESSAGE: &str = "你好";
 const WARMUP_UPSTREAM_URL: &str = "https://chatgpt.com/backend-api/codex/responses";
 const DEFAULT_WARMUP_MODEL: &str = "gpt-5.3-codex";
+const X_OPENAI_FEDRAMP_HEADER_NAME: &str = "x-openai-fedramp";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +38,12 @@ pub(crate) struct AccountWarmupItemResult {
 struct AccountWarmupTarget {
     account: Account,
     token: Token,
+}
+
+struct WarmupAuthorization {
+    value: String,
+    is_fedramp: bool,
+    uses_agent_identity: bool,
 }
 
 /// 函数 `warmup_accounts`
@@ -152,11 +159,17 @@ fn warmup_single_account(
     let AccountWarmupTarget { account, mut token } = target;
     let account_name = account.label.clone();
     let started_at = Instant::now();
-    let mut outcome =
-        send_warmup_request_with_fallback(client, &account, &token, model_slug, message);
+    let authorization = resolve_warmup_authorization(storage, &account, &token);
+    let uses_agent_identity = authorization
+        .as_ref()
+        .map(|authorization| authorization.uses_agent_identity)
+        .unwrap_or(false);
+    let mut outcome = authorization.and_then(|authorization| {
+        send_warmup_request_with_fallback(client, &account, &authorization, model_slug, message)
+    });
 
     if let Err(err) = outcome.as_ref() {
-        if should_retry_warmup_with_refresh(&token, err) {
+        if !uses_agent_identity && should_retry_warmup_with_refresh(&token, err) {
             let issuer = std::env::var("CODEXMANAGER_ISSUER")
                 .unwrap_or_else(|_| codexmanager_core::auth::DEFAULT_ISSUER.to_string());
             let client_id = std::env::var("CODEXMANAGER_CLIENT_ID")
@@ -168,8 +181,15 @@ fn warmup_single_account(
                 &client_id,
                 token_refresh_ahead_secs(),
             )
-            .and_then(|_| {
-                send_warmup_request_with_fallback(client, &account, &token, model_slug, message)
+            .and_then(|_| resolve_warmup_authorization(storage, &account, &token))
+            .and_then(|authorization| {
+                send_warmup_request_with_fallback(
+                    client,
+                    &account,
+                    &authorization,
+                    model_slug,
+                    message,
+                )
             });
         }
     }
@@ -287,21 +307,54 @@ fn resolve_warmup_model_slug(storage: &Storage) -> String {
         .unwrap_or_else(|| DEFAULT_WARMUP_MODEL.to_string())
 }
 
+fn resolve_warmup_authorization(
+    storage: &Storage,
+    account: &Account,
+    token: &Token,
+) -> Result<WarmupAuthorization, String> {
+    if let Some(identity) = storage
+        .find_account_agent_identity(&account.id)
+        .map_err(|err| format!("load agent identity failed: {err}"))?
+    {
+        return crate::agent_identity::authorization_header_for_agent_identity(&identity).map(
+            |value| WarmupAuthorization {
+                value,
+                is_fedramp: identity.chatgpt_account_is_fedramp,
+                uses_agent_identity: true,
+            },
+        );
+    }
+
+    let access_token = token.access_token.trim();
+    if access_token.is_empty() {
+        return Err("missing chatgpt access token".to_string());
+    }
+    Ok(WarmupAuthorization {
+        value: access_token.to_string(),
+        is_fedramp: false,
+        uses_agent_identity: false,
+    })
+}
+
 fn send_warmup_request_with_fallback(
     client: &Client,
     account: &Account,
-    token: &Token,
+    authorization: &WarmupAuthorization,
     model_slug: &str,
     message: &str,
 ) -> Result<String, String> {
-    let primary = send_warmup_request(client, account, token, model_slug, message);
+    let primary = send_warmup_request(client, account, authorization, model_slug, message);
     match primary {
         Ok(()) => Ok("已发送预热消息".to_string()),
-        Err(primary_err) if message == DEFAULT_WARMUP_MESSAGE => {
-            send_warmup_request(client, account, token, model_slug, FALLBACK_WARMUP_MESSAGE)
-                .map(|_| "已发送预热消息".to_string())
-                .map_err(|fallback_err| format!("{primary_err}; fallback={fallback_err}"))
-        }
+        Err(primary_err) if message == DEFAULT_WARMUP_MESSAGE => send_warmup_request(
+            client,
+            account,
+            authorization,
+            model_slug,
+            FALLBACK_WARMUP_MESSAGE,
+        )
+        .map(|_| "已发送预热消息".to_string())
+        .map_err(|fallback_err| format!("{primary_err}; fallback={fallback_err}")),
         Err(err) => Err(err),
     }
 }
@@ -321,7 +374,7 @@ fn should_retry_warmup_with_refresh(token: &Token, err: &str) -> bool {
 fn send_warmup_request(
     client: &Client,
     account: &Account,
-    token: &Token,
+    authorization: &WarmupAuthorization,
     model_slug: &str,
     message: &str,
 ) -> Result<(), String> {
@@ -340,7 +393,11 @@ fn send_warmup_request(
         "store": false
     });
 
-    let headers = build_warmup_headers(account, token.access_token.as_str())?;
+    let headers = build_warmup_headers(
+        account,
+        authorization.value.as_str(),
+        authorization.is_fedramp,
+    )?;
     let response = client
         .post(WARMUP_UPSTREAM_URL)
         .headers(headers)
@@ -485,11 +542,17 @@ fn summarize_warmup_stream_error(value: &serde_json::Value) -> String {
 #[path = "account_warmup_tests.rs"]
 mod tests;
 
-fn build_warmup_headers(account: &Account, bearer: &str) -> Result<HeaderMap, String> {
+fn build_warmup_headers(
+    account: &Account,
+    auth_token: &str,
+    is_fedramp: bool,
+) -> Result<HeaderMap, String> {
     let mut headers = HeaderMap::new();
     headers.insert(
         reqwest::header::AUTHORIZATION,
-        header_value(&format!("Bearer {bearer}"))?,
+        header_value(&crate::agent_identity::format_upstream_authorization(
+            auth_token,
+        ))?,
     );
     headers.insert(
         reqwest::header::ACCEPT,
@@ -518,6 +581,12 @@ fn build_warmup_headers(account: &Account, bearer: &str) -> Result<HeaderMap, St
         headers.insert(
             HeaderName::from_static("chatgpt-account-id"),
             header_value(&account_header)?,
+        );
+    }
+    if is_fedramp {
+        headers.insert(
+            HeaderName::from_static(X_OPENAI_FEDRAMP_HEADER_NAME),
+            HeaderValue::from_static("true"),
         );
     }
 

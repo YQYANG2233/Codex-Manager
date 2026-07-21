@@ -40,6 +40,7 @@ const REQUEST_ID_HEADER: &str = "x-request-id";
 const OAI_REQUEST_ID_HEADER: &str = "x-oai-request-id";
 const CF_RAY_HEADER: &str = "cf-ray";
 const AUTH_ERROR_HEADER: &str = "x-openai-authorization-error";
+const X_OPENAI_FEDRAMP_HEADER_NAME: &str = "x-openai-fedramp";
 
 #[derive(Debug, Clone)]
 pub(crate) struct UsageActionHttpError {
@@ -643,7 +644,7 @@ fn build_usage_http_default_headers() -> HeaderMap {
 ///
 /// # 返回
 /// 返回函数执行结果
-fn build_usage_request_headers(workspace_id: Option<&str>) -> HeaderMap {
+fn build_usage_request_headers(workspace_id: Option<&str>, is_fedramp: bool) -> HeaderMap {
     let mut headers = HeaderMap::new();
     if let Some(workspace_id) = workspace_id
         .map(str::trim)
@@ -654,6 +655,12 @@ fn build_usage_request_headers(workspace_id: Option<&str>) -> HeaderMap {
                 headers.insert(name, value);
             }
         }
+    }
+    if is_fedramp {
+        headers.insert(
+            HeaderName::from_static(X_OPENAI_FEDRAMP_HEADER_NAME),
+            HeaderValue::from_static("true"),
+        );
     }
     headers
 }
@@ -1024,10 +1031,20 @@ pub(crate) fn fetch_usage_snapshot(
     bearer: &str,
     workspace_id: Option<&str>,
 ) -> Result<serde_json::Value, String> {
+    fetch_usage_snapshot_with_auth_context(base_url, bearer, workspace_id, false)
+}
+
+pub(crate) fn fetch_usage_snapshot_with_auth_context(
+    base_url: &str,
+    auth_token: &str,
+    workspace_id: Option<&str>,
+    is_fedramp: bool,
+) -> Result<serde_json::Value, String> {
     run_usage_future(fetch_usage_snapshot_async(
         base_url,
-        bearer,
+        auth_token,
         workspace_id,
+        is_fedramp,
         None,
     ))
 }
@@ -1038,11 +1055,28 @@ pub(crate) fn fetch_usage_snapshot_with_explicit_proxy(
     workspace_id: Option<&str>,
     proxy_url: &str,
 ) -> Result<serde_json::Value, String> {
-    let proxy_url = normalize_explicit_proxy_url(proxy_url)?;
-    run_usage_future(fetch_usage_snapshot_async(
+    fetch_usage_snapshot_with_auth_context_and_explicit_proxy(
         base_url,
         bearer,
         workspace_id,
+        false,
+        proxy_url,
+    )
+}
+
+pub(crate) fn fetch_usage_snapshot_with_auth_context_and_explicit_proxy(
+    base_url: &str,
+    auth_token: &str,
+    workspace_id: Option<&str>,
+    is_fedramp: bool,
+    proxy_url: &str,
+) -> Result<serde_json::Value, String> {
+    let proxy_url = normalize_explicit_proxy_url(proxy_url)?;
+    run_usage_future(fetch_usage_snapshot_async(
+        base_url,
+        auth_token,
+        workspace_id,
+        is_fedramp,
         Some(proxy_url.as_str()),
     ))
 }
@@ -1132,7 +1166,7 @@ fn reset_credit_request_headers(
     }
     let origin = url.origin().ascii_serialization();
     let referer = format!("{origin}/");
-    let mut headers = build_usage_request_headers(workspace_id);
+    let mut headers = build_usage_request_headers(workspace_id, false);
     headers.insert(
         reqwest::header::ACCEPT,
         HeaderValue::from_static("application/json"),
@@ -1346,17 +1380,17 @@ pub(crate) fn fetch_account_subscription_with_explicit_proxy(
 /// 返回函数执行结果
 async fn fetch_usage_snapshot_async(
     base_url: &str,
-    bearer: &str,
+    auth_token: &str,
     workspace_id: Option<&str>,
+    is_fedramp: bool,
     explicit_proxy_url: Option<&str>,
 ) -> Result<serde_json::Value, String> {
     // 调用上游用量接口
     let url = usage_endpoint(base_url);
-    let request_headers = build_usage_request_headers(workspace_id);
+    let request_headers = build_usage_request_headers(workspace_id, is_fedramp);
+    let authorization = crate::agent_identity::format_upstream_authorization(auth_token);
     let build_request = |client: Client| {
-        let mut req = client
-            .get(&url)
-            .header("Authorization", format!("Bearer {bearer}"));
+        let mut req = client.get(&url).header("Authorization", &authorization);
         if !request_headers.is_empty() {
             req = req.headers(request_headers.clone());
         }

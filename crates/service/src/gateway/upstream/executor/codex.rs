@@ -88,6 +88,21 @@ where
         }
     }
 
+    let allow_openai_fallback = if allow_openai_fallback {
+        match storage.find_account_agent_identity(&account.id) {
+            Ok(Some(_)) => false,
+            Ok(None) => true,
+            Err(err) => {
+                return CandidateUpstreamDecision::Terminal {
+                    status_code: 500,
+                    message: format!("load agent identity failed: {err}"),
+                };
+            }
+        }
+    } else {
+        false
+    };
+
     let (upstream, auth_token) = match run_primary_upstream_flow(
         &client,
         storage,

@@ -11,6 +11,7 @@ mod account_proxy_settings;
 mod account_subscriptions;
 mod accounts;
 mod accounts_sql;
+mod agent_identities;
 mod aggregate_apis;
 mod aggregate_apis_sql;
 mod api_key_quota_limits;
@@ -55,6 +56,20 @@ pub struct Account {
     pub group_name: Option<String>,
     pub sort: i64,
     pub status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountAgentIdentity {
+    pub account_id: String,
+    pub agent_runtime_id: String,
+    pub agent_private_key: String,
+    pub task_id: String,
+    pub chatgpt_user_id: String,
+    pub chatgpt_account_is_fedramp: bool,
+    pub auth_mode: String,
+    pub workspace_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -2147,6 +2162,10 @@ impl Storage {
             |s| s.ensure_proxy_history_tables(),
         )?;
         self.apply_gpt56_official_pricing_migration()?;
+        self.apply_sql_migration(
+            "122_account_agent_identities",
+            include_str!("../../migrations/122_account_agent_identities.sql"),
+        )?;
         self.ensure_api_key_rotation_columns()?;
         self.ensure_aggregate_apis_table()?;
         self.ensure_aggregate_api_secrets_table()?;

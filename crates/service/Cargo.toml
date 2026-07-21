@@ -28,6 +28,7 @@ log = "0.4"
 env_logger = "0.11"
 crossbeam-channel = "0.5"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
 croner = "3.0.1"
 zstd = "0.13"
 os_info = "3.12.0"

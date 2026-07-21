@@ -57,6 +57,7 @@ export interface AccountImportResult {
   directoryPath?: string;
   contents?: string[];
   importedAccountIds?: string[];
+  usageRefreshAccountIds?: string[];
 }
 
 export interface AccountExportResult {
@@ -120,6 +121,9 @@ export function readAccountImportResult(payload: unknown): AccountImportResult {
     contents: readStringArrayField(payload, "contents"),
     importedAccountIds: readStringArrayField(payload, "importedAccountIds").concat(
       readStringArrayField(payload, "imported_account_ids")
+    ),
+    usageRefreshAccountIds: readStringArrayField(payload, "usageRefreshAccountIds").concat(
+      readStringArrayField(payload, "usage_refresh_account_ids")
     ),
   };
 }

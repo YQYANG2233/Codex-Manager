@@ -846,7 +846,9 @@ export function useAccounts() {
         toast.info(t("已取消导入"));
         return;
       }
-      queueImportedUsageRefresh(result.importedAccountIds);
+      queueImportedUsageRefresh(
+        result.usageRefreshAccountIds ?? result.importedAccountIds
+      );
       await invalidateAccountData();
       toast.success(buildImportSummaryMessage(result, t));
     },
@@ -862,7 +864,9 @@ export function useAccounts() {
         toast.info(t("已取消导入"));
         return;
       }
-      queueImportedUsageRefresh(result.importedAccountIds);
+      queueImportedUsageRefresh(
+        result.usageRefreshAccountIds ?? result.importedAccountIds
+      );
       await invalidateAccountData();
       toast.success(buildImportSummaryMessage(result, t));
     },
