@@ -180,6 +180,8 @@ export const EN_MESSAGES: MessageCatalog = {
     "A new version is available. Would you like to update now?",
   "更新包已准备完成，是否立即替换更新？":
     "The update is ready. Would you like to apply it now?",
+  "这是本地测试弹窗，未执行实际更新":
+    "This was a local test dialog. No update was applied.",
   启动时自动检测新版本: "Check for new versions on startup.",
   开机自动启动: "Launch at startup",
   系统登录后自动启动桌面端并保持网关可用:

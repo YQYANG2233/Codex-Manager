@@ -24,6 +24,7 @@ import type {
 import { getAppErrorMessage } from "@/lib/api/transport";
 
 export const AUTO_UPDATE_CHECK_INTERVAL_MS = 7 * 60 * 60 * 1_000;
+const IS_UPDATE_DIALOG_DEMO = process.env.NODE_ENV === "development";
 
 let automaticCheckInFlight: Promise<UpdateCheckResult> | null = null;
 
@@ -59,7 +60,22 @@ export function AutomaticUpdateChecker() {
 
   const runCheck = useCallback(async () => {
     try {
-      const summary = await checkForUpdate();
+      const summary = IS_UPDATE_DIALOG_DEMO
+        ? {
+            repo: "qxcnm/Codex-Manager",
+            mode: "development-demo",
+            isPortable: true,
+            hasUpdate: true,
+            canPrepare: true,
+            currentVersion: "dev-local",
+            latestVersion: "9.9.9-test",
+            releaseTag: "v9.9.9-test",
+            releaseName: "Local update dialog demo",
+            publishedAt: null,
+            reason: null,
+            checkedAtUnixSecs: Math.floor(Date.now() / 1_000),
+          }
+        : await checkForUpdate();
       if (!summary.hasUpdate) {
         return;
       }
@@ -85,7 +101,18 @@ export function AutomaticUpdateChecker() {
   const prepareUpdate = async () => {
     setIsPreparing(true);
     try {
-      const summary = await appClient.prepareUpdate();
+      const summary = IS_UPDATE_DIALOG_DEMO
+        ? {
+            prepared: true,
+            mode: "development-demo",
+            isPortable: true,
+            releaseTag: "v9.9.9-test",
+            latestVersion: "9.9.9-test",
+            assetName: "CodexManager-local-update-demo.zip",
+            assetPath: "",
+            downloaded: true,
+          }
+        : await appClient.prepareUpdate();
       setPreparedUpdate(summary);
       toast.success(
         summary.isPortable
@@ -103,6 +130,11 @@ export function AutomaticUpdateChecker() {
     if (!preparedUpdate) return;
     setIsApplying(true);
     try {
+      if (IS_UPDATE_DIALOG_DEMO) {
+        setDialogOpen(false);
+        toast.success(t("这是本地测试弹窗，未执行实际更新"));
+        return;
+      }
       const result = preparedUpdate.isPortable
         ? await appClient.applyUpdatePortable()
         : await appClient.launchInstaller();

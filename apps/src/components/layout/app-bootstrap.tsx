@@ -533,7 +533,7 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
       !isInitializing &&
       !showCodexGuide &&
       isDesktopRuntime &&
-      appSettings.updateAutoCheck ? (
+      (appSettings.updateAutoCheck || process.env.NODE_ENV === "development") ? (
         <AutomaticUpdateChecker />
       ) : null}
 
