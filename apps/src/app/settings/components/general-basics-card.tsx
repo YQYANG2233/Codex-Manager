@@ -18,6 +18,7 @@ type GeneralBasicsSnapshot = Pick<
   | "autoStartSupported"
   | "closeToTrayOnClose"
   | "closeToTraySupported"
+  | "keepWindowUiMounted"
   | "lowTransparency"
 >;
 
@@ -145,6 +146,19 @@ export function GeneralBasicsCard({
             checked={snapshot.closeToTrayOnClose}
             disabled={!canCloseToTray || !snapshot.closeToTraySupported}
             onCheckedChange={(value) => updateSettings.mutate({ closeToTrayOnClose: value })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t("窗口界面资源常驻")}</Label>
+            <p className="text-xs text-muted-foreground">
+              {t("保持主界面和托盘界面资源挂载，打开窗口时无需重新加载")}
+            </p>
+          </div>
+          <Switch
+            checked={snapshot.keepWindowUiMounted}
+            disabled={!canCloseToTray || !snapshot.closeToTraySupported}
+            onCheckedChange={(value) => updateSettings.mutate({ keepWindowUiMounted: value })}
           />
         </div>
         <div className="flex items-center justify-between">

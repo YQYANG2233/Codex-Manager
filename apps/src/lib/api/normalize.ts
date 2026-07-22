@@ -1722,6 +1722,7 @@ export function normalizeAppSettings(payload: unknown): AppSettings {
     autoStartSupported: asBoolean(source.autoStartSupported, false),
     closeToTrayOnClose: asBoolean(source.closeToTrayOnClose, false),
     closeToTraySupported: asBoolean(source.closeToTraySupported, false),
+    keepWindowUiMounted: asBoolean(source.keepWindowUiMounted, true),
     lowTransparency: asBoolean(source.lowTransparency, false),
     lightweightModeOnCloseToTray: asBoolean(
       source.lightweightModeOnCloseToTray,

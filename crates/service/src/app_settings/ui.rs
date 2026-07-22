@@ -2,9 +2,9 @@ use super::parse_bool_with_default;
 use super::{
     get_persisted_app_setting, save_persisted_app_setting, save_persisted_bool_setting,
     APP_SETTING_AUTO_START_ENABLED_KEY, APP_SETTING_CLOSE_TO_TRAY_ON_CLOSE_KEY,
-    APP_SETTING_LIGHTWEIGHT_MODE_ON_CLOSE_TO_TRAY_KEY, APP_SETTING_UI_APPEARANCE_PRESET_KEY,
-    APP_SETTING_UI_CODEX_CLI_GUIDE_DISMISSED_KEY, APP_SETTING_UI_LOCALE_KEY,
-    APP_SETTING_UI_LOW_TRANSPARENCY_KEY, APP_SETTING_UI_THEME_KEY,
+    APP_SETTING_KEEP_WINDOW_UI_MOUNTED_KEY, APP_SETTING_LIGHTWEIGHT_MODE_ON_CLOSE_TO_TRAY_KEY,
+    APP_SETTING_UI_APPEARANCE_PRESET_KEY, APP_SETTING_UI_CODEX_CLI_GUIDE_DISMISSED_KEY,
+    APP_SETTING_UI_LOCALE_KEY, APP_SETTING_UI_LOW_TRANSPARENCY_KEY, APP_SETTING_UI_THEME_KEY,
     APP_SETTING_UPDATE_AUTO_CHECK_KEY,
 };
 
@@ -155,6 +155,17 @@ pub fn current_close_to_tray_on_close_setting() -> bool {
 /// 返回函数执行结果
 pub fn set_close_to_tray_on_close_setting(enabled: bool) -> Result<bool, String> {
     save_persisted_bool_setting(APP_SETTING_CLOSE_TO_TRAY_ON_CLOSE_KEY, enabled)?;
+    Ok(enabled)
+}
+
+pub fn current_keep_window_ui_mounted_setting() -> bool {
+    get_persisted_app_setting(APP_SETTING_KEEP_WINDOW_UI_MOUNTED_KEY)
+        .map(|value| parse_bool_with_default(&value, true))
+        .unwrap_or(true)
+}
+
+pub fn set_keep_window_ui_mounted_setting(enabled: bool) -> Result<bool, String> {
+    save_persisted_bool_setting(APP_SETTING_KEEP_WINDOW_UI_MOUNTED_KEY, enabled)?;
     Ok(enabled)
 }
 

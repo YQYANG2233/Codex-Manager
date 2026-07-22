@@ -9,7 +9,9 @@ use tauri::{PhysicalPosition, PhysicalRect, Rect, WebviewUrl, WebviewWindowBuild
 #[cfg(debug_assertions)]
 use tauri::Url;
 
-use super::state::{APP_EXIT_REQUESTED, KEEP_ALIVE_FOR_LIGHTWEIGHT_CLOSE};
+use super::state::{
+    APP_EXIT_REQUESTED, KEEP_ALIVE_FOR_LIGHTWEIGHT_CLOSE, KEEP_WINDOW_UI_MOUNTED,
+};
 
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const TRAY_PREVIEW_WINDOW_LABEL: &str = "tray-preview";
@@ -42,7 +44,7 @@ fn show_main_window(app: &tauri::AppHandle) -> bool {
         return false;
     }
     log::info!("show main window requested");
-    hide_tray_preview_window(app);
+    dismiss_tray_preview_window(app);
     KEEP_ALIVE_FOR_LIGHTWEIGHT_CLOSE.store(false, Ordering::Relaxed);
     let Some(main_window) = ensure_main_window(app) else {
         return false;
@@ -129,11 +131,38 @@ pub(crate) fn navigate_main_window_to_startup_app(app: &tauri::AppHandle) -> Res
         .map_err(|err| format!("startup app navigation callback timed out: {err}"))?
 }
 
-pub(crate) fn hide_tray_preview_window(app: &tauri::AppHandle) {
+pub(crate) fn dismiss_tray_preview_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
-        if let Err(err) = window.hide() {
-            log::warn!("hide tray preview window failed: {}", err);
+        let result = if KEEP_WINDOW_UI_MOUNTED.load(Ordering::Relaxed) {
+            window.hide()
+        } else {
+            window.close()
+        };
+        if let Err(err) = result {
+            log::warn!("dismiss tray preview window failed: {}", err);
         }
+    }
+}
+
+pub(crate) fn release_tray_preview_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
+        if let Err(err) = window.close() {
+            log::warn!("release tray preview window failed: {}", err);
+        }
+    }
+}
+
+pub(crate) fn sync_window_ui_mount_state(app: &tauri::AppHandle) {
+    let app = app.clone();
+    let app_for_callback = app.clone();
+    if let Err(err) = app.run_on_main_thread(move || {
+        if KEEP_WINDOW_UI_MOUNTED.load(Ordering::Relaxed) {
+            let _ = ensure_tray_preview_window(&app_for_callback);
+        } else {
+            release_tray_preview_window(&app_for_callback);
+        }
+    }) {
+        log::warn!("schedule window UI mount state sync failed: {}", err);
     }
 }
 
@@ -146,9 +175,7 @@ pub(crate) fn toggle_tray_preview_window(
         return;
     };
     if window.is_visible().unwrap_or(false) {
-        if let Err(err) = window.hide() {
-            log::warn!("hide tray preview window failed: {}", err);
-        }
+        dismiss_tray_preview_window(app);
         return;
     }
 

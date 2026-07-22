@@ -185,6 +185,9 @@ export const EN_MESSAGES: MessageCatalog = {
   关闭时最小化到托盘: "Minimize to tray on close",
   点击关闭按钮不会直接退出程序:
     "Closing the window won't exit the app immediately.",
+  窗口界面资源常驻: "Keep window UI loaded",
+  "保持主界面和托盘界面资源挂载，打开窗口时无需重新加载":
+    "Keep the main and tray interfaces loaded so windows open without reloading.",
   视觉性能模式: "Visual performance mode",
   关闭毛玻璃等特效以提升低配电脑性能:
     "Disable blur and heavy effects for lower-end devices.",

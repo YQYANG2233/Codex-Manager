@@ -98,6 +98,7 @@ fn reset_runtime_defaults() {
         "gatewayUserAgentVersion": codexmanager_service::default_gateway_user_agent_version(),
         "gatewayResidencyRequirement": "",
         "appearancePreset": "classic",
+        "keepWindowUiMounted": true,
         "lightweightModeOnCloseToTray": false,
         "upstreamProxyUrl": "",
         "upstreamStreamTimeoutMs": 600000,
@@ -824,6 +825,7 @@ fn app_settings_set_persists_snapshot_and_password_hash() {
         let snapshot = codexmanager_service::app_settings_set(Some(&json!({
             "updateAutoCheck": false,
             "closeToTrayOnClose": true,
+            "keepWindowUiMounted": false,
             "lightweightModeOnCloseToTray": true,
             "codexCliGuideDismissed": true,
             "lowTransparency": true,
@@ -875,6 +877,12 @@ fn app_settings_set_persists_snapshot_and_password_hash() {
                 .get("closeToTrayOnClose")
                 .and_then(|value| value.as_bool()),
             Some(true)
+        );
+        assert_eq!(
+            snapshot
+                .get("keepWindowUiMounted")
+                .and_then(|value| value.as_bool()),
+            Some(false)
         );
         assert_eq!(
             snapshot
@@ -985,6 +993,12 @@ fn app_settings_set_persists_snapshot_and_password_hash() {
         ));
 
         let storage = Storage::open(db_path).expect("open storage");
+        assert_eq!(
+            storage
+                .get_app_setting(codexmanager_service::APP_SETTING_KEEP_WINDOW_UI_MOUNTED_KEY)
+                .expect("read keep window UI mounted"),
+            Some("0".to_string())
+        );
         assert_eq!(
             storage
                 .get_app_setting(
