@@ -79,6 +79,7 @@ export function AutomaticUpdateChecker() {
       if (!summary.hasUpdate) {
         return;
       }
+      await appClient.showMainWindow().catch(() => undefined);
       setUpdateCheck(summary);
       setPreparedUpdate((current) =>
         current?.latestVersion === summary.latestVersion ? current : null,

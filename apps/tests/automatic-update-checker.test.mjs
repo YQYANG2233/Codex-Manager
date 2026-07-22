@@ -41,6 +41,13 @@ test("automatic updater checks immediately and then every seven hours", () => {
   );
 });
 
+test("an available update restores and focuses the main window before opening the dialog", () => {
+  assert.match(
+    checkerSource,
+    /if \(!summary\.hasUpdate\) \{[\s\S]*return;[\s\S]*await appClient\.showMainWindow\(\)\.catch\(\(\) => undefined\);[\s\S]*setDialogOpen\(true\)/,
+  );
+});
+
 test("development mode uses a safe local update dialog demo", () => {
   assert.match(
     checkerSource,
