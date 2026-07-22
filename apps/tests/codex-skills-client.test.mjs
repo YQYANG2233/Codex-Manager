@@ -273,3 +273,47 @@ test("marketplace install confirmation stays nested and shows the real source", 
   assert.match(source, /marketplaceSource=\{/);
   assert.match(source, /来源：\{source\}/);
 });
+
+test("marketplace dialog keeps its list scrollable and installation errors compact", async () => {
+  const dialogSource = await fs.readFile(
+    path.join(appsRoot, "src", "app", "skills", "marketplace-dialog.tsx"),
+    "utf8",
+  );
+  const globalStyles = await fs.readFile(
+    path.join(appsRoot, "src", "app", "globals.css"),
+    "utf8",
+  );
+  const scrollAreaSource = await fs.readFile(
+    path.join(appsRoot, "src", "components", "ui", "scroll-area.tsx"),
+    "utf8",
+  );
+
+  assert.match(dialogSource, /sm:!max-w-\[min\(92vw,980px\)\]/);
+  assert.match(dialogSource, /height: "82vh", maxHeight: "760px"/);
+  assert.match(dialogSource, /data-testid="skills-marketplace-scroll"/);
+  assert.match(dialogSource, /<ScrollArea/);
+  assert.match(dialogSource, /keepScrollbarMounted/);
+  assert.match(dialogSource, /scrollbarClassName="skills-marketplace-scrollbar"/);
+  assert.match(scrollAreaSource, /keepScrollbarMounted = false/);
+  assert.match(scrollAreaSource, /keepMounted=\{keepScrollbarMounted\}/);
+  assert.match(
+    globalStyles,
+    /\.skills-marketplace-scrollbar\s*\{[\s\S]*?width: 12px !important;[\s\S]*?visibility: visible !important;/,
+  );
+  assert.match(
+    globalStyles,
+    /\.skills-marketplace-scrollbar-thumb\s*\{[\s\S]*?min-height: 52px;/,
+  );
+  assert.match(
+    dialogSource,
+    /toast\.error\(t\("安装插件失败"\),\s*\{[\s\S]*?description: getAppErrorMessage\(error\),[\s\S]*?className: "skills-marketplace-install-error-toast"/,
+  );
+  assert.match(
+    globalStyles,
+    /\.skills-marketplace-install-error-toast\s*\{[\s\S]*?width: min\(26rem, calc\(100vw - 2rem\)\)[\s\S]*?max-height: min\(26rem, calc\(100dvh - 2rem\)\)/,
+  );
+  assert.match(
+    globalStyles,
+    /\.skills-marketplace-install-error-toast \[data-description\]\s*\{[\s\S]*?overflow-y: auto/,
+  );
+});

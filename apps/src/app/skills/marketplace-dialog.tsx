@@ -316,7 +316,11 @@ export function SkillsMarketplaceDialog({
       toast.success(t("插件已安装，新建 Codex 会话后生效"));
     },
     onError: (error) => {
-      toast.error(`${t("安装插件失败")}: ${getAppErrorMessage(error)}`);
+      toast.error(t("安装插件失败"), {
+        description: getAppErrorMessage(error),
+        duration: 10_000,
+        className: "skills-marketplace-install-error-toast",
+      });
     },
     onSettled: () => {
       setInstallingPluginId(null);
@@ -403,7 +407,8 @@ export function SkillsMarketplaceDialog({
       disablePointerDismissal={anyMutationPending}
     >
       <DialogContent
-        className="flex h-[min(88dvh,860px)] max-h-[calc(100dvh-2rem)] flex-col gap-0 p-0 sm:max-w-[880px] md:max-w-[880px] lg:max-w-[1120px] xl:max-w-[1240px]"
+        className="flex flex-col gap-0 overflow-hidden p-0 sm:!max-w-[min(92vw,980px)]"
+        style={{ height: "82vh", maxHeight: "760px" }}
         showCloseButton={!anyMutationPending}
       >
         <DialogHeader className="shrink-0 border-b border-border/60 px-5 pb-4 pt-5 pr-12 sm:px-6 sm:pt-6">
@@ -536,7 +541,14 @@ export function SkillsMarketplaceDialog({
           </div>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="pr-4"
+          scrollbarClassName="skills-marketplace-scrollbar"
+          thumbClassName="skills-marketplace-scrollbar-thumb"
+          keepScrollbarMounted
+          data-testid="skills-marketplace-scroll"
+        >
           <div className="p-5 sm:p-6">
             {!enabled ? (
               <Empty className="min-h-64">

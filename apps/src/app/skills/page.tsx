@@ -65,7 +65,7 @@ import { SkillsMarketplaceDialog } from "./marketplace-dialog";
 
 const BASE64_CHUNK_BYTES = 32 * 1024;
 
-export function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
+function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += BASE64_CHUNK_BYTES) {
