@@ -14,6 +14,7 @@ import type { AppSettings } from "@/types";
 
 type GeneralBasicsSnapshot = Pick<
   AppSettings,
+  | "updateAutoCheck"
   | "autoStartEnabled"
   | "autoStartSupported"
   | "closeToTrayOnClose"
@@ -126,6 +127,21 @@ export function GeneralBasicsCard({
             </Button>
           </CardContent>
         </Card>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t("自动检查更新")}</Label>
+            <p className="text-xs text-muted-foreground">
+              {t("启动时检查更新，并在启动后每 7 小时检查一次")}
+            </p>
+          </div>
+          <Switch
+            checked={snapshot.updateAutoCheck}
+            disabled={!canSelfUpdate}
+            onCheckedChange={(value) =>
+              updateSettings.mutate({ updateAutoCheck: value })
+            }
+          />
+        </div>
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>{t("开机自动启动")}</Label>

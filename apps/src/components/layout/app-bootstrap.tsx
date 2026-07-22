@@ -12,6 +12,7 @@ import { loadRuntimeCapabilities } from "@/lib/api/transport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CodexCliOnboardingDialog } from "@/components/layout/codex-cli-onboarding-dialog";
+import { AutomaticUpdateChecker } from "@/components/layout/automatic-update-checker";
 import { applyAppearancePreset } from "@/lib/appearance";
 import { useRuntimeCapabilities } from "@/hooks/useRuntimeCapabilities";
 import { isTrayPreviewPath } from "@/components/layout/app-frame";
@@ -532,6 +533,14 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
         onOpenChange={handleGuideOpenChange}
         onAcknowledge={handleGuideAcknowledge}
       />
+
+      {!isTrayPreview &&
+      !isInitializing &&
+      !showCodexGuide &&
+      isDesktopRuntime &&
+      appSettings.updateAutoCheck ? (
+        <AutomaticUpdateChecker />
+      ) : null}
 
       {!isTrayPreview && (showLoading || showError) && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/92 px-4">
