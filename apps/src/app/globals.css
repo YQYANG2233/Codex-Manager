@@ -665,6 +665,23 @@ html.tray-preview-mode [data-slot="button"].tray-preview-open-button.tray-previe
   box-shadow: none;
 }
 
+[data-appearance='modern'] [data-slot="button"].update-dialog-later-button,
+[data-slot="button"].update-dialog-later-button {
+  box-shadow: none;
+}
+
+[data-appearance='modern'] [data-slot="button"].update-dialog-later-button:hover,
+[data-slot="button"].update-dialog-later-button:hover {
+  border-color: rgb(var(--primary-rgb) / 0.24);
+  box-shadow: none;
+}
+
+[data-slot="button"].update-dialog-later-button:focus-visible {
+  outline: 1px solid rgb(var(--primary-rgb) / 0.34);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
 .codex-guide-step-button,
 .codex-guide-step-button * {
   white-space: normal;

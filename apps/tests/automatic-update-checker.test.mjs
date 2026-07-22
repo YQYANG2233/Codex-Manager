@@ -29,6 +29,14 @@ const settingsCardSource = await fs.readFile(
   ),
   "utf8",
 );
+const settingsPageSource = await fs.readFile(
+  path.join(appsRoot, "src", "app", "settings", "page.tsx"),
+  "utf8",
+);
+const globalsSource = await fs.readFile(
+  path.join(appsRoot, "src", "app", "globals.css"),
+  "utf8",
+);
 
 test("automatic updater checks immediately and then every seven hours", () => {
   assert.match(
@@ -78,4 +86,19 @@ test("basic settings exposes the persisted automatic update toggle", () => {
     /updateSettings\.mutate\(\{ updateAutoCheck: value \}\)/,
   );
   assert.match(settingsCardSource, /每 7 小时检查一次/);
+});
+
+test("update dialogs use a compact hover treatment for the later button", () => {
+  assert.match(
+    checkerSource,
+    /variant="outline"[\s\S]*className="update-dialog-later-button"[\s\S]*t\("稍后"\)/,
+  );
+  assert.match(
+    settingsPageSource,
+    /variant="outline"[\s\S]*className="update-dialog-later-button"[\s\S]*t\("稍后"\)/,
+  );
+  assert.match(
+    globalsSource,
+    /update-dialog-later-button:hover[\s\S]*box-shadow: none/,
+  );
 });

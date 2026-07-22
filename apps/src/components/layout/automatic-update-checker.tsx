@@ -227,6 +227,7 @@ export function AutomaticUpdateChecker() {
         <DialogFooter className="gap-2 sm:gap-2">
           <Button
             variant="outline"
+            className="update-dialog-later-button"
             disabled={busy}
             onClick={() => setDialogOpen(false)}
           >
