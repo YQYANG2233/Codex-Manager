@@ -152,12 +152,20 @@ export function GeneralBasicsCard({
           <div className="space-y-0.5">
             <Label>{t("窗口界面资源常驻")}</Label>
             <p className="text-xs text-muted-foreground">
-              {t("保持主界面和托盘界面资源挂载，打开窗口时无需重新加载")}
+              {!snapshot.closeToTrayOnClose
+                ? t("需先开启关闭时最小化到托盘，才能选择窗口关闭后的资源策略")
+                : snapshot.keepWindowUiMounted
+                  ? t("快速唤醒：关闭后隐藏并保留界面，重开更快，但会占用更多内存")
+                  : t("低资源：关闭后销毁界面，后台服务继续运行，重开时重新加载")}
             </p>
           </div>
           <Switch
             checked={snapshot.keepWindowUiMounted}
-            disabled={!canCloseToTray || !snapshot.closeToTraySupported}
+            disabled={
+              !canCloseToTray ||
+              !snapshot.closeToTraySupported ||
+              !snapshot.closeToTrayOnClose
+            }
             onCheckedChange={(value) => updateSettings.mutate({ keepWindowUiMounted: value })}
           />
         </div>

@@ -46,3 +46,13 @@ test("预加载的托盘界面只连接服务而不会重启服务", async () =>
   );
   assert.match(source, /TRAY_PREVIEW_SERVICE_INITIALIZE_RETRIES = 40/);
 });
+
+test("窗口常驻设置明确依赖关闭到托盘并展示资源取舍", async () => {
+  const source = await readSource(
+    "src/app/settings/components/general-basics-card.tsx",
+  );
+
+  assert.match(source, /!snapshot\.closeToTrayOnClose/);
+  assert.match(source, /快速唤醒：关闭后隐藏并保留界面/);
+  assert.match(source, /低资源：关闭后销毁界面，后台服务继续运行/);
+});

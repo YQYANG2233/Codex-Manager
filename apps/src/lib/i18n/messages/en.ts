@@ -186,8 +186,12 @@ export const EN_MESSAGES: MessageCatalog = {
   点击关闭按钮不会直接退出程序:
     "Closing the window won't exit the app immediately.",
   窗口界面资源常驻: "Keep window UI loaded",
-  "保持主界面和托盘界面资源挂载，打开窗口时无需重新加载":
-    "Keep the main and tray interfaces loaded so windows open without reloading.",
+  "需先开启关闭时最小化到托盘，才能选择窗口关闭后的资源策略":
+    "Enable minimize to tray on close before choosing how window resources are handled.",
+  "快速唤醒：关闭后隐藏并保留界面，重开更快，但会占用更多内存":
+    "Fast reopen: hide and retain the interface on close for faster reopening, using more memory.",
+  "低资源：关闭后销毁界面，后台服务继续运行，重开时重新加载":
+    "Low resource: release the interface on close while the background service keeps running, then reload it when reopened.",
   视觉性能模式: "Visual performance mode",
   关闭毛玻璃等特效以提升低配电脑性能:
     "Disable blur and heavy effects for lower-end devices.",
