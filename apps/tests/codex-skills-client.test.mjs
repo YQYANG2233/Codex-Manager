@@ -253,29 +253,33 @@ test("Skill file mutations use a long non-retrying request", async () => {
   );
 });
 
-test("marketplace install confirmation stays nested and shows the real source", async () => {
-  const source = await fs.readFile(
+test("skills page separates standalone Skills from the inline plugin marketplace", async () => {
+  const pageSource = await fs.readFile(
+    path.join(appsRoot, "src", "app", "skills", "page.tsx"),
+    "utf8",
+  );
+  const panelSource = await fs.readFile(
     path.join(appsRoot, "src", "app", "skills", "marketplace-dialog.tsx"),
     "utf8",
   );
-  const confirmIndex = source.indexOf("<ConfirmDialog");
-  const outerDialogCloseIndex = source.lastIndexOf("</Dialog>");
 
-  assert.ok(confirmIndex > 0, "install confirmation is rendered");
-  assert.ok(
-    confirmIndex < outerDialogCloseIndex,
-    "install confirmation remains inside the outer Dialog React tree",
-  );
-  assert.match(
-    source,
-    /if \(!nextOpen && anyMutationPending\) return;[\s\S]*?disablePointerDismissal=\{anyMutationPending\}/,
-  );
-  assert.match(source, /marketplaceSource=\{/);
-  assert.match(source, /来源：\{source\}/);
+  assert.match(pageSource, /<Tabs[\s\S]*?value=\{activeTab\}/);
+  assert.match(pageSource, /<TabsTrigger value="skills"/);
+  assert.match(pageSource, /<TabsTrigger value="plugins"/);
+  assert.match(pageSource, /<TabsContent value="skills"/);
+  assert.match(pageSource, /<TabsContent value="plugins" keepMounted>/);
+  assert.match(pageSource, /<CodexPluginsPanel active=\{activeTab === "plugins"\}/);
+  assert.doesNotMatch(pageSource, /SkillsMarketplaceDialog|marketplaceDialogOpen/);
+  assert.match(panelSource, /export function CodexPluginsPanel/);
+  assert.match(panelSource, /enabled: active && enabled/);
+  assert.match(panelSource, /插件中的 Skills 会随完整插件一起安装，不能在这里单独安装。/);
+  assert.match(panelSource, /marketplaceSource=\{/);
+  assert.match(panelSource, /来源：\{source\}/);
+  assert.match(panelSource, /<ConfirmDialog/);
 });
 
-test("marketplace dialog keeps its list scrollable and installation errors compact", async () => {
-  const dialogSource = await fs.readFile(
+test("inline plugin marketplace keeps its list scrollable and installation errors compact", async () => {
+  const panelSource = await fs.readFile(
     path.join(appsRoot, "src", "app", "skills", "marketplace-dialog.tsx"),
     "utf8",
   );
@@ -288,12 +292,17 @@ test("marketplace dialog keeps its list scrollable and installation errors compa
     "utf8",
   );
 
-  assert.match(dialogSource, /sm:!max-w-\[min\(92vw,980px\)\]/);
-  assert.match(dialogSource, /height: "82vh", maxHeight: "760px"/);
-  assert.match(dialogSource, /data-testid="skills-marketplace-scroll"/);
-  assert.match(dialogSource, /<ScrollArea/);
-  assert.match(dialogSource, /keepScrollbarMounted/);
-  assert.match(dialogSource, /scrollbarClassName="skills-marketplace-scrollbar"/);
+  assert.match(panelSource, /data-testid="codex-plugins-panel"/);
+  assert.match(panelSource, /data-testid="skills-marketplace-scroll"/);
+  assert.match(panelSource, /<ScrollArea/);
+  assert.match(panelSource, /height: "min\(64vh, 680px\)"/);
+  assert.match(panelSource, /keepScrollbarMounted/);
+  assert.match(panelSource, /scrollbarClassName="skills-marketplace-scrollbar"/);
+  assert.match(
+    panelSource,
+    /Number\(right\.installed\) - Number\(left\.installed\)/,
+  );
+  assert.match(panelSource, /已安装 \{count\}/);
   assert.match(scrollAreaSource, /keepScrollbarMounted = false/);
   assert.match(scrollAreaSource, /keepMounted=\{keepScrollbarMounted\}/);
   assert.match(
@@ -305,7 +314,7 @@ test("marketplace dialog keeps its list scrollable and installation errors compa
     /\.skills-marketplace-scrollbar-thumb\s*\{[\s\S]*?min-height: 52px;/,
   );
   assert.match(
-    dialogSource,
+    panelSource,
     /toast\.error\(t\("安装插件失败"\),\s*\{[\s\S]*?description: getAppErrorMessage\(error\),[\s\S]*?className: "skills-marketplace-install-error-toast"/,
   );
   assert.match(

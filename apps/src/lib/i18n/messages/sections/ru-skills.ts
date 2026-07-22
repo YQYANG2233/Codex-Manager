@@ -6,6 +6,10 @@ export const RU_SKILLS_MESSAGES: MessageCatalog = {
   "Skills 管理": "Навыки",
   "扫描并管理 codexmanager-service 主机上的 Codex Skills。":
     "Сканирование и управление навыками Codex на хосте codexmanager-service.",
+  "分别管理独立 Skills 与 Codex 原生插件。":
+    "Раздельное управление автономными Skills и нативными плагинами Codex.",
+  "独立 Skills": "Автономные Skills",
+  "Codex 插件": "Плагины Codex",
   "系统内置 · 只读": "Встроенный · только чтение",
   用户安装: "Установлен пользователем",
   系统只读: "Системный, только чтение",
@@ -47,8 +51,11 @@ export const RU_SKILLS_MESSAGES: MessageCatalog = {
   确认删除: "Удалить",
   "Skills 市场": "Магазин Skills",
   "Codex Skills 市场": "Магазин Codex Skills",
+  "Codex 插件市场": "Marketplace плагинов Codex",
   "通过 Codex 原生 Marketplace 安装完整插件，只展示包含标准 SKILL.md 的插件。":
     "Устанавливайте полные плагины через встроенный Marketplace Codex. Показываются только плагины со стандартными файлами SKILL.md.",
+  "插件中的 Skills 会随完整插件一起安装，不能在这里单独安装。":
+    "Skills внутри плагина устанавливаются вместе с полным плагином; отдельно установить их здесь нельзя.",
   "包含 {count} 个 Codex Skills": "Содержит навыков Codex: {count}",
   "收起 Skill 清单": "Свернуть список навыков",
   "查看全部 {count} 个 Skills": "Показать все навыки ({count})",
@@ -73,11 +80,15 @@ export const RU_SKILLS_MESSAGES: MessageCatalog = {
   已连接市场: "Подключённые магазины",
   "搜索插件、市场或 Skill": "Поиск плагина, магазина или навыка",
   "{count} 个兼容插件": "Совместимых плагинов: {count}",
+  "已安装 {count}": "Установлено: {count}",
   刷新市场: "Обновить магазины",
   "Marketplace 加载失败": "Не удалось загрузить Marketplace",
   "当前无法读取 Skills 市场": "Marketplace Skills сейчас недоступен",
+  "当前无法读取插件市场": "Marketplace плагинов сейчас недоступен",
   "当前 Codex CLI 不支持 Skills 市场":
     "Текущая версия Codex CLI не поддерживает магазины Skills",
+  "当前 Codex CLI 不支持插件市场":
+    "Текущая версия Codex CLI не поддерживает Marketplace плагинов",
   "请在 codexmanager-service 主机安装或升级支持 plugin 命令的 Codex CLI。":
     "Установите или обновите Codex CLI с поддержкой команды plugin на хосте codexmanager-service.",
   "没有匹配的 Marketplace 插件": "Подходящие плагины Marketplace не найдены",

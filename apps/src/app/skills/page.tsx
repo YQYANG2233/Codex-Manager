@@ -13,10 +13,10 @@ import {
   Archive,
   FolderInput,
   Loader2,
+  Package,
   RefreshCw,
   Search,
   ShieldCheck,
-  Store,
   Trash2,
   WandSparkles,
 } from "lucide-react";
@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDeferredDesktopActivation } from "@/hooks/useDeferredDesktopActivation";
 import { useDesktopPageActive } from "@/hooks/useDesktopPageActive";
 import { usePageTransitionReady } from "@/hooks/usePageTransitionReady";
@@ -61,9 +62,11 @@ import { useI18n } from "@/lib/i18n/provider";
 import { useAppStore } from "@/lib/store/useAppStore";
 import { cn } from "@/lib/utils";
 import type { CodexSkillSummary, CodexSkillsInventory } from "@/types";
-import { SkillsMarketplaceDialog } from "./marketplace-dialog";
+import { CodexPluginsPanel } from "./marketplace-dialog";
 
 const BASE64_CHUNK_BYTES = 32 * 1024;
+const SKILLS_PAGE_TABS = ["skills", "plugins"] as const;
+type SkillsPageTab = (typeof SKILLS_PAGE_TABS)[number];
 
 function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -180,7 +183,7 @@ export default function SkillsPage() {
   );
 
   const [search, setSearch] = useState("");
-  const [marketplaceDialogOpen, setMarketplaceDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<SkillsPageTab>("skills");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [sourcePath, setSourcePath] = useState("");
   const [pendingDelete, setPendingDelete] = useState<CodexSkillSummary | null>(
@@ -340,25 +343,18 @@ export default function SkillsPage() {
       <PageHeader
         eyebrow="CODEX"
         title={t("Skills 管理")}
-        description={t("扫描并管理 codexmanager-service 主机上的 Codex Skills。")}
+        description={t("分别管理独立 Skills 与 Codex 原生插件。")}
         meta={
-          <>
-            <Badge variant="outline">{t("用户安装")} {userCount}</Badge>
-            <Badge variant="secondary">{t("系统只读")} {systemCount}</Badge>
-          </>
+          activeTab === "skills" ? (
+            <>
+              <Badge variant="outline">{t("用户安装")} {userCount}</Badge>
+              <Badge variant="secondary">{t("系统只读")} {systemCount}</Badge>
+            </>
+          ) : null
         }
         actions={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full gap-2 sm:w-auto"
-              disabled={!isReady}
-              onClick={() => setMarketplaceDialogOpen(true)}
-            >
-              <Store className="size-4" />
-              {t("Skills 市场")}
-            </Button>
+          activeTab === "skills" ? (
+            <>
             <Button
               type="button"
               variant="outline"
@@ -395,10 +391,32 @@ export default function SkillsPage() {
                 className={cn("size-4", inventoryQuery.isFetching && "animate-spin")}
               />
             </Button>
-          </>
+            </>
+          ) : null
         }
       />
 
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          if (value && SKILLS_PAGE_TABS.includes(value as SkillsPageTab)) {
+            setActiveTab(value as SkillsPageTab);
+          }
+        }}
+        className="w-full gap-4"
+      >
+        <TabsList className="glass-card mission-panel grid h-11 w-full grid-cols-2 rounded-lg p-1 sm:w-[360px]">
+          <TabsTrigger value="skills" className="gap-2 px-5">
+            <WandSparkles className="size-4" />
+            {t("独立 Skills")}
+          </TabsTrigger>
+          <TabsTrigger value="plugins" className="gap-2 px-5">
+            <Package className="size-4" />
+            {t("Codex 插件")}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="skills" className="space-y-4">
       <WorkPanel>
         <CardContent className="space-y-3 px-4 py-4">
           <div className="flex items-start gap-3">
@@ -506,12 +524,12 @@ export default function SkillsPage() {
           </div>
         )}
       </WorkPanel>
+        </TabsContent>
 
-      <SkillsMarketplaceDialog
-        open={marketplaceDialogOpen}
-        onOpenChange={setMarketplaceDialogOpen}
-        enabled={isReady}
-      />
+        <TabsContent value="plugins" keepMounted>
+          <CodexPluginsPanel active={activeTab === "plugins"} enabled={isReady} />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
         <DialogContent showCloseButton={!importMutation.isPending}>

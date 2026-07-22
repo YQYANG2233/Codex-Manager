@@ -60,8 +60,8 @@ const MARKETPLACE_PLUGINS = Array.from({ length: 12 }, (_, index) => {
     name: `Marketplace Plugin ${number}`,
     marketplace_name: "test-marketplace",
     version: `1.0.${index}`,
-    installed: false,
-    enabled: false,
+    installed: index === 11,
+    enabled: index === 11,
     description:
       "A Codex plugin with enough descriptive content to exercise the marketplace card layout.",
     author: "CodexManager Test",
@@ -182,32 +182,47 @@ async function mockRuntimeAndSkillsRpc(page: Page) {
   });
 }
 
-test("Skills marketplace keeps its dialog, scrollbar, and install error usable", async ({
+test("Skills and plugins are split while the inline plugin marketplace stays usable", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockRuntimeAndSkillsRpc(page);
 
   await page.goto("/skills/");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: "Skills 管理" })).toBeVisible();
+  const skillsTab = main.getByRole("tab", { name: "独立 Skills" });
+  const pluginsTab = main.getByRole("tab", { name: "Codex 插件" });
+  await expect(skillsTab).toHaveAttribute("aria-selected", "true");
+  await expect(main.getByRole("button", { name: "安装 ZIP" })).toBeVisible();
+  await expect(main.getByTestId("codex-plugins-panel")).not.toBeVisible();
+
+  await pluginsTab.click();
+  await expect(pluginsTab).toHaveAttribute("aria-selected", "true");
+  await expect(main.getByRole("button", { name: "安装 ZIP" })).toHaveCount(0);
+
+  const panel = main.getByTestId("codex-plugins-panel");
+  await expect(panel).toBeVisible();
   await expect(
-    page.getByRole("main").getByRole("heading", { name: "Skills 管理" }),
+    panel.getByRole("heading", { name: "Codex 插件市场" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Skills 市场" }).click();
+  await expect(panel.getByText("已安装 1")).toBeVisible();
+  await expect(panel.getByText("12 个兼容插件")).toBeVisible();
+  await expect(
+    panel.getByText(
+      "插件中的 Skills 会随完整插件一起安装，不能在这里单独安装。",
+    ),
+  ).toBeVisible();
 
-  const dialog = page.getByRole("dialog", { name: "Codex Skills 市场" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("12 个兼容插件")).toBeVisible();
+  const installedPluginCard = panel
+    .getByRole("heading", { name: "Marketplace Plugin 12" })
+    .locator("xpath=ancestor::article[1]");
+  await expect(installedPluginCard).toBeVisible();
+  await expect(
+    installedPluginCard.getByRole("button", { name: "已由 Codex 安装" }),
+  ).toBeDisabled();
 
-  await expect
-    .poll(async () => {
-      const box = await dialog.boundingBox();
-      return box
-        ? { width: Math.round(box.width), height: Math.round(box.height) }
-        : null;
-    })
-    .toEqual({ width: 980, height: 738 });
-
-  const scrollArea = dialog.getByTestId("skills-marketplace-scroll");
+  const scrollArea = panel.getByTestId("skills-marketplace-scroll");
   const viewport = scrollArea.locator('[data-slot="scroll-area-viewport"]');
   const scrollbar = scrollArea.locator(
     '[data-slot="scroll-area-scrollbar"][data-orientation="vertical"]',
@@ -260,8 +275,8 @@ test("Skills marketplace keeps its dialog, scrollbar, and install error usable",
   });
   expect(viewportStyles.overflowY).toBe("scroll");
 
-  const lastPlugin = dialog.getByRole("heading", {
-    name: "Marketplace Plugin 12",
+  const lastPlugin = panel.getByRole("heading", {
+    name: "Marketplace Plugin 11",
   });
   await viewport.evaluate((element) => {
     element.scrollTop = element.scrollHeight;

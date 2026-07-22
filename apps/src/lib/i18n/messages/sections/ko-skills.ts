@@ -6,6 +6,10 @@ export const KO_SKILLS_MESSAGES: MessageCatalog = {
   "Skills 管理": "Skills 관리",
   "扫描并管理 codexmanager-service 主机上的 Codex Skills。":
     "codexmanager-service 호스트의 Codex Skills를 검색하고 관리합니다.",
+  "分别管理独立 Skills 与 Codex 原生插件。":
+    "독립형 Skills와 Codex 기본 플러그인을 각각 관리합니다.",
+  "独立 Skills": "독립형 Skills",
+  "Codex 插件": "Codex 플러그인",
   "系统内置 · 只读": "시스템 내장 · 읽기 전용",
   用户安装: "사용자 설치",
   系统只读: "시스템 읽기 전용",
@@ -47,8 +51,11 @@ export const KO_SKILLS_MESSAGES: MessageCatalog = {
   确认删除: "삭제",
   "Skills 市场": "Skills 마켓",
   "Codex Skills 市场": "Codex Skills 마켓",
+  "Codex 插件市场": "Codex 플러그인 마켓",
   "通过 Codex 原生 Marketplace 安装完整插件，只展示包含标准 SKILL.md 的插件。":
     "Codex 기본 Marketplace를 통해 전체 플러그인을 설치합니다. 표준 SKILL.md가 포함된 플러그인만 표시합니다.",
+  "插件中的 Skills 会随完整插件一起安装，不能在这里单独安装。":
+    "플러그인에 포함된 Skills는 전체 플러그인과 함께 설치되며 여기에서 개별적으로 설치할 수 없습니다.",
   "包含 {count} 个 Codex Skills": "Codex Skills {count}개 포함",
   "收起 Skill 清单": "Skill 목록 접기",
   "查看全部 {count} 个 Skills": "Skills {count}개 모두 보기",
@@ -73,11 +80,15 @@ export const KO_SKILLS_MESSAGES: MessageCatalog = {
   已连接市场: "연결된 마켓",
   "搜索插件、市场或 Skill": "플러그인, 마켓 또는 Skill 검색",
   "{count} 个兼容插件": "호환 플러그인 {count}개",
+  "已安装 {count}": "설치됨 {count}개",
   刷新市场: "마켓 새로 고침",
   "Marketplace 加载失败": "Marketplace를 불러오지 못했습니다",
   "当前无法读取 Skills 市场": "현재 Skills Marketplace를 읽을 수 없습니다",
+  "当前无法读取插件市场": "현재 플러그인 Marketplace를 읽을 수 없습니다",
   "当前 Codex CLI 不支持 Skills 市场":
     "현재 Codex CLI는 Skills 마켓을 지원하지 않습니다",
+  "当前 Codex CLI 不支持插件市场":
+    "현재 Codex CLI는 플러그인 마켓을 지원하지 않습니다",
   "请在 codexmanager-service 主机安装或升级支持 plugin 命令的 Codex CLI。":
     "codexmanager-service 호스트에서 plugin 명령을 지원하는 Codex CLI를 설치하거나 업그레이드하세요.",
   "没有匹配的 Marketplace 插件": "일치하는 Marketplace 플러그인 없음",
