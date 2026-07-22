@@ -12,10 +12,12 @@ import { KO_MODEL_CATALOG_MESSAGES } from "./sections/ko-model-catalog";
 import { KO_MODEL_GROUPS_MESSAGES } from "./sections/ko-model-groups";
 import { KO_MODELS_MESSAGES } from "./sections/ko-models";
 import { KO_PLATFORM_MODE_MESSAGES } from "./sections/ko-platform-mode";
+import { KO_PROJECTS_MESSAGES } from "./sections/ko-projects";
 import { KO_RUNTIME_UI_MESSAGES } from "./sections/ko-runtime-ui";
 import { KO_SKILLS_MESSAGES } from "./sections/ko-skills";
 
 export const KO_MESSAGES: MessageCatalog = {
+  ...KO_PROJECTS_MESSAGES,
   ...KO_SKILLS_MESSAGES,
   仪表盘: "대시보드",
   概览: "개요",

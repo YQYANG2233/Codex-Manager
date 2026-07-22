@@ -12,10 +12,12 @@ import { RU_MODEL_CATALOG_MESSAGES } from "./sections/ru-model-catalog";
 import { RU_MODEL_GROUPS_MESSAGES } from "./sections/ru-model-groups";
 import { RU_MODELS_MESSAGES } from "./sections/ru-models";
 import { RU_PLATFORM_MODE_MESSAGES } from "./sections/ru-platform-mode";
+import { RU_PROJECTS_MESSAGES } from "./sections/ru-projects";
 import { RU_RUNTIME_UI_MESSAGES } from "./sections/ru-runtime-ui";
 import { RU_SKILLS_MESSAGES } from "./sections/ru-skills";
 
 export const RU_MESSAGES: MessageCatalog = {
+  ...RU_PROJECTS_MESSAGES,
   ...RU_SKILLS_MESSAGES,
   "延迟测试设置": "Настройки теста задержки",
   "速度测试设置": "Настройки теста скорости",

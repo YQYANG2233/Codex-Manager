@@ -20,10 +20,11 @@ CodexManager is a local desktop + service-process account pool manager and gatew
 - Batch import/export: multi-file import, desktop recursive folder import, per-account export.
 - Usage display: 5-hour + 7-day windows, single-window accounts, and official extra buckets such as Code Review / Spark.
 - Account authorization: `chatgpt.com` browser OAuth and Device Code login; browser OAuth also supports manual callback parsing.
-- Platform keys: create, disable, delete, model binding, reasoning tier, and service tier.
+- Platform keys: create, disable, delete, model binding, reasoning tier, and service tier; administrators can bind a key to a custom account group, intersect it with the plan filter, and rotate only inside that authorized pool.
 - Aggregate API: create/edit/test third-party relay upstreams with supplier naming and priority ordering.
 - Plugin center: built-in, private, and custom source modes with task/log views and Rhai integration.
 - Skills management: scans `$CODEX_HOME/skills` on the service host, with search, ZIP installation, existing-directory import, and safe deletion of user skills; `.system` skills are read-only. It can also import GitHub sources through the native Codex Marketplace, preview their standard Skills, and install complete plugins.
+- Desktop project launcher: bookmark local project folders and open Codex or the current project's `resume` picker in a new terminal with the local CodexManager profile; Web and Docker never access device folders.
 - Local service + gateway: custom bind/listen settings, upstream proxy, total request timeout, stream idle timeout, SSE keepalive, and a unified compatible endpoint. SSE keepalive is enabled by default; set `CODEXMANAGER_SSE_KEEPALIVE_ENABLED=0` (or `false`) to disable it.
 - Image generation: automatically injects the official Codex `image_generation` tool for `/v1/responses` by default, forwards explicit tools unchanged, and exposes compatible `/v1/images/generations` and `/v1/images/edits` endpoints with `gpt-image-2` as the default image tool model.
 

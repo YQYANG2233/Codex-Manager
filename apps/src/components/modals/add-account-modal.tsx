@@ -261,6 +261,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
 
   // Login Form
   const [loginType, setLoginType] = useState<LoginType>("chatgpt");
+  const [groupName, setGroupName] = useState("");
   const [tags, setTags] = useState("");
   const [note, setNote] = useState("");
   const [loginUrl, setLoginUrl] = useState("");
@@ -295,6 +296,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
     setIsLoading(false);
     setLoginHint("");
     setLoginType("chatgpt");
+    setGroupName("");
     setTags("");
     setNote("");
     setLoginUrl("");
@@ -613,6 +615,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean),
+        groupName: groupName.trim() || null,
         note,
       });
       if (operationToken !== loginPollTokenRef.current) {
@@ -883,14 +886,25 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                     : t("在当前设备的浏览器中完成 ChatGPT 授权。")}
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label>{t("标签（逗号分隔）")}</Label>
-                <Input
-                  placeholder={t("例如：高频, 团队A")}
-                  value={tags}
-                  disabled={!isServiceReady}
-                  onChange={(e) => setTags(e.target.value)}
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{t("账号分组")}</Label>
+                  <Input
+                    placeholder={t("例如：团队 A")}
+                    value={groupName}
+                    disabled={!isServiceReady}
+                    onChange={(e) => setGroupName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("标签（逗号分隔）")}</Label>
+                  <Input
+                    placeholder={t("例如：高频, 团队A")}
+                    value={tags}
+                    disabled={!isServiceReady}
+                    onChange={(e) => setTags(e.target.value)}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>{t("备注/描述")}</Label>

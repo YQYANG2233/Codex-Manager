@@ -1178,6 +1178,7 @@ pub struct ApiKeyListSummary {
     pub rotation_strategy: String,
     pub aggregate_api_id: Option<String>,
     pub account_plan_filter: Option<String>,
+    pub account_group_filter: Option<String>,
     pub aggregate_api_url: Option<String>,
     pub client_type: String,
     pub protocol_type: String,
@@ -2196,7 +2197,13 @@ impl Storage {
             "122_account_agent_identities",
             include_str!("../../migrations/122_account_agent_identities.sql"),
         )?;
+        self.apply_sql_or_compat_migration(
+            "123_api_keys_account_group_filter",
+            include_str!("../../migrations/123_api_keys_account_group_filter.sql"),
+            |s| s.ensure_api_key_account_group_filter_column(),
+        )?;
         self.ensure_api_key_rotation_columns()?;
+        self.ensure_api_key_account_group_filter_column()?;
         self.ensure_aggregate_apis_table()?;
         self.ensure_aggregate_api_secrets_table()?;
         self.ensure_aggregate_api_balance_secrets_table()?;

@@ -111,6 +111,43 @@ test("createWebCommandMap 复用 keyId 到 id 的参数映射", () => {
   });
 });
 
+test("API key update Web 映射移除桌面 presence marker 并保留显式清空", () => {
+  const descriptor = commandMap.service_apikey_update_model;
+  assert.ok(descriptor.mapParams);
+  assert.deepEqual(
+    descriptor.mapParams({
+      keyId: "key-1",
+      hasName: true,
+      name: "renamed",
+      hasModelConfig: true,
+      modelSlug: null,
+      reasoningEffort: "high",
+      serviceTier: null,
+      hasRoutingConfig: true,
+      rotationStrategy: "hybrid_rotation",
+      aggregateApiId: null,
+      accountPlanFilter: "plus",
+      hasAccountGroupFilter: true,
+      accountGroupFilter: null,
+      hasQuotaLimitTokens: true,
+      quotaLimitTokens: null,
+    }),
+    {
+      keyId: "key-1",
+      id: "key-1",
+      name: "renamed",
+      modelSlug: null,
+      reasoningEffort: "high",
+      serviceTier: null,
+      rotationStrategy: "hybrid_rotation",
+      aggregateApiId: null,
+      accountPlanFilter: "plus",
+      accountGroupFilter: null,
+      quotaLimitTokens: null,
+    },
+  );
+});
+
 test("createWebCommandMap 为登录命令补齐 Web 运行壳参数", () => {
   const startLogin = commandMap.service_login_start;
   assert.ok(startLogin.mapParams);

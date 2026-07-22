@@ -34,7 +34,7 @@
 | 账号 | `service_account_delete` | `account/delete` | 参数：`accountId` |
 | 账号 | `service_account_delete_many` | `account/deleteMany` | 参数：`accountIds` |
 | 账号 | `service_account_delete_unavailable_free` | `account/deleteUnavailableFree` | 删除不可用免费账号 |
-| 账号 | `service_account_update` | `account/update` | 参数：`accountId`、`sort`、`status`、`label`、`note`、`tags` |
+| Account | `service_account_update` | `account/update` | Parameters: `accountId`, `sort`, `status`, `label`, `groupName`, `note`, `tags`; only administrators may change `groupName` |
 | 账号 | `service_account_import` | `account/import` | 参数：`contents[]` 或 `content` |
 | 账号 | `service_account_import_by_file` | `direct` | 桌面端打开文件选择器，读取 `.json/.txt`，产出 `contents` 后再交给 `service_account_import` |
 | 账号 | `service_account_import_by_directory` | `direct` | 桌面端打开目录选择器，递归读取账号文件，产出 `contents` 后再交给 `service_account_import` |
@@ -60,10 +60,10 @@
 | 聚合 API | `service_aggregate_api_test_connection` | `aggregateApi/testConnection` | 参数：`id` |
 | 平台密钥 | `service_apikey_list` | `apikey/list` | 列表 |
 | 平台密钥 | `service_apikey_read_secret` | `apikey/readSecret` | 参数：`keyId`，前端会映射成 RPC 参数 `id` |
-| 平台密钥 | `service_apikey_create` | `apikey/create` | 参数：`name`、`modelSlug`、`reasoningEffort`、`serviceTier`、`protocolType`、`upstreamBaseUrl`、`staticHeadersJson`、`rotationStrategy`、`aggregateApiId` |
+| Platform API key | `service_apikey_create` | `apikey/create` | Parameters: `name`, `modelSlug`, `reasoningEffort`, `serviceTier`, `protocolType`, `upstreamBaseUrl`, `staticHeadersJson`, `rotationStrategy`, `aggregateApiId`, `accountPlanFilter`, `accountGroupFilter`, `quotaLimitTokens`, `customKey` |
 | 平台密钥 | `service_apikey_models` | `apikey/models` | 参数可选：`refreshRemote` |
 | 平台密钥 | `service_apikey_usage_stats` | `apikey/usageStats` | 用量统计 |
-| 平台密钥 | `service_apikey_update_model` | `apikey/updateModel` | 参数：`keyId`，以及与创建相同的一组可更新字段 |
+| Platform API key | `service_apikey_update_model` | `apikey/updateModel` | Parameters: `keyId`, `name`, `modelSlug`, `reasoningEffort`, `serviceTier`, `protocolType`, `upstreamBaseUrl`, `staticHeadersJson`, `rotationStrategy`, `aggregateApiId`, `accountPlanFilter`, `accountGroupFilter`, and `quotaLimitTokens`; `customKey` is create-only. Desktop-only `hasName`, `hasModelConfig`, `hasRoutingConfig`, `hasAccountGroupFilter`, and `hasQuotaLimitTokens` are presence markers that distinguish omission from explicit clearing and are not forwarded as domain fields; only administrators may change the account-group filter |
 | 平台密钥 | `service_apikey_delete` | `apikey/delete` | 参数：`keyId` |
 | 平台密钥 | `service_apikey_disable` | `apikey/disable` | 参数：`keyId` |
 | 平台密钥 | `service_apikey_enable` | `apikey/enable` | 参数：`keyId` |
@@ -103,6 +103,10 @@
 | Codex Skills | `service_codex_skills_marketplace_add` | `codexSkills/marketplaceAdd` | Param: `source`; optional: `refName`, `codexHome` |
 | Codex Skills | `service_codex_skills_marketplace_refresh` | `codexSkills/marketplaceRefresh` | Optional params: `marketplaceName`, `codexHome` |
 | Codex Skills | `service_codex_skills_marketplace_plugin_install` | `codexSkills/marketplacePluginInstall` | Param: `pluginId`; optional: `codexHome`; installs the complete Codex plugin |
+| Codex Projects | `app_codex_projects_list` | `direct (desktop only)` | Lists project folders saved locally by the current desktop client |
+| Codex Projects | `app_codex_project_add` | `direct (desktop only)` | Opens the system folder picker, canonicalizes, and saves the selected folder |
+| Codex Projects | `app_codex_project_remove` | `direct (desktop only)` | Param: `path`; removes only the saved entry and never project files |
+| Codex Projects | `app_codex_project_launch` | `direct (desktop only)` | Params: `path`, `action=start|resume`; opens Codex or its session picker in a new terminal |
 | 系统 | `open_in_browser` | `direct` | 参数：`url`，本地打开浏览器 |
 | 系统 | `open_in_file_manager` | `direct` | 参数：`path`，本地打开目录 |
 | 系统 | `app_window_unsaved_draft_sections_set` | `direct` | 参数：`sections[]`，设置页未保存草稿标记 |
@@ -181,7 +185,8 @@
 | 常见叫法 | 对应入口 |
 | --- | --- |
 | 用户列表 / 账号列表 | `service_account_list` / `account/list` |
-| 单个账号更新备注 / 标签 / 状态 | `service_account_update` / `account/update` |
+| Update one account's notes / tags / status / custom group | `service_account_update` / `account/update` |
+| Restrict one API key's account candidate pool to a custom group | `service_apikey_create` / `service_apikey_update_model` with `accountGroupFilter` |
 | 批量删除账号 | `service_account_delete_many` / `account/deleteMany` |
 | 删除不可用免费账号 | `service_account_delete_unavailable_free` / `account/deleteUnavailableFree` |
 | 导入账号文本 / JSON | `service_account_import` / `account/import` |

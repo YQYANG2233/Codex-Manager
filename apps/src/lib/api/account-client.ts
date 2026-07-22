@@ -1,5 +1,9 @@
 import { invoke, withAddr } from "./transport";
 import {
+  buildApiKeyUpdateInvokePayload,
+  type ApiKeyUpdatePayload,
+} from "./api-key-update-payload";
+import {
   normalizeAccountList,
   normalizeAggregateApiBalanceRefreshResult,
   normalizeAggregateApiCreateResult,
@@ -141,6 +145,7 @@ export interface LoginStartPayload {
   openBrowser?: boolean;
   note?: string | null;
   tags?: string[] | string | null;
+  groupName?: string | null;
   workspaceId?: string | null;
 }
 
@@ -149,6 +154,7 @@ interface AccountUpdatePayload {
   preferred?: boolean | null;
   status?: string | null;
   label?: string | null;
+  groupName?: string | null;
   note?: string | null;
   tags?: string[] | string | null;
   quotaCapacityPrimaryWindowTokens?: number | null;
@@ -164,18 +170,7 @@ interface ChatgptAuthTokensLoginPayload {
   chatgptPlanType?: string | null;
 }
 
-interface ApiKeyPayload {
-  name?: string | null;
-  modelSlug?: string | null;
-  reasoningEffort?: string | null;
-  serviceTier?: string | null;
-  protocolType?: string | null;
-  upstreamBaseUrl?: string | null;
-  staticHeadersJson?: string | null;
-  rotationStrategy?: string | null;
-  aggregateApiId?: string | null;
-  accountPlanFilter?: string | null;
-  quotaLimitTokens?: number | null;
+interface ApiKeyPayload extends ApiKeyUpdatePayload {
   customKey?: string | null;
 }
 
@@ -444,32 +439,34 @@ export const accountClient = {
         })),
       })
     ),
-  updateProfile: (accountId: string, params: AccountUpdatePayload) =>
-    invoke(
-      "service_account_update",
-      withAddr({
-        accountId,
-        sort: typeof params.sort === "number" ? params.sort : null,
-        preferred: typeof params.preferred === "boolean" ? params.preferred : null,
-        status: params.status || null,
-        label: params.label ?? null,
-        note: params.note ?? null,
-        tags: Array.isArray(params.tags)
-          ? params.tags
-              .map((item: string) => String(item || "").trim())
-              .filter(Boolean)
-              .join(",")
-          : params.tags ?? null,
-        quotaCapacityPrimaryWindowTokens:
-          typeof params.quotaCapacityPrimaryWindowTokens === "number"
-            ? params.quotaCapacityPrimaryWindowTokens
-            : null,
-        quotaCapacitySecondaryWindowTokens:
-          typeof params.quotaCapacitySecondaryWindowTokens === "number"
-            ? params.quotaCapacitySecondaryWindowTokens
-            : null,
-      })
-    ),
+  updateProfile: (accountId: string, params: AccountUpdatePayload) => {
+    const payload: Record<string, unknown> = {
+      accountId,
+      sort: typeof params.sort === "number" ? params.sort : null,
+      preferred: typeof params.preferred === "boolean" ? params.preferred : null,
+      status: params.status || null,
+      label: params.label ?? null,
+      note: params.note ?? null,
+      tags: Array.isArray(params.tags)
+        ? params.tags
+            .map((item: string) => String(item || "").trim())
+            .filter(Boolean)
+            .join(",")
+        : params.tags ?? null,
+      quotaCapacityPrimaryWindowTokens:
+        typeof params.quotaCapacityPrimaryWindowTokens === "number"
+          ? params.quotaCapacityPrimaryWindowTokens
+          : null,
+      quotaCapacitySecondaryWindowTokens:
+        typeof params.quotaCapacitySecondaryWindowTokens === "number"
+          ? params.quotaCapacitySecondaryWindowTokens
+          : null,
+    };
+    if (params.groupName !== undefined) {
+      payload.groupName = params.groupName ?? "";
+    }
+    return invoke("service_account_update", withAddr(payload));
+  },
   setPreferred: (accountId: string) =>
     invoke("service_account_update", withAddr({ accountId, preferred: true })),
   clearPreferred: (accountId: string) =>
@@ -720,6 +717,7 @@ export const accountClient = {
               .filter(Boolean)
               .join(",")
           : params?.tags || null,
+        groupName: params?.groupName || null,
         workspaceId: params?.workspaceId || null,
       })
     );
@@ -909,6 +907,7 @@ export const accountClient = {
         rotationStrategy: params.rotationStrategy || null,
         aggregateApiId: params.aggregateApiId || null,
         accountPlanFilter: params.accountPlanFilter || null,
+        accountGroupFilter: params.accountGroupFilter || null,
         quotaLimitTokens: params.quotaLimitTokens ?? null,
         customKey: params.customKey || null,
       })
@@ -921,25 +920,11 @@ export const accountClient = {
   },
   deleteApiKey: (keyId: string) =>
     invoke("service_apikey_delete", withAddr({ keyId })),
-  updateApiKey: (keyId: string, params: ApiKeyPayload) => {
-    const payload: Record<string, unknown> = {
-      keyId,
-      name: params.name || null,
-      modelSlug: params.modelSlug || null,
-      reasoningEffort: params.reasoningEffort || null,
-      serviceTier: params.serviceTier || null,
-      protocolType: params.protocolType || null,
-      upstreamBaseUrl: params.upstreamBaseUrl || null,
-      staticHeadersJson: params.staticHeadersJson || null,
-      rotationStrategy: params.rotationStrategy || null,
-      aggregateApiId: params.aggregateApiId || null,
-      accountPlanFilter: params.accountPlanFilter || null,
-    };
-    if ("quotaLimitTokens" in params) {
-      payload.quotaLimitTokens = params.quotaLimitTokens ?? null;
-    }
-    return invoke("service_apikey_update_model", withAddr(payload));
-  },
+  updateApiKey: (keyId: string, params: ApiKeyPayload) =>
+    invoke(
+      "service_apikey_update_model",
+      withAddr(buildApiKeyUpdateInvokePayload(keyId, params)),
+    ),
   disableApiKey: (keyId: string) =>
     invoke("service_apikey_disable", withAddr({ keyId })),
   enableApiKey: (keyId: string) =>

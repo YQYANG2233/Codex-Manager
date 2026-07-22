@@ -39,6 +39,7 @@ pub(crate) use account::cleanup as account_cleanup;
 pub(crate) use account::delete as account_delete;
 pub(crate) use account::delete_many as account_delete_many;
 pub(crate) use account::export as account_export;
+pub(crate) use account::group as account_group;
 pub(crate) use account::import as account_import;
 pub(crate) use account::list as account_list;
 pub(crate) use account::plan as account_plan;

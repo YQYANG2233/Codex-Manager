@@ -758,6 +758,7 @@ export function useAccounts() {
     mutationFn: ({
       accountId,
       label,
+      groupName,
       note,
       tags,
       sort,
@@ -766,6 +767,7 @@ export function useAccounts() {
     }: {
       accountId: string;
       label?: string | null;
+      groupName?: string | null;
       note?: string | null;
       tags?: string[] | string | null;
       sort?: number | null;
@@ -774,6 +776,7 @@ export function useAccounts() {
     }) =>
       accountClient.updateProfile(accountId, {
         label,
+        groupName,
         note,
         tags,
         sort,
@@ -1126,6 +1129,7 @@ export function useAccounts() {
       accountId: string,
       params: {
         label?: string | null;
+        groupName?: string | null;
         note?: string | null;
         tags?: string[] | string | null;
         sort?: number | null;

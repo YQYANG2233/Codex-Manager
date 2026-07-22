@@ -40,6 +40,7 @@ const LAZY_PAGE_COMPONENTS: Record<
   "/aggregate-api": lazy(() => import("@/app/aggregate-api/page")),
   "/apikeys": lazy(() => import("@/app/apikeys/page")),
   "/platform-mode": lazy(() => import("@/app/platform-mode/page")),
+  "/projects": lazy(() => import("@/app/projects/page")),
   "/models": lazy(() => import("@/app/models/page")),
   "/model-groups": lazy(() => import("@/app/model-groups/page")),
   "/plugins": lazy(() => import("@/app/plugins/page")),
@@ -129,8 +130,8 @@ export function PageKeepAliveViewport({
   } = useAppSession();
   const role = resolveSessionRole(session, isSessionLoading, isDesktopRuntime);
   const routeAccess = useMemo(
-    () => ({ role, mode: session?.mode ?? null }),
-    [role, session?.mode],
+    () => ({ role, mode: session?.mode ?? null, isDesktopRuntime }),
+    [isDesktopRuntime, role, session?.mode],
   );
 
   useEffect(() => {

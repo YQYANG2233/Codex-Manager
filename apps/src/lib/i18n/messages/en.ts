@@ -12,10 +12,12 @@ import { EN_MODEL_CATALOG_MESSAGES } from "./sections/en-model-catalog";
 import { EN_MODEL_GROUPS_MESSAGES } from "./sections/en-model-groups";
 import { EN_MODELS_MESSAGES } from "./sections/en-models";
 import { EN_PLATFORM_MODE_MESSAGES } from "./sections/en-platform-mode";
+import { EN_PROJECTS_MESSAGES } from "./sections/en-projects";
 import { EN_RUNTIME_UI_MESSAGES } from "./sections/en-runtime-ui";
 import { EN_SKILLS_MESSAGES } from "./sections/en-skills";
 
 export const EN_MESSAGES: MessageCatalog = {
+  ...EN_PROJECTS_MESSAGES,
   ...EN_SKILLS_MESSAGES,
   "延迟测试设置": "Latency test settings",
   "速度测试设置": "Speed test settings",

@@ -286,7 +286,7 @@ pub(crate) fn handle_request_with_actor(req: JsonRpcRequest, actor: RpcActor) ->
         return JsonRpcMessage::Response(response(&req, value_or_error::<()>(Err(err))));
     }
 
-    if let Some(resp) = account::try_handle(&req) {
+    if let Some(resp) = account::try_handle(&req, &actor) {
         return JsonRpcMessage::Response(resp);
     }
     if let Some(resp) = account_manager::try_handle(&req, &actor) {

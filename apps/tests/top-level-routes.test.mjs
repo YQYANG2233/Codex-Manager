@@ -116,6 +116,29 @@ test("未解析 session mode 时不会闪现账号体系专属入口", () => {
   assert.equal(paths.includes("/apikeys"), true);
 });
 
+test("项目启动入口只在 Tauri 桌面运行时出现", () => {
+  const webAccess = {
+    role: "system_admin",
+    mode: "accounts",
+    isDesktopRuntime: false,
+  };
+  const desktopAccess = { ...webAccess, isDesktopRuntime: true };
+
+  assert.equal(
+    routes.getAllowedTopLevelRoutes(webAccess).some((route) => route.path === "/projects"),
+    false,
+  );
+  assert.equal(
+    routes.getAllowedTopLevelRoutes(desktopAccess).some((route) => route.path === "/projects"),
+    true,
+  );
+  assert.equal(
+    routes.isTopLevelRouteAllowedForRole("/projects", desktopAccess),
+    true,
+  );
+  assert.equal(routes.isTopLevelRouteAllowedForRole("/projects", webAccess), false);
+});
+
 test("accounts 模式成员菜单只保留自助入口", () => {
   const access = { role: "member", mode: "accounts" };
   const sections = routes.getAllowedTopLevelRouteSections(access);
