@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- 聚合 API 新增 `compatible` 通用兼容类型：同一条 URL 和密钥可同时承接 Codex/OpenAI 与 Claude 原生协议请求，按客户端请求路径原样转发，无需重复创建供应商记录（#359）。
 - 修复仅从 ChatGPT `/api/auth/session` 导入 `accessToken` 的账号调用 Codex 上游时返回 401：HTTP、Responses WebSocket 与账号预热会按需注册和持久化 AgentIdentity，校验账号绑定后使用 AgentAssertion，并兼容官方嵌套 snake_case / camelCase AgentIdentity 格式（#376）。
 - 修复 `/api/auth/session` 账号显示为“导入账号000x”的问题；现在会从 accessToken 的 OpenAI profile 或会话用户信息解析显示名，并在不覆盖手工名称的前提下修复旧占位显示名。
 - 按 OpenAI 官方 API 价格修正 GPT-5.6 Sol、Terra、Luna 计费：缓存输入恢复 90% 折扣，并在 272K 输入阈值切换到 2 倍输入、1.5 倍输出的长上下文费率；旧版自动估算价格会迁移为官方价格，自定义价格保持不变。

@@ -13,6 +13,7 @@ It follows Keep a Changelog with a lightweight adaptation for this repository.
 
 ### Fixed
 
+- Added a `compatible` aggregate API provider type so one upstream URL and key can serve both Codex/OpenAI and native Claude requests using the incoming request path, without duplicate provider records (#359).
 - Fixed 401 responses for accounts imported with only a ChatGPT `/api/auth/session` `accessToken`. HTTP, Responses WebSocket, and account warmup paths now register and persist missing AgentIdentity material on demand, validate the account binding, use AgentAssertion, and accept the official nested snake_case/camelCase AgentIdentity shapes (#376).
 - Fixed `/api/auth/session` accounts appearing as generic imported-account placeholders. Display names now resolve from the access-token OpenAI profile or session user data, while preserving manually edited names and upgrading legacy placeholder labels.
 - Corrected GPT-5.6 Sol, Terra, and Luna billing to match official OpenAI API pricing: cached input now receives the 90% discount, and requests switch at the 272K input threshold to 2x input and 1.5x output long-context rates. Legacy automatic estimates migrate to official pricing while custom prices stay unchanged.
