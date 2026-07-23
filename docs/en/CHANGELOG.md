@@ -20,6 +20,8 @@ It follows Keep a Changelog with a lightweight adaptation for this repository.
 
 ### Fixed
 
+- Fixed hybrid rotation sending aggregate-only model routes to the local account pool first. Aggregate-only models now go directly to their bound aggregate API, dual-routed models keep account-first fallback behavior, and account-only models no longer fall back to an unbound aggregate API (#381).
+- Fixed the Windows tray preview not reliably applying its latest dimensions. Newly created and reused windows now reapply the fixed `360 × 430` logical size and constraints to prevent clipped content or stale window sizing (#380).
 - Fixed Responses WebSocket failover when an upstream sends `response.created` before reporting quota exhaustion in a nested `response.failed` event. Content-free lifecycle events are now buffered, nested errors are recognized, exhausted accounts are marked limited immediately, and the current request is replayed silently on the next available account.
 - Added a `compatible` aggregate API provider type so one upstream URL and key can serve both Codex/OpenAI and native Claude requests using the incoming request path, without duplicate provider records (#359).
 - Fixed 401 responses for accounts imported with only a ChatGPT `/api/auth/session` `accessToken`. HTTP, Responses WebSocket, and account warmup paths now register and persist missing AgentIdentity material on demand, validate the account binding, use AgentAssertion, and accept the official nested snake_case/camelCase AgentIdentity shapes (#376).

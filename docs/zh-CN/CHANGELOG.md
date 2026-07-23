@@ -20,6 +20,8 @@
 
 ### Fixed
 
+- 修复混合轮转下模型仅配置聚合 API 路由时仍优先请求本地账号池的问题；现在仅聚合路由会直接走已绑定的聚合 API，双路由保持账号优先、聚合兜底，仅账号池路由也不会误用聚合 API（#381）。
+- 修复 Windows 托盘预览窗口未可靠应用最新尺寸的问题；窗口创建或复用时都会重新应用 `360 × 430` 的逻辑尺寸和固定约束，避免内容裁切或沿用旧窗口大小（#380）。
 - 修复 Responses WebSocket 在上游先发送 `response.created`、随后以嵌套 `response.failed` 报告额度耗尽时无法自动换号的问题；现在会暂存无内容的生命周期事件，正确识别嵌套错误，立即将耗尽账号标记为受限，并在下一可用账号上静默重放当前请求。
 - 聚合 API 新增 `compatible` 通用兼容类型：同一条 URL 和密钥可同时承接 Codex/OpenAI 与 Claude 原生协议请求，按客户端请求路径原样转发，无需重复创建供应商记录（#359）。
 - 修复仅从 ChatGPT `/api/auth/session` 导入 `accessToken` 的账号调用 Codex 上游时返回 401：HTTP、Responses WebSocket 与账号预热会按需注册和持久化 AgentIdentity，校验账号绑定后使用 AgentAssertion，并兼容官方嵌套 snake_case / camelCase AgentIdentity 格式（#376）。
