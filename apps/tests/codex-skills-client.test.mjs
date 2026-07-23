@@ -143,6 +143,184 @@ test("normalizeCodexSkillMarketplaceInventory filters malformed entries", () => 
   assert.deepEqual(inventory.warnings, ["warning"]);
 });
 
+test("repository and skills.sh payloads normalize catalog metadata", () => {
+  const catalog = client.normalizeCodexSkillRepositoryCatalog({
+    repositories: [
+      {
+        id: "openai-skills",
+        name: " OpenAI Skills ",
+        owner: "openai",
+        repository: "skills",
+        source_url: " https://github.com/openai/skills ",
+        ref_name: "main",
+        is_builtin: true,
+        enabled: true,
+        skill_count: 1,
+        last_scanned_at: "2026-07-23T00:00:00Z",
+      },
+      { name: "missing id" },
+    ],
+    items: [
+      {
+        skill_id: "audit",
+        repository_id: "openai-skills",
+        name: " Audit ",
+        description: " Review a product ",
+        repository_name: "OpenAI Skills",
+        repository_owner: "openai",
+        repository_ref: "main",
+        source_url: "https://github.com/openai/skills/tree/main/audit",
+        destination_exists: true,
+        installs: 128,
+        directory_name: "audit",
+        path: "audit/SKILL.md",
+      },
+      { name: "missing skill id" },
+    ],
+    warnings: [" warning ", null],
+  });
+
+  assert.deepEqual(catalog.repositories, [
+    {
+      id: "openai-skills",
+      name: "OpenAI Skills",
+      owner: "openai",
+      repository: "skills",
+      sourceUrl: "https://github.com/openai/skills",
+      refName: "main",
+      builtin: true,
+      enabled: true,
+      skillCount: 1,
+      lastScannedAt: 1784764800,
+      lastError: null,
+    },
+  ]);
+  assert.equal(catalog.items.length, 1);
+  assert.equal(catalog.items[0].installed, true);
+  assert.equal(catalog.items[0].installs, 128);
+  assert.equal(catalog.items[0].installedDirectoryName, "audit");
+  assert.deepEqual(catalog.warnings, ["warning"]);
+
+  const registry = client.normalizeCodexSkillRegistrySearchResult({
+    items: catalog.items,
+    total: 14,
+    query: " audit ",
+    limit: 12,
+    offset: 0,
+    warnings: [],
+  });
+  assert.equal(registry.total, 14);
+  assert.equal(registry.query, "audit");
+  assert.equal(registry.items[0].skillId, "audit");
+});
+
+test("repository and skills.sh methods keep commands and parameters aligned", async () => {
+  globalThis.__codexSkillsInvokeCalls = [];
+  globalThis.__codexSkillsInvokeResult = {
+    repositories: [],
+    items: [],
+    warnings: [],
+    total: 0,
+    query: "",
+    limit: 48,
+    offset: 0,
+  };
+
+  await client.codexSkillsClient.listRepositories("/srv/codex");
+  await client.codexSkillsClient.addRepository({
+    source: "https://github.com/openai/skills",
+    refName: "main",
+    codexHome: "/srv/codex",
+  });
+  await client.codexSkillsClient.deleteRepository({
+    repositoryId: "openai-skills",
+    codexHome: "/srv/codex",
+  });
+  await client.codexSkillsClient.refreshRepository({
+    repositoryId: "openai-skills",
+    codexHome: "/srv/codex",
+  });
+  await client.codexSkillsClient.installRepositorySkill({
+    repositoryId: "openai-skills",
+    skillId: "audit",
+    codexHome: "/srv/codex",
+  });
+  await client.codexSkillsClient.searchRegistry({
+    query: "audit",
+    limit: 24,
+    offset: 24,
+    codexHome: "/srv/codex",
+  });
+  await client.codexSkillsClient.installRegistrySkill({
+    source: "https://skills.sh/openai/skills/audit",
+    skillId: "audit",
+    codexHome: "/srv/codex",
+  });
+
+  const longOptions = {
+    timeoutMs: client.CODEX_SKILLS_LONG_OPERATION_TIMEOUT_MS,
+    retries: 0,
+  };
+  assert.equal(client.CODEX_SKILLS_REGISTRY_SEARCH_TIMEOUT_MS, 60_000);
+  assert.deepEqual(globalThis.__codexSkillsInvokeCalls, [
+    {
+      command: "service_codex_skills_repository_list",
+      params: { codexHome: "/srv/codex" },
+      options: undefined,
+    },
+    {
+      command: "service_codex_skills_repository_add",
+      params: {
+        source: "https://github.com/openai/skills",
+        refName: "main",
+        codexHome: "/srv/codex",
+      },
+      options: longOptions,
+    },
+    {
+      command: "service_codex_skills_repository_delete",
+      params: { repositoryId: "openai-skills", codexHome: "/srv/codex" },
+      options: longOptions,
+    },
+    {
+      command: "service_codex_skills_repository_refresh",
+      params: { repositoryId: "openai-skills", codexHome: "/srv/codex" },
+      options: longOptions,
+    },
+    {
+      command: "service_codex_skills_repository_install",
+      params: {
+        repositoryId: "openai-skills",
+        skillId: "audit",
+        codexHome: "/srv/codex",
+      },
+      options: longOptions,
+    },
+    {
+      command: "service_codex_skills_registry_search",
+      params: {
+        query: "audit",
+        limit: 24,
+        offset: 24,
+        codexHome: "/srv/codex",
+      },
+      options: {
+        timeoutMs: client.CODEX_SKILLS_REGISTRY_SEARCH_TIMEOUT_MS,
+        retries: 0,
+      },
+    },
+    {
+      command: "service_codex_skills_registry_install",
+      params: {
+        source: "https://skills.sh/openai/skills/audit",
+        skillId: "audit",
+        codexHome: "/srv/codex",
+      },
+      options: longOptions,
+    },
+  ]);
+});
+
 test("marketplace client methods keep command names and RPC parameters aligned", async () => {
   globalThis.__codexSkillsInvokeCalls = [];
   globalThis.__codexSkillsInvokeResult = {
@@ -253,13 +431,27 @@ test("Skill file mutations use a long non-retrying request", async () => {
   );
 });
 
-test("skills page separates standalone Skills from the inline plugin marketplace", async () => {
+test("skills page separates Skills installation from Codex plugin installation", async () => {
   const pageSource = await fs.readFile(
     path.join(appsRoot, "src", "app", "skills", "page.tsx"),
     "utf8",
   );
   const panelSource = await fs.readFile(
     path.join(appsRoot, "src", "app", "skills", "marketplace-dialog.tsx"),
+    "utf8",
+  );
+  const catalogSource = await fs.readFile(
+    path.join(appsRoot, "src", "app", "skills", "skills-catalog-panel.tsx"),
+    "utf8",
+  );
+  const repositoriesSource = await fs.readFile(
+    path.join(
+      appsRoot,
+      "src",
+      "app",
+      "skills",
+      "skill-repositories-dialog.tsx",
+    ),
     "utf8",
   );
 
@@ -269,6 +461,27 @@ test("skills page separates standalone Skills from the inline plugin marketplace
   assert.match(pageSource, /<TabsContent value="skills"/);
   assert.match(pageSource, /<TabsContent value="plugins" keepMounted>/);
   assert.match(pageSource, /<CodexPluginsPanel active=\{activeTab === "plugins"\}/);
+  assert.match(pageSource, /t\("Skills 安装"\)/);
+  assert.match(pageSource, /t\("Codex 插件安装"\)/);
+  assert.match(pageSource, /<SkillsCatalogPanel/);
+  assert.match(catalogSource, /<TabsTrigger value="repositories"/);
+  assert.match(catalogSource, /<TabsTrigger value="registry"/);
+  assert.match(catalogSource, /skills\.sh/);
+  assert.match(catalogSource, /installRepositorySkill/);
+  assert.match(catalogSource, /installRegistrySkill/);
+  assert.match(
+    catalogSource,
+    /repository\.skillCount === 0 && repository\.lastScannedAt === null/,
+  );
+  assert.match(catalogSource, /initialRefreshAttemptedRef\.current = true/);
+  assert.match(catalogSource, /codexSkillsClient\.refreshRepository\(\)/);
+  assert.match(catalogSource, /首次进入，正在后台同步技能仓库/);
+  assert.match(catalogSource, /onImportDirectory/);
+  assert.match(catalogSource, /onInstallZip/);
+  assert.match(repositoriesSource, /codexSkillsClient\.addRepository/);
+  assert.match(repositoriesSource, /codexSkillsClient\.refreshRepository/);
+  assert.match(repositoriesSource, /codexSkillsClient\.deleteRepository/);
+  assert.match(repositoriesSource, /删除仓库不会删除已安装的 Skills/);
   assert.doesNotMatch(pageSource, /SkillsMarketplaceDialog|marketplaceDialogOpen/);
   assert.match(panelSource, /export function CodexPluginsPanel/);
   assert.match(panelSource, /enabled: active && enabled/);

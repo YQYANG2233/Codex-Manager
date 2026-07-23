@@ -8,7 +8,7 @@ It follows Keep a Changelog with a lightweight adaptation for this repository.
 ### Added
 
 - Added `chatgpt.com` Device Code account authorization with code display/copy, verification-page launch, automatic polling, cancellation, and expiry handling; browser authorization and manual callback parsing remain available (#370).
-- Added a dedicated `/skills/` page for scanning and searching `$CODEX_HOME/skills` on the service host, installing ZIPs, importing existing directories, safely deleting user skills, and showing `.system` skills as read-only. It also integrates the native Codex Marketplace: GitHub markets can be imported, only plugins with standard `SKILL.md` files are listed, and the complete plugin is installed after source and Skill-list confirmation (#126).
+- `/skills/` now separates **Skills Installation** from **Codex Plugin Installation**. Individual Skills can be installed from built-in or custom GitHub repositories, skills.sh search results, ZIPs, and existing directories, with background repository refresh and safe uninstall; the native Codex Marketplace remains available for complete standard-plugin installation, and `.system` skills stay read-only (#126).
 - Added `gpt-image-2` (snapshot `gpt-image-2-2026-04-21`) as the ninth builtin and eighth normally visible catalog model. The entry is limited to `/v1/images/generations` and `/v1/images/edits`, is not exposed as a text, Chat Completions, or direct Responses main model, and stores the official $8 / $2 / $30 per-1M image input / cached input / output token rates as catalog metadata.
 
 ### Fixed

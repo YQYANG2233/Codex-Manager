@@ -53,6 +53,80 @@ const SETTINGS_SNAPSHOT = {
   appearancePreset: "classic",
 };
 
+const SKILL_REPOSITORIES = [
+  {
+    id: "builtin-anthropics-skills",
+    name: "anthropics/skills",
+    owner: "anthropics",
+    repository: "skills",
+    sourceUrl: "https://github.com/anthropics/skills",
+    refName: "main",
+    skillCount: 18,
+  },
+  {
+    id: "builtin-composiohq-awesome-claude-skills",
+    name: "ComposioHQ/awesome-claude-skills",
+    owner: "ComposioHQ",
+    repository: "awesome-claude-skills",
+    sourceUrl: "https://github.com/ComposioHQ/awesome-claude-skills",
+    refName: "master",
+    skillCount: 864,
+  },
+  {
+    id: "builtin-cexll-myclaude",
+    name: "cexll/myclaude",
+    owner: "cexll",
+    repository: "myclaude",
+    sourceUrl: "https://github.com/cexll/myclaude",
+    refName: "master",
+    skillCount: 11,
+  },
+  {
+    id: "builtin-jimliu-baoyu-skills",
+    name: "JimLiu/baoyu-skills",
+    owner: "JimLiu",
+    repository: "baoyu-skills",
+    sourceUrl: "https://github.com/JimLiu/baoyu-skills",
+    refName: "main",
+    skillCount: 22,
+  },
+].map((repository) => ({
+  ...repository,
+  builtin: true,
+  enabled: true,
+  lastScannedAt: 1784764800,
+  lastError: null,
+}));
+
+const REPOSITORY_SKILLS = [
+  "Repository Skill",
+  "Document Workflows",
+  "Brand Guidelines",
+  "Frontend Design",
+  "Research Assistant",
+  "Social Content",
+].map((name, index) => {
+  const repository = SKILL_REPOSITORIES[index % SKILL_REPOSITORIES.length];
+  const skillId = name.toLocaleLowerCase().replaceAll(" ", "-");
+  return {
+    skillId,
+    repositoryId: repository.id,
+    name,
+    description:
+      "A standalone Skill discovered from a built-in GitHub repository.",
+    author: repository.owner,
+    category: index % 2 === 0 ? "Productivity" : "Creative",
+    path: `skills/${skillId}/SKILL.md`,
+    repositoryName: repository.name,
+    repositoryOwner: repository.owner,
+    repositoryRef: repository.refName,
+    sourceUrl: `${repository.sourceUrl}/tree/${repository.refName}/skills/${skillId}`,
+    installs: 128 + index * 17,
+    installed: false,
+    installedDirectoryName: null,
+  };
+});
+
 const MARKETPLACE_PLUGINS = Array.from({ length: 12 }, (_, index) => {
   const number = String(index + 1).padStart(2, "0");
   return {
@@ -139,6 +213,42 @@ async function mockRuntimeAndSkillsRpc(page: Page) {
       });
       return;
     }
+    if (method === "codexSkills/repositoryList") {
+      await fulfillResult({
+        repositories: SKILL_REPOSITORIES,
+        items: REPOSITORY_SKILLS,
+        warnings: [],
+      });
+      return;
+    }
+    if (method === "codexSkills/registrySearch") {
+      await fulfillResult({
+        items: [
+          {
+            skillId: "registry-skill",
+            repositoryId: "skills-sh",
+            name: "skills.sh Result",
+            description: "A public registry result.",
+            author: "Community",
+            category: "Testing",
+            path: "registry-skill/SKILL.md",
+            repositoryName: "skills.sh",
+            repositoryOwner: "community",
+            repositoryRef: "main",
+            sourceUrl: "https://skills.sh/community/registry-skill",
+            installs: 64,
+            installed: false,
+            installedDirectoryName: null,
+          },
+        ],
+        total: 1,
+        query: "",
+        limit: 48,
+        offset: 0,
+        warnings: [],
+      });
+      return;
+    }
     if (method === "codexSkills/marketplaceList") {
       await fulfillResult({
         cli_available: true,
@@ -168,7 +278,6 @@ async function mockRuntimeAndSkillsRpc(page: Page) {
     }
 
     await route.fulfill({
-      status: 500,
       contentType: "application/json; charset=utf-8",
       body: JSON.stringify({
         jsonrpc: "2.0",
@@ -185,17 +294,76 @@ async function mockRuntimeAndSkillsRpc(page: Page) {
 test("Skills and plugins are split while the inline plugin marketplace stays usable", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  const browserErrors: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  const captureDirectory = process.env.CODEX_SKILLS_CAPTURE_DIR?.trim();
+  await page.setViewportSize(
+    captureDirectory ? { width: 2048, height: 1189 } : { width: 1440, height: 900 },
+  );
   await mockRuntimeAndSkillsRpc(page);
 
   await page.goto("/skills/");
   const main = page.getByRole("main");
-  await expect(main.getByRole("heading", { name: "Skills 管理" })).toBeVisible();
-  const skillsTab = main.getByRole("tab", { name: "独立 Skills" });
-  const pluginsTab = main.getByRole("tab", { name: "Codex 插件" });
+  await expect(main.getByRole("heading", { name: "Skills 与插件" })).toBeVisible();
+  const skillsTab = main.getByRole("tab", { name: "Skills 安装" });
+  const pluginsTab = main.getByRole("tab", { name: "Codex 插件安装" });
   await expect(skillsTab).toHaveAttribute("aria-selected", "true");
   await expect(main.getByRole("button", { name: "安装 ZIP" })).toBeVisible();
   await expect(main.getByTestId("codex-plugins-panel")).not.toBeVisible();
+  const skillsPanel = main.getByTestId("skills-install-panel");
+  await expect(
+    skillsPanel.getByRole("heading", { name: "Repository Skill" }),
+  ).toBeVisible();
+  await expect(skillsPanel.getByText("128 次安装")).toBeVisible();
+  await expect(skillsPanel.getByText("全部仓库", { exact: true })).toBeVisible();
+  await expect(skillsPanel.getByText("全部状态", { exact: true })).toBeVisible();
+  if (captureDirectory) {
+    await page.screenshot({
+      path: `${captureDirectory}/skills-repository-catalog.png`,
+      fullPage: true,
+    });
+  }
+
+  await skillsPanel.getByRole("tab", { name: "skills.sh" }).click();
+  await skillsPanel
+    .getByRole("textbox", { name: "搜索 skills.sh" })
+    .fill("registry");
+  await expect(
+    skillsPanel.getByRole("heading", { name: "skills.sh Result" }),
+  ).toBeVisible();
+
+  await skillsPanel.getByRole("button", { name: "管理仓库" }).click();
+  const repositoriesDialog = page.getByRole("dialog", { name: "管理技能仓库" });
+  await expect(repositoriesDialog).toBeVisible();
+  await expect(
+    repositoriesDialog.getByText("anthropics/skills", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    repositoriesDialog.getByText("ComposioHQ/awesome-claude-skills", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    repositoriesDialog.getByText("cexll/myclaude", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    repositoriesDialog.getByText("JimLiu/baoyu-skills", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    repositoriesDialog.getByRole("button", { name: "删除" }),
+  ).toHaveCount(0);
+  if (captureDirectory) {
+    // Base UI dialogs animate independently from the page workspace.
+    await page.waitForTimeout(300);
+    await page.screenshot({
+      path: `${captureDirectory}/skills-repository-management.png`,
+      fullPage: true,
+    });
+  }
+  await repositoriesDialog.getByRole("button", { name: "关闭" }).click();
 
   await pluginsTab.click();
   await expect(pluginsTab).toHaveAttribute("aria-selected", "true");
@@ -328,4 +496,5 @@ test("Skills and plugins are split while the inline plugin marketplace stays usa
   await expect
     .poll(() => errorDescription.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(0);
+  expect(browserErrors).toEqual([]);
 });

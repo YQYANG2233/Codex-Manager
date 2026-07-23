@@ -12,6 +12,7 @@ mod auth;
 mod codex_model_catalog;
 mod codex_profile;
 mod codex_runtime;
+mod codex_skill_repositories;
 mod codex_skills;
 mod codex_skills_marketplace;
 mod dashboard;
