@@ -4,7 +4,9 @@ use tauri::webview::{Color, PageLoadEvent};
 #[cfg(not(target_os = "windows"))]
 use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::Manager;
-use tauri::{PhysicalPosition, PhysicalRect, Rect, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    LogicalSize, PhysicalPosition, PhysicalRect, Rect, Size, WebviewUrl, WebviewWindowBuilder,
+};
 
 #[cfg(debug_assertions)]
 use tauri::Url;
@@ -298,6 +300,7 @@ fn navigate_window_to_app_url(_window: &tauri::WebviewWindow) -> tauri::Result<(
 
 fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWindow> {
     if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
+        apply_tray_preview_window_size(&window);
         return Some(window);
     }
 
@@ -333,14 +336,41 @@ fn ensure_tray_preview_window(app: &tauri::AppHandle) -> Option<tauri::WebviewWi
     );
 
     match builder.build() {
-        Ok(window) => Some(window),
+        Ok(window) => {
+            apply_tray_preview_window_size(&window);
+            Some(window)
+        }
         Err(err) => {
             if let Some(window) = app.get_webview_window(TRAY_PREVIEW_WINDOW_LABEL) {
+                apply_tray_preview_window_size(&window);
                 return Some(window);
             }
             log::warn!("create tray preview window failed: {}", err);
             None
         }
+    }
+}
+
+fn tray_preview_window_size() -> Size {
+    LogicalSize::new(TRAY_PREVIEW_WIDTH, TRAY_PREVIEW_HEIGHT).into()
+}
+
+fn apply_tray_preview_window_size(window: &tauri::WebviewWindow) {
+    let size = tray_preview_window_size();
+    if let Err(err) = window.set_min_size(None::<Size>) {
+        log::warn!("clear tray preview min size failed: {}", err);
+    }
+    if let Err(err) = window.set_max_size(None::<Size>) {
+        log::warn!("clear tray preview max size failed: {}", err);
+    }
+    if let Err(err) = window.set_size(size) {
+        log::warn!("set tray preview size failed: {}", err);
+    }
+    if let Err(err) = window.set_min_size(Some(size)) {
+        log::warn!("set tray preview min size failed: {}", err);
+    }
+    if let Err(err) = window.set_max_size(Some(size)) {
+        log::warn!("set tray preview max size failed: {}", err);
     }
 }
 
